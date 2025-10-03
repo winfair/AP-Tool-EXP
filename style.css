@@ -5,6 +5,12 @@ html, body, #map {
   height: 100%;
 }
 
+
+#map {
+  height: 100vh;   /* force map to fill viewport height */
+  width: 100vw;    /* force map to fill viewport width */
+}
+
 .controls {
   position: fixed;
   top: 10px;
