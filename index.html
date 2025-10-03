@@ -2,22 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <title>GPS Map Starter</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+  />
+  <title>Heading-Up Map — Fresh Start</title>
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <link rel="stylesheet" href="./style.css"/>
+  <!-- MapLibre GL -->
+  <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.3.0/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.3.0/dist/maplibre-gl.js"></script>
+
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div id="map"></div>
+  <div id="app">
+    <div id="map"></div>
 
-  <div class="controls">
-    <button id="btn-gps">Enable GPS</button>
-    <button id="btn-follow">Follow: OFF</button>
+    <!-- Overlay UI -->
+    <div class="controls">
+      <button id="btn-gps" class="btn">Enable GPS</button>
+      <button id="btn-compass" class="btn">Enable Compass</button>
+      <label class="toggle">
+        <input type="checkbox" id="chk-heading" checked>
+        <span>Heading-Up</span>
+      </label>
+    </div>
+
+    <!-- Center arrow -->
+    <div id="cursor">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <!-- simple arrow/triangle -->
+        <polygon points="50,8 65,45 50,38 35,45" />
+        <circle cx="50" cy="58" r="8" />
+      </svg>
+    </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

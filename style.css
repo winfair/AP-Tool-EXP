@@ -1,33 +1,91 @@
-html, body, #map {
+:root{
+  --bg:#0b0f12;
+  --panel:#10161b;
+  --text:#e8f2ff;
+  --accent:#66d9a3;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+html, body {
   margin: 0;
   padding: 0;
-  width: 100%;
-  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
 }
 
+#app {
+  position: fixed;
+  inset: 0;
+  /* account for notches */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
 
 #map {
-  height: 100vh;   /* force map to fill viewport height */
-  width: 100vw;    /* force map to fill viewport width */
+  position: absolute;
+  inset: 0;
 }
 
+/* UI */
 .controls {
   position: fixed;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(10px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
   display: flex;
   gap: 8px;
-  background: rgba(0,0,0,0.5);
-  padding: 6px;
-  border-radius: 8px;
-  z-index: 1000;
+  z-index: 10;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  padding: 8px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  backdrop-filter: blur(6px);
 }
 
-.controls button {
-  background: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 10px;
+.btn {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,.12);
+  background: linear-gradient(180deg, #1a2230, #0f1520);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font: 600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   cursor: pointer;
+}
+.btn:active { transform: translateY(1px); }
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1a2230, #0f1520);
+  border: 1px solid rgba(255,255,255,.12);
+  user-select: none;
+  cursor: pointer;
+}
+.toggle input { margin: 0; }
+
+/* Center arrow cursor */
+#cursor {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%) rotate(0deg);
+  transform-origin: 50% 50%;
+  z-index: 9;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.5));
+}
+
+#cursor svg {
+  width: 100%;
+  height: 100%;
+  fill: var(--accent);
 }
