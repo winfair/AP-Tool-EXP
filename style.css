@@ -1,4 +1,4 @@
-/* style.css — base layout & map visuals */
+/* style.css — full-screen map layout & base visuals */
 
 :root {
   --bg: #040607;
@@ -11,23 +11,28 @@
   --shadow: rgba(0, 0, 0, 0.35);
 }
 
-html, body {
+/* Reset and full-viewport setup */
+* {
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
   width: 100%;
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, sans-serif;
-  overflow: hidden;
 }
 
 #map {
-  position: absolute;
+  position: fixed; /* ensure full coverage */
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100vw;
+  height: 100vh;
 }
 
 /* Attribution footer */
