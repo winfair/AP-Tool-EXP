@@ -1,23 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GPS Map App</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Maps Starter — GPS + Search + Routing</title>
+
+  <!-- Leaflet CSS (official SRI hashes from Leaflet download page) -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha384‑PiGgF+3cmLug3YvZcEvkQAG3xLjoF+4r/jvGdM4F+K6ybTj1YqbwMu2nduOyQQ8A"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="map"></div>
+  <div id="map" aria-label="Map"></div>
 
+  <!-- UI overlays -->
+  <div class="toolbar">
+    <div class="search-group">
+      <input id="search" type="search" placeholder="Search place or address…" autocomplete="off" />
+      <div id="suggestions" class="dropdown" hidden></div>
+    </div>
+
+    <div class="route-group">
+      <input id="start" type="text" placeholder="Start (click map or search)" />
+      <button id="useLocStart" title="Use my location as Start">📍A</button>
+      <input id="end" type="text" placeholder="End (click map or search)" />
+      <button id="useLocEnd" title="Use my location as End">📍B</button>
+      <button id="routeBtn" class="primary">Route</button>
+      <button id="clearRouteBtn">Clear</button>
+    </div>
+  </div>
+
+  <div class="floating">
+    <button id="locateBtn" title="Toggle live GPS tracking">▶️ Track</button>
+    <button id="centerBtn" title="Center on my position">🎯 Center</button>
+  </div>
+
+  <div id="panel" class="panel" hidden>
+    <div class="panel-header">
+      <strong>Directions</strong>
+      <span id="summary"></span>
+      <button id="closePanel" aria-label="Close">✕</button>
+    </div>
+    <ol id="steps"></ol>
+  </div>
+
+  <!-- Leaflet JS -->
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha384‑fZprVZKHYOZfh2epmXMXtS+pPbWJGCPx0w2qM9iQk3Z+AYr8W0oC6nZP5V1zKEdH"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
   <script src="app.js"></script>
