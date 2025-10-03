@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Simple Map App — Arrow + Heading Ray</title>
+<title>Simple Map App — Arrow + Heading Ray (Fixed)</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 
 <style>
   :root{
@@ -17,7 +17,7 @@
 
   .controls {
     position: fixed; top: env(safe-area-inset-top, 12px); left: 50%; transform: translateX(-50%);
-    display: flex; gap: 8px; background: color-mix(in oklab, var(--panel) 80%, transparent);
+    display: flex; gap: 8px; background: rgba(18,24,26,0.85);
     padding: 8px 10px; border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.35); z-index: 1000; backdrop-filter: blur(6px);
   }
   .btn {
@@ -28,14 +28,14 @@
     cursor: pointer; transition: transform .05s ease, background .2s ease, border-color .2s ease; white-space: nowrap;
   }
   .btn:active { transform: translateY(1px) scale(.99); }
-  .btn.primary { border-color: color-mix(in oklab, var(--accent) 50%, #fff 0%); }
+  .btn.primary { border-color: var(--accent); }
   .btn.toggled { outline: 2px solid var(--accent); }
 
   .badge { padding: 0 8px; border-radius: 999px; background: rgba(255,255,255,.1); font-size: 12px; margin-left: 6px; }
   .info {
     position: fixed; left: 50%; transform: translateX(-50%);
     bottom: calc(env(safe-area-inset-bottom, 12px));
-    background: color-mix(in oklab, var(--panel) 82%, transparent);
+    background: rgba(18,24,26,0.9);
     padding: 8px 12px; border-radius: 12px; font: 500 13px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
     color: var(--dim); z-index: 1000; box-shadow: 0 6px 18px rgba(0,0,0,.35); backdrop-filter: blur(6px);
   }
@@ -43,21 +43,21 @@
   .fab {
     position: fixed; right: 14px; bottom: calc(env(safe-area-inset-bottom, 14px) + 56px);
     z-index: 1000; width: 48px; height: 48px; border-radius: 50%;
-    display: grid; place-items: center;
+    display: grid; place-items: center; background: rgba(18,24,26,0.9); border:1px solid rgba(255,255,255,.12);
   }
 
   /* Waypoints panel */
   .panel {
     position: fixed; right: 12px; bottom: calc(env(safe-area-inset-bottom, 12px) + 120px);
     width: min(92vw, 360px); max-height: 60vh; overflow: auto;
-    background: color-mix(in oklab, var(--panel) 90%, transparent);
+    background: rgba(18,24,26,0.95);
     border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 12px; z-index: 1000;
     box-shadow: 0 12px 32px rgba(0,0,0,.45); display: none; backdrop-filter: blur(8px);
   }
   .panel.open { display: block; }
   .panel h3 { margin: 0 0 8px 0; font: 700 16px/1.1 system-ui, sans-serif; color: var(--text); }
   .row { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 10px 0; }
-  .row input, .row textarea, .row button, .row select {
+  .row input, .row button {
     width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
     background: rgba(255,255,255,.04); color: var(--text); font: 500 14px/1.2 system-ui, sans-serif;
   }
@@ -65,7 +65,7 @@
   .item { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; }
   .item small { color: var(--dim); display:block; }
   .item button { padding: 6px 10px; }
-  .danger { border-color: color-mix(in oklab, var(--danger) 55%, transparent); color: var(--danger); }
+  .danger { border-color: var(--danger); color: var(--danger); }
 
   .leaflet-control-attribution, .leaflet-control-zoom { filter: drop-shadow(0 6px 12px rgba(0,0,0,.35)); }
   .leaflet-container a { color: var(--dim); }
@@ -124,20 +124,23 @@
   const followBadge = document.getElementById('followState');
   const btnFollow = document.getElementById('btnFollow');
 
+  // Waypoint DOM refs (declare ONCE)
+  const wpPanel = document.getElementById('wpPanel');
+  const wpList  = document.getElementById('wpList');
+  const wpName  = document.getElementById('wpName');
+  const wpCoords= document.getElementById('wpCoords');
+
   // --- Accuracy ring ---
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius: 0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
 
   // --- Arrow marker (green glow) replaces blue dot ---
   const arrowSVG = `
     <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <!-- soft glow -->
       <g class="glow">
         <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a"/>
       </g>
-      <!-- solid arrow with stroke -->
       <g class="stroke">
         <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a" stroke="#0a3d0a" stroke-width="3" />
-        <!-- center puck -->
         <circle cx="50" cy="60" r="16" fill="#0b0f10" stroke="#2aff2a" stroke-width="4"/>
       </g>
     </svg>
@@ -165,7 +168,6 @@
   }
 
   function destinationPoint(lat, lng, bearingDeg, distanceMeters){
-    // Great-circle destination using spherical Earth formulae
     const R = 6371000; // meters
     const φ1 = lat * Math.PI/180;
     const λ1 = lng * Math.PI/180;
@@ -187,15 +189,12 @@
   function updateHeadingRay(){
     if (!lastPos) return;
     const { latitude, longitude } = lastPos.coords;
-    // set arrow position
     const pos = [latitude, longitude];
     headingMarker.setLatLng(pos);
 
-    // choose a ray length that exceeds the current map diagonal
     const b = map.getBounds();
     const diagMeters = map.distance(b.getNorthWest(), b.getSouthEast());
-    const rayLen = Math.max(2000, diagMeters); // at least 2km, or full-diagonal
-
+    const rayLen = Math.max(2000, diagMeters);
     const tip = destinationPoint(latitude, longitude, currentHeading, rayLen);
     headingRay.setLatLngs([pos, [tip.lat, tip.lng]]);
   }
@@ -240,7 +239,7 @@
   // --- Compass ---
   function handleOrientation(event){
     let heading = null;
-    if (typeof event.webkitCompassHeading === 'number') heading = event.webkitCompassHeading;  // iOS true heading
+    if (typeof event.webkitCompassHeading === 'number') heading = event.webkitCompassHeading;  // iOS
     else if (typeof event.alpha === 'number') heading = (360 - event.alpha);                   // fallback
     if (heading != null && !Number.isNaN(heading)) {
       currentHeading = (heading + 360) % 360;
@@ -280,10 +279,6 @@
 
   // --- Waypoints (localStorage) ---
   const wpKey = 'mapapp.waypoints.v1';
-  const wpPanel = document.getElementById('wpPanel');
-  const wpList = document.getElementById('wpList');
-  const wpName = document.getElementById('wpName');
-  const wpCoords = document.getElementById('wpCoords');
   const wpMarkers = new Map(); // name -> Leaflet marker
 
   function loadWPs(){ try { return JSON.parse(localStorage.getItem(wpKey) || '[]'); } catch { return []; } }
@@ -327,8 +322,9 @@
   }
 
   function syncMarkers(){
-    // add missing
-    loadWPs().forEach(wp => {
+    const data = loadWPs();
+    // add/update
+    data.forEach(wp => {
       if (!wpMarkers.has(wp.name)) {
         const m = L.marker([wp.lat, wp.lng]).addTo(map)
           .bindPopup(`<b>${wp.name}</b><br>${wp.lat.toFixed(6)}, ${wp.lng.toFixed(6)}`);
@@ -337,9 +333,9 @@
         wpMarkers.get(wp.name).setLatLng([wp.lat, wp.lng]);
       }
     });
-    // remove extra
+    // remove deleted
     [...wpMarkers.keys()].forEach(name => {
-      if (!loadWPs().some(w => w.name === name)) {
+      if (!data.some(w => w.name === name)) {
         map.removeLayer(wpMarkers.get(name));
         wpMarkers.delete(name);
       }
@@ -384,11 +380,6 @@
   btnFollow.addEventListener('click', ()=> setFollow(!follow));
 
   const btnWaypoints = document.getElementById('btnWaypoints');
-  const wpPanel = document.getElementById('wpPanel');
-  const wpList = document.getElementById('wpList');
-  const wpName = document.getElementById('wpName');
-  const wpCoords = document.getElementById('wpCoords');
-
   btnWaypoints.addEventListener('click', ()=>{
     wpPanel.classList.toggle('open');
     wpPanel.setAttribute('aria-hidden', wpPanel.classList.contains('open') ? 'false' : 'true');
@@ -412,7 +403,6 @@
 
   // keep ray sized correctly on map zoom/move
   map.on('moveend zoomend resize', updateHeadingRay);
-
   window.addEventListener('resize', () => map.invalidateSize(), { passive: true });
 
   // init
