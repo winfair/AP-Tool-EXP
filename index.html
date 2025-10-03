@@ -6,61 +6,308 @@
     name="viewport"
     content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
   />
-  <title>Access Point Alignment Tool</title>
+  <title>Simple Map App — One File</title>
 
-  <!-- MapLibre GL -->
-  <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.3.0/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.3.0/dist/maplibre-gl.js"></script>
+  <!-- Leaflet (key-free, works on GitHub Pages) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin="anonymous"
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin="anonymous"
+  ></script>
 
-  <!-- Turf.js (optional utilities) -->
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b0f10; --panel:#12181a; --text:#e7f6ef; --accent:#29a36a; --dim:#91c7ae;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+    }
+    #map {
+      position: fixed;
+      inset: 0;
+      height: 100svh; /* mobile-safe full screen */
+      width: 100vw;
+    }
 
-  <!-- App styles -->
-  <link rel="stylesheet" href="./style.css" />
+    /* Floating controls */
+    .controls {
+      position: fixed;
+      top: env(safe-area-inset-top, 12px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      background: color-mix(in oklab, var(--panel) 80%, transparent);
+      padding: 8px 10px;
+      border-radius: 14px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35);
+      z-index: 1000;
+      backdrop-filter: blur(6px);
+    }
+    .btn {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      font: 600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      cursor: pointer;
+      transition: transform .05s ease, background .2s ease, border-color .2s ease;
+      white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px) scale(.99); }
+    .btn.primary { border-color: color-mix(in oklab, var(--accent) 50%, #fff 0%); }
+    .badge {
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.1);
+      font-size: 12px;
+      margin-left: 6px;
+    }
+
+    /* Heading marker (arrow) */
+    .heading-pin {
+      width: 40px; height: 40px;
+      transform: translate(-20px, -20px); /* center over latlng */
+      pointer-events: none;
+    }
+    .heading-pin svg {
+      display: block;
+      width: 40px; height: 40px;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,.4));
+    }
+
+    /* Bottom info strip */
+    .info {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: calc(env(safe-area-inset-bottom, 12px));
+      background: color-mix(in oklab, var(--panel) 82%, transparent);
+      padding: 8px 12px;
+      border-radius: 12px;
+      font: 500 13px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--dim);
+      z-index: 1000;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35);
+      backdrop-filter: blur(6px);
+    }
+
+    /* Make default Leaflet controls match */
+    .leaflet-control-attribution, .leaflet-control-zoom {
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.35));
+    }
+    .leaflet-container a { color: var(--dim); }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <div id="map" aria-label="Map"></div>
+  <div id="map"></div>
 
-    <!-- Floating Controls -->
-    <div class="controls">
-      <button id="btnCompass" class="pill">Enable Compass</button>
-      <button id="btnGPS" class="pill">Enable GPS</button>
-      <button id="btnFollow" class="pill">Follow: Off</button>
-      <button id="btnWaypoints" class="pill">Waypoints</button>
-    </div>
-
-    <!-- Waypoints Panel -->
-    <div id="wpPanel" class="panel hidden" role="dialog" aria-modal="true" aria-labelledby="wpTitle">
-      <header>
-        <h3 id="wpTitle">Waypoints</h3>
-        <button id="closeWp" aria-label="Close">✕</button>
-      </header>
-      <form id="wpForm" autocomplete="off">
-        <label>Name
-          <input id="wpName" placeholder="Tower A" />
-        </label>
-        <label>Coordinates (e.g. 34.851939 N, -119.168399 W)
-          <input id="wpCoords" placeholder="34.851939 N, -119.168399 W" />
-        </label>
-        <div class="row">
-          <button type="submit" class="primary">Add / Update</button>
-          <button id="wpDelete" type="button" class="danger">Delete</button>
-        </div>
-      </form>
-      <ul id="wpList" aria-label="Saved waypoints"></ul>
-    </div>
-
-    <!-- Center Arrow (shows device heading) -->
-    <div id="headingArrow" aria-hidden="true" title="Heading">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-        <polygon points="50,6 60,30 50,26 40,30" />
-        <line x1="50" y1="26" x2="50" y2="94" stroke-width="6" stroke-linecap="round" />
-      </svg>
-    </div>
+  <!-- Controls -->
+  <div class="controls">
+    <button id="btnLocate" class="btn primary">Enable GPS</button>
+    <button id="btnCompass" class="btn">Enable Compass <span id="compassState" class="badge">off</span></button>
+    <button id="btnReset" class="btn">Reset View</button>
   </div>
 
-  <!-- App script -->
-  <script src="./app.js"></script>
+  <!-- Info -->
+  <div class="info" id="readout">Lat: —, Lng: — | Acc: — m | Head: —°</div>
+
+  <script>
+    // --- Map Setup (Leaflet + OSM, no keys required) ---
+    const map = L.map('map', {
+      zoomControl: true,
+      attributionControl: true
+    });
+
+    // OSM tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 20,
+      minZoom: 2,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Start centered on a sane default (can be anywhere)
+    const DEFAULT = { lat: 34.9, lng: -119.17, z: 12 };
+    map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
+
+    // --- State ---
+    let watchId = null;
+    let headingOn = false;
+    let currentHeading = null;
+    let lastPos = null;
+
+    const readout = document.getElementById('readout');
+    const compassBadge = document.getElementById('compassState');
+
+    // --- User Position Marker (blue dot) ---
+    const userDot = L.circleMarker([DEFAULT.lat, DEFAULT.lng], {
+      radius: 8,
+      color: '#2b90ff',
+      fillColor: '#4db6ff',
+      fillOpacity: 0.9,
+      weight: 2
+    }).addTo(map);
+
+    // --- Heading Arrow (rotated SVG) ---
+    const arrowSVG = `
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-opacity=".95"/>
+            <stop offset="1" stop-opacity=".85"/>
+          </linearGradient>
+        </defs>
+        <!-- body -->
+        <circle cx="50" cy="50" r="18" fill="#0b0f10" stroke="#29a36a" stroke-width="4"/>
+        <!-- arrow -->
+        <path d="M50 8 L64 42 L50 36 L36 42 Z" fill="#29a36a" />
+      </svg>
+    `;
+    const headingIcon = L.divIcon({
+      className: 'heading-pin',
+      html: arrowSVG,
+      iconSize: [40, 40],
+      iconAnchor: [20, 20]
+    });
+    const headingMarker = L.marker([DEFAULT.lat, DEFAULT.lng], { icon: headingIcon }).addTo(map);
+
+    function setHeadingOnMarker(deg){
+      const el = headingMarker.getElement();
+      if (!el) return;
+      // Rotate SVG around its center
+      el.style.transform = `translate(-20px, -20px) rotate(${deg}deg)`;
+    }
+
+    function updateReadout(){
+      const lat = lastPos?.coords?.latitude?.toFixed(6) ?? '—';
+      const lng = lastPos?.coords?.longitude?.toFixed(6) ?? '—';
+      const acc = lastPos?.coords?.accuracy ? Math.round(lastPos.coords.accuracy) : '—';
+      const hdg = (currentHeading != null) ? Math.round(currentHeading) : '—';
+      readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}°`;
+    }
+
+    // --- Geolocation ---
+    function startGPS(){
+      if (!('geolocation' in navigator)) {
+        alert('Geolocation not supported on this device/browser.');
+        return;
+      }
+      if (watchId != null) return; // already watching
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          lastPos = pos;
+          const { latitude, longitude } = pos.coords;
+          const latlng = [latitude, longitude];
+          userDot.setLatLng(latlng);
+          headingMarker.setLatLng(latlng);
+          updateReadout();
+          // Smooth-follow if not too jumpy
+          map.setView(latlng, Math.max(map.getZoom(), 15), { animate: false });
+        },
+        (err) => {
+          console.warn('GPS error:', err);
+          alert('Unable to get location: ' + err.message);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 2000,
+          timeout: 15000
+        }
+      );
+    }
+
+    function resetView(){
+      if (lastPos) {
+        const { latitude, longitude } = lastPos.coords;
+        map.setView([latitude, longitude], Math.max(map.getZoom(), 15));
+      } else {
+        map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
+      }
+    }
+
+    // --- Compass / Device Orientation ---
+    function handleOrientation(event){
+      // Prefer 'webkitCompassHeading' (iOS), else compute from alpha
+      let heading = null;
+
+      if (typeof event.webkitCompassHeading === 'number') {
+        heading = event.webkitCompassHeading; // 0..360, 0 = North
+      } else if (typeof event.alpha === 'number') {
+        // event.alpha is 0..360 degrees rotation around Z (not always true north)
+        // This is a best-effort fallback.
+        heading = 360 - event.alpha; // invert to match compass style
+      }
+
+      if (heading != null && !Number.isNaN(heading)) {
+        currentHeading = (heading + 360) % 360;
+        setHeadingOnMarker(currentHeading);
+        updateReadout();
+        compassBadge.textContent = 'on';
+      }
+    }
+
+    async function enableCompass(){
+      if (headingOn) return;
+      try {
+        // iOS 13+ permission flow
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+          const response = await DeviceOrientationEvent.requestPermission();
+          if (response !== 'granted') {
+            alert('Compass permission was not granted.');
+            return;
+          }
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          headingOn = true;
+          compassBadge.textContent = 'on';
+          return;
+        }
+        // Other browsers: just listen
+        if (typeof DeviceOrientationEvent !== 'undefined') {
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          headingOn = true;
+          compassBadge.textContent = 'on';
+        } else {
+          alert('Device orientation not supported on this device/browser.');
+        }
+      } catch (e){
+        console.error(e);
+        alert('Compass access failed.');
+      }
+    }
+
+    // --- Wire up buttons ---
+    document.getElementById('btnLocate').addEventListener('click', startGPS);
+    document.getElementById('btnCompass').addEventListener('click', enableCompass);
+    document.getElementById('btnReset').addEventListener('click', resetView);
+
+    // Optional: try to start GPS immediately (user gesture not always required)
+    // Comment out if you want strictly button-controlled.
+    // startGPS();
+
+    // Keep map responsive on orientation/resize
+    window.addEventListener('resize', () => map.invalidateSize(), { passive: true });
+
+    // Helpful: long-press to drop a temporary pin (no storage, simple)
+    map.on('contextmenu', (e) => {
+      L.marker(e.latlng).addTo(map)
+        .bindPopup(`Dropped: ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`)
+        .openPopup();
+    });
+  </script>
 </body>
 </html>
