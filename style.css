@@ -1,74 +1,89 @@
-/* style.css — full-screen map using iOS/Android safe-area insets */
-
-:root {
-  --bg: #040607;
-  --panel: #0a0f0a;
-  --text: #b2ffbd;
-  --dim: #6ddf82;
-  --accent: #1b5120;
-  --green: #2aff2a;
-  --amber: #ffc04d;
-  --shadow: rgba(0, 0, 0, 0.35);
+:root{
+  --bg:#06080a;
+  --panel:#0e1216;
+  --text:#d5fbe1;
+  --dim:#8bd8a5;
+  --accent:#1b8f57;
+  --btn:#1a232c;
+  --btn-border:#264054;
 }
 
-/* Reset */
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-/* Make the page itself fill the device's available area */
-html {
-  height: -webkit-fill-available; /* iOS Safari */
+*{ box-sizing:border-box; }
+html, body{
+  height:100%;
+  margin:0;
+  padding:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+#app{
+  position:fixed;
+  inset:0;
 }
 
-body {
-  width: 100%;
-  height: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;            /* modern mobile */
-  min-height: -webkit-fill-available; /* iOS fallback */
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, sans-serif;
-  overflow: hidden;
+/* Fullscreen map: use dynamic viewport units for mobile correctness */
+#map{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100dvh; /* modern mobile browsers */
 }
 
-/* Pin the map to the safe visual area (no vh units) */
-#map {
-  position: fixed;
-  top: env(safe-area-inset-top);
-  right: env(safe-area-inset-right);
-  bottom: env(safe-area-inset-bottom);
-  left: env(safe-area-inset-left);
-  /* Let the insets define the box; no explicit height needed */
+/* Controls */
+.controls{
+  position:fixed;
+  top:calc(env(safe-area-inset-top, 0px) + 10px);
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  gap:8px;
+  z-index:10;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  padding:8px;
+  border:1px solid var(--btn-border);
+  border-radius:14px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
 }
 
-/* Attribution footer */
-#attribution {
-  position: absolute;
-  bottom: calc(env(safe-area-inset-bottom) + 0.5em);
-  right: calc(env(safe-area-inset-right) + 0.75em);
-  background: var(--panel);
-  color: var(--dim);
-  font-size: 11px;
-  padding: 0.25em 0.5em;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px var(--shadow);
-  z-index: 5;
+.btn{
+  appearance:none;
+  background:var(--btn);
+  color:var(--text);
+  border:1px solid var(--btn-border);
+  border-radius:10px;
+  padding:8px 10px;
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
 }
-#attribution a { color: var(--text); text-decoration: none; }
-#attribution a:hover { text-decoration: underline; }
+.btn:active{ transform:translateY(1px); }
 
-/* MapLibre controls styling */
-.maplibregl-ctrl { font-family: inherit; }
-.maplibregl-ctrl-group {
-  border-radius: 8px;
-  box-shadow: 0 2px 6px var(--shadow);
-  overflow: hidden;
-  background: var(--panel);
+/* Status bar */
+.status{
+  position:fixed;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 10px);
+  left:50%;
+  transform:translateX(-50%);
+  z-index:10;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  padding:8px 12px;
+  border:1px solid var(--btn-border);
+  border-radius:12px;
+  font-size:12px;
+  opacity:0.95;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  white-space:nowrap;
 }
-.maplibregl-ctrl button {
-  background: var(--panel);
-  border: none;
-  color: var(--text);
+
+/* User position dot */
+.user-dot{
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:#34d399;              /* mint */
+  border:2px solid white;
+  box-shadow:0 0 0 3px rgba(52,211,153,0.35), 0 2px 10px rgba(0,0,0,0.4);
 }
-.maplibregl-ctrl button:hover { background: var(--accent); color: #fff; }
-.maplibregl-ctrl button:focus { outline: none; box-shadow: 0 0 0 2px var(--amber); }
