@@ -1,43 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
-  />
-  <title>Heading-Up Map — Fresh Start</title>
-
-  <!-- MapLibre GL -->
-  <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.3.0/dist/maplibre-gl.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.3.0/dist/maplibre-gl.js"></script>
-
-  <link rel="stylesheet" href="./style.css" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Access Point Alignment Tool</title>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet"/>
 </head>
 <body>
-  <div id="app">
-    <div id="map"></div>
-
-    <!-- Overlay UI -->
-    <div class="controls">
-      <button id="btn-gps" class="btn">Enable GPS</button>
-      <button id="btn-compass" class="btn">Enable Compass</button>
-      <label class="toggle">
-        <input type="checkbox" id="chk-heading" checked>
-        <span>Heading-Up</span>
-      </label>
-    </div>
-
-    <!-- Center arrow -->
-    <div id="cursor">
-      <svg viewBox="0 0 100 100" aria-hidden="true">
-        <!-- simple arrow/triangle -->
-        <polygon points="50,8 65,45 50,38 35,45" />
-        <circle cx="50" cy="58" r="8" />
-      </svg>
-    </div>
+  <nav class="nav">
+    <span>AP Align</span>
+  </nav>
+  
+  <div id="map"></div>
+  
+  <!-- Heading arrow overlay -->
+  <svg id="headingOverlay">
+    <line id="headingLine" x1="0" y1="0" x2="0" y2="0"/>
+    <polygon id="headingArrow" points="0,-20 10,10 -10,10"/>
+  </svg>
+  
+  <div class="status">
+    <span id="gpsStatus">GPS: –</span>
+    <span id="compassStatus">Compass: –</span>
+    <span id="bearingReadout">–°</span>
   </div>
-
-  <script src="./app.js"></script>
+  
+  <button id="fab">+</button>
+  
+  <div id="wpPanel" class="hidden">
+    <h3>Waypoints</h3>
+    <input id="wpName" placeholder="Name"/>
+    <input id="wpCoords" placeholder="lat,lng"/>
+    <button id="wpAdd">Add</button>
+    <ul id="wpList"></ul>
+  </div>
+  
+  <script src="app.js"></script>
 </body>
 </html>
