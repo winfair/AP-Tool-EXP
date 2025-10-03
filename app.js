@@ -1,4 +1,4 @@
-// app.js — MapLibre setup + robust mobile fullscreen fix
+// app.js — MapLibre setup (safe-area layout, no height JS)
 
 (() => {
   if (typeof maplibregl === "undefined") {
@@ -6,7 +6,6 @@
     return;
   }
 
-  // --- Style: keyless OSM raster tiles ---
   const OSM_RASTER_STYLE = {
     version: 8,
     sources: {
@@ -23,7 +22,6 @@
     glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
   };
 
-  // --- Map init ---
   const map = new maplibregl.Map({
     container: "map",
     style: OSM_RASTER_STYLE,
@@ -42,7 +40,7 @@
     cooperativeGestures: true,
   });
 
-  // --- Controls ---
+  // Controls
   const nav = new maplibregl.NavigationControl({
     showCompass: true,
     showZoom: true,
@@ -54,6 +52,7 @@
     new maplibregl.ScaleControl({ unit: "imperial", maxWidth: 120 }),
     "bottom-left"
   );
+
   const geolocate = new maplibregl.GeolocateControl({
     positionOptions: { enableHighAccuracy: true, timeout: 10_000 },
     trackUserLocation: false,
@@ -62,16 +61,11 @@
     fitBoundsOptions: { maxZoom: 16 },
   });
   map.addControl(geolocate, "top-left");
+
   map.addControl(
     new maplibregl.ScaleControl({ unit: "metric", maxWidth: 120 }),
     "bottom-right"
   );
-
-  // --- Map lifecycle ---
-  map.on("load", () => {
-    console.log("[map] loaded");
-    fixMapHeight(); // ensure first render uses visual viewport
-  });
 
   map.on("error", (e) => {
     if (!e?.error?.message?.includes("Failed to load tile")) {
@@ -79,49 +73,18 @@
     }
   });
 
-  // --- Robust fullscreen fix for mobile browsers ---
-  function fixMapHeight() {
-    const mapEl = document.getElementById("map");
-    if (!mapEl) return;
-
-    // Prefer visual viewport height when available
-    const h = window.visualViewport
-      ? Math.round(window.visualViewport.height)
-      : Math.round(window.innerHeight);
-
-    mapEl.style.height = h + "px";
-    map.resize();
-  }
-
-  // Resize/rotation/URL-bar show-hide handling
-  window.addEventListener("resize", fixMapHeight);
-  window.addEventListener("orientationchange", () =>
-    setTimeout(fixMapHeight, 250)
-  );
+  // If the safe-area insets change (URL bar show/hide), MapLibre will resize on its own
+  // but we add a light nudge on viewport changes for reliability.
+  const nudge = () => map.resize();
+  window.addEventListener("orientationchange", () => setTimeout(nudge, 250));
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", fixMapHeight);
-    window.visualViewport.addEventListener("scroll", fixMapHeight);
+    window.visualViewport.addEventListener("resize", nudge);
   }
 
-  // Extra safety: observe container size changes
-  const mapEl = document.getElementById("map");
-  if (mapEl && "ResizeObserver" in window) {
-    const ro = new ResizeObserver(() => map.resize());
-    ro.observe(mapEl);
-  }
-
-  // Expose a tiny debug API
+  // Tiny debug API
   window.APMap = {
     map,
-    rotateTo: (deg = 0, opts = { duration: 300 }) => map.rotateTo(deg, opts),
-    setCenter: (lng, lat, z = 16) =>
-      map.flyTo({ center: [lng, lat], zoom: z }),
     geolocate: () => geolocate.trigger(),
-    setPitch: (p = 45) => map.easeTo({ pitch: p, duration: 300 }),
-    setZoom: (z = 14) => map.easeTo({ zoom: z, duration: 300 }),
-    fixMapHeight,
+    rotateTo: (deg = 0, opts = { duration: 300 }) => map.rotateTo(deg, opts),
   };
-
-  // Run once ASAP
-  fixMapHeight();
 })();
