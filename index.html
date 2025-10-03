@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Simple Map App — One File+</title>
+<title>Simple Map App — Arrow + Heading Ray</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 
 <style>
   :root{
-    --bg:#0b0f10; --panel:#12181a; --text:#e7f6ef; --accent:#29a36a; --dim:#91c7ae; --danger:#ff6b6b;
+    --bg:#0b0f10; --panel:#12181a; --text:#e7f6ef; --accent:#29a36a; --dim:#91c7ae; --danger:#ff6b6b; --green:#2aff2a;
   }
   html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); -webkit-tap-highlight-color: transparent; }
   #map { position: fixed; inset: 0; height: 100svh; width: 100vw; }
@@ -70,9 +70,11 @@
   .leaflet-control-attribution, .leaflet-control-zoom { filter: drop-shadow(0 6px 12px rgba(0,0,0,.35)); }
   .leaflet-container a { color: var(--dim); }
 
-  /* Heading marker (arrow) */
-  .heading-pin { width: 40px; height: 40px; transform: translate(-20px, -20px); pointer-events: none; }
-  .heading-pin svg { display: block; width: 40px; height: 40px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+  /* Green glowing arrow marker */
+  .heading-pin { width: 44px; height: 44px; transform: translate(-22px, -22px) rotate(0deg); pointer-events: none; }
+  .heading-pin svg { display: block; width: 44px; height: 44px; }
+  .heading-pin .glow { filter: blur(3px); opacity: .85; }
+  .heading-pin .stroke { filter: drop-shadow(0 2px 4px rgba(0,0,0,.55)); }
 </style>
 </head>
 <body>
@@ -113,7 +115,7 @@
   // --- State ---
   let watchId = null;
   let headingOn = false;
-  let currentHeading = null;
+  let currentHeading = 0;  // degrees, 0 = North
   let lastPos = null;
   let follow = false;
 
@@ -122,24 +124,80 @@
   const followBadge = document.getElementById('followState');
   const btnFollow = document.getElementById('btnFollow');
 
-  // --- Markers ---
-  const userDot = L.circleMarker([DEFAULT.lat, DEFAULT.lng], {
-    radius: 7, color: '#2b90ff', fillColor: '#4db6ff', fillOpacity: 0.9, weight: 2
-  }).addTo(map);
+  // --- Accuracy ring ---
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius: 0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
 
+  // --- Arrow marker (green glow) replaces blue dot ---
   const arrowSVG = `
     <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="50" cy="50" r="18" fill="#0b0f10" stroke="#29a36a" stroke-width="4"/>
-      <path d="M50 8 L64 42 L50 36 L36 42 Z" fill="#29a36a" />
-    </svg>`;
-  const headingIcon = L.divIcon({ className:'heading-pin', html:arrowSVG, iconSize:[40,40], iconAnchor:[20,20] });
-  const headingMarker = L.marker([DEFAULT.lat, DEFAULT.lng], { icon: headingIcon }).addTo(map);
+      <!-- soft glow -->
+      <g class="glow">
+        <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a"/>
+      </g>
+      <!-- solid arrow with stroke -->
+      <g class="stroke">
+        <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a" stroke="#0a3d0a" stroke-width="3" />
+        <!-- center puck -->
+        <circle cx="50" cy="60" r="16" fill="#0b0f10" stroke="#2aff2a" stroke-width="4"/>
+      </g>
+    </svg>
+  `;
+  const headingIcon = L.divIcon({
+    className:'heading-pin',
+    html: arrowSVG,
+    iconSize:[44,44],
+    iconAnchor:[22,22]
+  });
+  const headingMarker = L.marker([DEFAULT.lat, DEFAULT.lng], { icon: headingIcon, interactive:false, keyboard:false }).addTo(map);
+
+  // --- Heading ray (thin green line from tip out of view) ---
+  const headingRay = L.polyline([[DEFAULT.lat, DEFAULT.lng],[DEFAULT.lat, DEFAULT.lng]], {
+    color: '#2aff2a',
+    weight: 2,
+    opacity: 0.85,
+    interactive: false
+  }).addTo(map);
 
   function setHeadingOnMarker(deg){
     const el = headingMarker.getElement();
     if (!el) return;
-    el.style.transform = `translate(-20px, -20px) rotate(${deg}deg)`;
+    el.style.transform = `translate(-22px, -22px) rotate(${deg}deg)`;
+  }
+
+  function destinationPoint(lat, lng, bearingDeg, distanceMeters){
+    // Great-circle destination using spherical Earth formulae
+    const R = 6371000; // meters
+    const φ1 = lat * Math.PI/180;
+    const λ1 = lng * Math.PI/180;
+    const θ  = bearingDeg * Math.PI/180;
+    const δ  = distanceMeters / R;
+
+    const sinφ1 = Math.sin(φ1), cosφ1 = Math.cos(φ1);
+    const sinδ = Math.sin(δ), cosδ = Math.cos(δ);
+
+    const sinφ2 = sinφ1*cosδ + cosφ1*sinδ*Math.cos(θ);
+    const φ2 = Math.asin(sinφ2);
+    const y = Math.sin(θ)*sinδ*cosφ1;
+    const x = cosδ - sinφ1*sinφ2;
+    const λ2 = λ1 + Math.atan2(y, x);
+
+    return { lat: φ2*180/Math.PI, lng: ((λ2*180/Math.PI + 540) % 360) - 180 };
+  }
+
+  function updateHeadingRay(){
+    if (!lastPos) return;
+    const { latitude, longitude } = lastPos.coords;
+    // set arrow position
+    const pos = [latitude, longitude];
+    headingMarker.setLatLng(pos);
+
+    // choose a ray length that exceeds the current map diagonal
+    const b = map.getBounds();
+    const diagMeters = map.distance(b.getNorthWest(), b.getSouthEast());
+    const rayLen = Math.max(2000, diagMeters); // at least 2km, or full-diagonal
+
+    const tip = destinationPoint(latitude, longitude, currentHeading, rayLen);
+    headingRay.setLatLngs([pos, [tip.lat, tip.lng]]);
   }
 
   function updateReadout(){
@@ -159,11 +217,10 @@
         lastPos = pos;
         const { latitude, longitude, accuracy: acc } = pos.coords;
         const latlng = [latitude, longitude];
-        userDot.setLatLng(latlng);
-        headingMarker.setLatLng(latlng);
         accuracy.setLatLng(latlng).setRadius(Math.max(acc || 0, 0));
-        updateReadout();
         if (follow) map.setView(latlng, Math.max(map.getZoom(), 15), { animate: false });
+        updateHeadingRay();
+        updateReadout();
       },
       (err) => { console.warn('GPS error:', err); alert('Unable to get location: ' + err.message); },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
@@ -177,16 +234,18 @@
     } else {
       map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
     }
+    updateHeadingRay();
   }
 
   // --- Compass ---
   function handleOrientation(event){
     let heading = null;
-    if (typeof event.webkitCompassHeading === 'number') heading = event.webkitCompassHeading;
-    else if (typeof event.alpha === 'number') heading = (360 - event.alpha);
+    if (typeof event.webkitCompassHeading === 'number') heading = event.webkitCompassHeading;  // iOS true heading
+    else if (typeof event.alpha === 'number') heading = (360 - event.alpha);                   // fallback
     if (heading != null && !Number.isNaN(heading)) {
       currentHeading = (heading + 360) % 360;
       setHeadingOnMarker(currentHeading);
+      updateHeadingRay();
       updateReadout();
       compassBadge.textContent = 'on';
     }
@@ -199,12 +258,12 @@
         if (resp !== 'granted') { alert('Compass permission denied.'); return; }
         window.addEventListener('deviceorientation', handleOrientation, true);
         headingOn = true; compassBadge.textContent = 'on';
-        return;
-      }
-      if (typeof DeviceOrientationEvent !== 'undefined') {
+      } else if (typeof DeviceOrientationEvent !== 'undefined') {
         window.addEventListener('deviceorientation', handleOrientation, true);
         headingOn = true; compassBadge.textContent = 'on';
-      } else alert('Device orientation not supported.');
+      } else {
+        alert('Device orientation not supported.');
+      }
     } catch(e){ console.error(e); alert('Compass access failed.'); }
   }
 
@@ -288,19 +347,12 @@
   }
 
   function parseCoords(input){
-    // Accept:
-    // 1) "lat,lng" (decimals)
-    // 2) "34.851939 N, -119.168399 W" (any order of N/S/E/W)
-    // 3) "N 34.85, W 119.16"
     const t = input.trim().replace(/\s+/g,' ').replace(/[,;]+/g, ',');
-    // quick decimal pair
     const dec = t.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
     if (dec) {
       const lat = parseFloat(dec[1]), lng = parseFloat(dec[3]);
       if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat)<=90 && Math.abs(lng)<=180) return {lat, lng};
     }
-    // with hemispheres
-    // capture two numbers with optional hemisphere letters near them
     const parts = t.split(',');
     if (parts.length === 2){
       const parseOne = (s)=>{
@@ -315,15 +367,10 @@
       const a = parseOne(parts[0]);
       const b = parseOne(parts[1]);
       if (a && b){
-        // decide which is lat
-        // If any has N/S -> that's lat; E/W -> that's lng
         let lat, lng;
         if (a.hemi === 'N' || a.hemi === 'S') { lat = a.val; lng = b.val; }
         else if (a.hemi === 'E' || a.hemi === 'W') { lng = a.val; lat = b.val; }
-        else {
-          // no hemispheres; use conventional order first -> lat,lng
-          lat = a.val; lng = b.val;
-        }
+        else { lat = a.val; lng = b.val; }
         if (Math.abs(lat)<=90 && Math.abs(lng)<=180) return {lat, lng};
       }
     }
@@ -336,8 +383,12 @@
   document.getElementById('btnReset').addEventListener('click', resetView);
   btnFollow.addEventListener('click', ()=> setFollow(!follow));
 
-  // waypoints panel
   const btnWaypoints = document.getElementById('btnWaypoints');
+  const wpPanel = document.getElementById('wpPanel');
+  const wpList = document.getElementById('wpList');
+  const wpName = document.getElementById('wpName');
+  const wpCoords = document.getElementById('wpCoords');
+
   btnWaypoints.addEventListener('click', ()=>{
     wpPanel.classList.toggle('open');
     wpPanel.setAttribute('aria-hidden', wpPanel.classList.contains('open') ? 'false' : 'true');
@@ -359,17 +410,13 @@
     if (del != null){ deleteWP(+del); }
   });
 
-  // long-press / right-click to drop a quick pin (not saved)
-  map.on('contextmenu', (e) => {
-    L.marker(e.latlng).addTo(map)
-      .bindPopup(`Dropped: ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`)
-      .openPopup();
-  });
+  // keep ray sized correctly on map zoom/move
+  map.on('moveend zoomend resize', updateHeadingRay);
 
   window.addEventListener('resize', () => map.invalidateSize(), { passive: true });
 
   // init
-  renderWPs(); syncMarkers();
+  renderWPs(); syncMarkers(); updateHeadingRay();
 })();
 </script>
 </body>
