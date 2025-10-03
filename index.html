@@ -2,69 +2,41 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Map + Compass PWA</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+  />
+  <meta name="theme-color" content="#0a0f0a" />
+  <title>AP Alignment Tool — Map</title>
 
-  <!-- MapLibre -->
-  <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.3.0/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.3.0/dist/maplibre-gl.js"></script>
+  <!-- MapLibre GL JS (CDN) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.css"
+  />
+  <script
+    defer
+    src="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.js"
+  ></script>
 
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#111" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-  <link rel="stylesheet" href="style.css" />
+  <!-- App styles -->
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <header>
-    <h1>Map + Compass</h1>
-    <div class="header-actions">
-      <button id="installBtn" hidden>Install</button>
-    </div>
-  </header>
+  <noscript>
+    <strong>This app requires JavaScript to display the map.</strong>
+  </noscript>
 
-  <main>
-    <div id="map"></div>
+  <!-- Map container -->
+  <div id="map" role="application" aria-label="Interactive map"></div>
 
-    <!-- HUD overlay (arrow + ray) -->
-    <canvas id="hud" aria-hidden="true"></canvas>
-    <div id="targetInfo" class="target-info" hidden></div>
+  <!-- Attribution (required for OSM tiles; styled in CSS) -->
+  <div id="attribution" class="attribution">
+    © <a href="https://www.openstreetmap.org/copyright"
+      target="_blank" rel="noopener">OpenStreetMap</a> contributors
+  </div>
 
-    <!-- Floating buttons -->
-    <div class="fab-stack">
-      <button id="btnCompass" class="fab">🧭 Enable Compass</button>
-      <button id="btnGps" class="fab">📍 Enable GPS</button>
-      <button id="btnFollow" class="fab" title="Auto-center on me" disabled>🎯 Follow: OFF</button>
-      <button id="btnWaypoints" class="fab fab-accent" title="Waypoints menu">📌 Waypoints</button>
-    </div>
-
-    <!-- Waypoints floating panel -->
-    <div id="wpPanel" class="panel hidden" role="dialog" aria-modal="false" aria-labelledby="wpTitle">
-      <div class="panel-header">
-        <h2 id="wpTitle">Waypoints</h2>
-        <button id="closeWp" class="icon-btn" aria-label="Close">✕</button>
-      </div>
-      <form id="wpForm" class="wp-form">
-        <input id="wpName" type="text" placeholder="Name (e.g., Home)" required />
-        <input id="wpCoords" type="text" placeholder="34.851939 N, -119.168399 W" required />
-        <button type="submit">Add</button>
-      </form>
-      <ul id="wpList" class="wp-list"></ul>
-      <button id="clearAll" class="danger full">Clear All</button>
-    </div>
-  </main>
-
-  <footer>
-    <small>MapLibre • PWA • Compass • GitHub Pages</small>
-  </footer>
-
-  <script src="app.js"></script>
-  <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js");
-    }
-  </script>
+  <!-- App logic -->
+  <script defer src="./app.js"></script>
 </body>
 </html>
