@@ -1,46 +1,77 @@
-// Initialize map
-const map = new maplibregl.Map({
-  container: 'map',
-  style: 'https://demotiles.maplibre.org/style.json',
-  center: [0, 0],
-  zoom: 2
+// Initialize Leaflet map
+const map = L.map('map').setView([0, 0], 2);
+
+// Tile layers
+const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors"
+}).addTo(map);
+
+const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenTopoMap contributors"
 });
 
-// Heading overlay elements
-const line = document.getElementById("headingLine");
-const arrow = document.getElementById("headingArrow");
+const satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+  attribution: "Tiles © Esri"
+});
 
-function updateHeading(angle) {
-  const cx = window.innerWidth / 2;
-  const cy = window.innerHeight / 2;
-  const len = 100;
-  const rad = angle * Math.PI / 180;
-  const x2 = cx + len * Math.sin(rad);
-  const y2 = cy - len * Math.cos(rad);
+L.control.layers({Street: street, Topo: topo, Satellite: satellite}).addTo(map);
 
-  line.setAttribute("x1", cx);
-  line.setAttribute("y1", cy);
-  line.setAttribute("x2", x2);
-  line.setAttribute("y2", y2);
+// Follow mode toggle
+let followMode = false;
+const followBtn = document.getElementById("followToggle");
+followBtn.onclick = () => {
+  followMode = !followMode;
+  followBtn.textContent = `Follow: ${followMode ? "ON" : "OFF"}`;
+};
 
-  arrow.setAttribute("transform", `translate(${cx},${cy}) rotate(${angle})`);
+// Create a custom user marker with arrow
+const userIcon = L.divIcon({
+  className: "",
+  html: `<svg class="user-marker" viewBox="0 0 64 64">
+           <path d="M32 4 L52 60 L32 48 L12 60 Z" fill="red"/>
+         </svg>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15]
+});
+
+let userMarker = null;
+let currentHeading = 0;
+
+// Update marker rotation
+function setMarkerHeading(marker, angle) {
+  if (marker && marker._icon) {
+    marker._icon.querySelector("svg").style.transform = `rotate(${angle}deg)`;
+  }
   document.getElementById("bearingReadout").textContent = `${angle.toFixed(0)}°`;
 }
 
-// GPS
+// GPS tracking
 navigator.geolocation.watchPosition(pos => {
   const { latitude, longitude } = pos.coords;
-  map.setCenter([longitude, latitude]);
-  map.setZoom(16);
+
+  if (!userMarker) {
+    userMarker = L.marker([latitude, longitude], { icon: userIcon }).addTo(map);
+  } else {
+    userMarker.setLatLng([latitude, longitude]);
+  }
+
+  if (followMode) {
+    map.setView([latitude, longitude], 16);
+  }
+
+  // Keep orientation applied
+  setMarkerHeading(userMarker, currentHeading);
+
   document.getElementById("gpsStatus").textContent = "GPS: OK";
 }, () => {
   document.getElementById("gpsStatus").textContent = "GPS: Failed";
 });
 
-// Compass
+// Compass handling
 window.addEventListener("deviceorientationabsolute", e => {
   if (e.alpha != null) {
-    updateHeading(e.alpha);
+    currentHeading = e.alpha; // degrees
+    setMarkerHeading(userMarker, currentHeading);
     document.getElementById("compassStatus").textContent = "Compass: OK";
   }
 });
@@ -57,6 +88,6 @@ document.getElementById("wpAdd").onclick = () => {
     const li = document.createElement("li");
     li.textContent = `${name || "Waypoint"} (${coords[0].toFixed(4)}, ${coords[1].toFixed(4)})`;
     wpList.appendChild(li);
-    new maplibregl.Marker().setLngLat(coords).addTo(map);
+    L.marker(coords).addTo(map).bindPopup(name || "Waypoint");
   }
 };

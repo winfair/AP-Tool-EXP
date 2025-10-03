@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Access Point Alignment Tool</title>
   <link rel="stylesheet" href="style.css"/>
-  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
-  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet"/>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 <body>
   <nav class="nav">
@@ -15,16 +16,11 @@
   
   <div id="map"></div>
   
-  <!-- Heading arrow overlay -->
-  <svg id="headingOverlay">
-    <line id="headingLine" x1="0" y1="0" x2="0" y2="0"/>
-    <polygon id="headingArrow" points="0,-20 10,10 -10,10"/>
-  </svg>
-  
   <div class="status">
     <span id="gpsStatus">GPS: –</span>
     <span id="compassStatus">Compass: –</span>
     <span id="bearingReadout">–°</span>
+    <button id="followToggle">Follow: OFF</button>
   </div>
   
   <button id="fab">+</button>
