@@ -1,376 +1,267 @@
-/* ==========
-   Maps Starter — GPS + Search + Routing
-   Three files only: index.html, style.css, app.js
-   ========== */
-
-// ------- Map bootstrap -------
-const map = L.map('map', {
-  zoomControl: true
+// ===== Basic Map Setup =====
+const map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://demotiles.maplibre.org/style.json',
+  center: [-119.168399, 34.851939], // default center (W, N)
+  zoom: 14,
+  bearing: 0,
+  pitch: 0,
+  attributionControl: true
 });
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
-// Safe initial view (in case geolocation is denied/slow)
-map.setView([37.773972, -122.431297], 12); // San Francisco as a default
+// UI elements
+const btnCompass = document.getElementById('btnCompass');
+const btnGPS = document.getElementById('btnGPS');
+const btnFollow = document.getElementById('btnFollow');
+const btnWaypoints = document.getElementById('btnWaypoints');
+const headingArrow = document.getElementById('headingArrow');
 
-// OSM raster tiles (respect usage + attribution)
-const osm = L.tileLayer(
-  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  {
-    maxZoom: 19,
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  }
-).addTo(map);
+const wpPanel = document.getElementById('wpPanel');
+const closeWp = document.getElementById('closeWp');
+const wpForm = document.getElementById('wpForm');
+const wpName = document.getElementById('wpName');
+const wpCoords = document.getElementById('wpCoords');
+const wpDelete = document.getElementById('wpDelete');
+const wpList = document.getElementById('wpList');
 
-L.control.scale({ metric: true, imperial: true, position: 'bottomleft' }).addTo(map);
-
-// ------- State -------
+// State
+let followMode = false;
 let watchId = null;
-let userMarker = null;
-let accuracyCircle = null;
+let lastPosition = null;
+let headingDeg = null;
+let haveCompass = false;
+let selectedWp = null; // name string
 
-let startCoord = null; // [lat, lng]
-let endCoord = null;
+// Map marker for current location
+const meEl = document.createElement('div');
+meEl.className = 'me-marker';
+const meMarker = new maplibregl.Marker({ element: meEl, anchor: 'center' });
 
-let routeLayer = null;
-let startMarker = null;
-let endMarker = null;
-
-// ------- DOM -------
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
-const searchInput = $('#search');
-const suggestions = $('#suggestions');
-const startInput = $('#start');
-const endInput = $('#end');
-const routeBtn = $('#routeBtn');
-const clearRouteBtn = $('#clearRouteBtn');
-const useLocStartBtn = $('#useLocStart');
-const useLocEndBtn = $('#useLocEnd');
-const locateBtn = $('#locateBtn');
-const centerBtn = $('#centerBtn');
-const panel = $('#panel');
-const stepsList = $('#steps');
-const summaryEl = $('#summary');
-const closePanel = $('#closePanel');
-
-// ------- Helpers -------
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-function fmtDistance(m) {
-  if (m >= 1000) return (m / 1000).toFixed(1) + ' km';
-  return Math.round(m) + ' m';
+// Waypoints: persist in localStorage
+const LS_KEY = 'ap_align_waypoints_v1';
+function loadWaypoints() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
+  catch { return {}; }
 }
-function fmtDuration(s) {
-  const h = Math.floor(s / 3600);
-  const m = Math.round((s % 3600) / 60);
-  if (h) return `${h} hr ${m} min`;
-  return `${m} min`;
+function saveWaypoints(wps) {
+  localStorage.setItem(LS_KEY, JSON.stringify(wps));
 }
-function debounce(fn, wait = 350) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), wait);
+let waypoints = loadWaypoints();
+
+// ===== Helpers =====
+
+// Parse "34.851939 N, -119.168399 W" and variants
+function parseLatLon(input) {
+  // Normalize: strip extra spaces
+  const s = input.trim().replace(/\s+/g, ' ');
+  // Split by comma
+  const parts = s.split(',');
+  if (parts.length !== 2) throw new Error('Must be "lat N/S, lon E/W"');
+
+  const parseOne = (p, isLat) => {
+    // Accept: "34.85 N" or "-119.16 W" or "34.85N" or "-119.16W"
+    const m = p.trim().match(/^([+-]?\d+(?:\.\d+)?)(?:\s*([NnSsEeWw]))?$/);
+    if (!m) throw new Error('Bad coordinate: ' + p);
+    let val = parseFloat(m[1]);
+    const dir = m[2]?.toUpperCase();
+    if (dir) {
+      if (isLat && !['N','S'].includes(dir)) throw new Error('Lat must be N or S');
+      if (!isLat && !['E','W'].includes(dir)) throw new Error('Lon must be E or W');
+      if (dir === 'S' || dir === 'W') val = -Math.abs(val);
+      else val = Math.abs(val);
+    }
+    // If no dir and negative sign present, trust the sign
+    return val;
   };
-}
-function toLatLng(obj) {
-  // Accept {lat, lon} or {lat, lng} or [lat,lng]
-  if (Array.isArray(obj)) return { lat: obj[0], lng: obj[1] };
-  const lat = +obj.lat;
-  const lng = +('lng' in obj ? obj.lng : obj.lon);
-  return { lat, lng };
-}
-function setStart(latlng, label = '') {
-  startCoord = [latlng.lat, latlng.lng];
-  startInput.value = label || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
-  if (!startMarker) startMarker = L.marker(startCoord, { draggable: true }).addTo(map);
-  startMarker.setLatLng(startCoord).bindPopup('Start').openPopup();
-  startMarker.off('dragend').on('dragend', () => {
-    const p = startMarker.getLatLng();
-    startCoord = [p.lat, p.lng];
-  });
-}
-function setEnd(latlng, label = '') {
-  endCoord = [latlng.lat, latlng.lng];
-  endInput.value = label || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
-  if (!endMarker) endMarker = L.marker(endCoord, { draggable: true }).addTo(map);
-  endMarker.setLatLng(endCoord).bindPopup('End').openPopup();
-  endMarker.off('dragend').on('dragend', () => {
-    const p = endMarker.getLatLng();
-    endCoord = [p.lat, p.lng];
-  });
-}
-function clearRoute() {
-  if (routeLayer) { routeLayer.remove(); routeLayer = null; }
-  stepsList.innerHTML = '';
-  summaryEl.textContent = '';
-  panel.hidden = true;
+
+  const lat = parseOne(parts[0], true);
+  const lon = parseOne(parts[1], false);
+  if (Math.abs(lat) > 90) throw new Error('Lat out of range');
+  if (Math.abs(lon) > 180) throw new Error('Lon out of range');
+  return { lat, lon };
 }
 
-// ------- Geolocation / Tracking -------
-async function ensureUserMarker(lat, lng, acc) {
-  const latlng = [lat, lng];
-  if (!userMarker) {
-    userMarker = L.marker(latlng, { title: 'You' }).addTo(map);
-  } else {
-    userMarker.setLatLng(latlng);
-  }
-  if (!accuracyCircle) {
-    accuracyCircle = L.circle(latlng, {
-      radius: acc || 15,
-      color: '#3b82f6',
-      fillColor: '#3b82f6',
-      fillOpacity: 0.15,
-      weight: 1
-    }).addTo(map);
-  } else {
-    accuracyCircle.setLatLng(latlng);
-    if (acc) accuracyCircle.setRadius(acc);
-  }
+function formatLatLon(lat, lon) {
+  const ns = lat >= 0 ? 'N' : 'S';
+  const ew = lon >= 0 ? 'E' : 'W';
+  return `${Math.abs(lat).toFixed(6)} ${ns}, ${Math.abs(lon).toFixed(6)} ${ew}`;
 }
 
-function startTracking() {
+function updateFollowButton() {
+  btnFollow.textContent = `Follow: ${followMode ? 'On' : 'Off'}`;
+}
+
+// ===== GPS =====
+btnGPS.addEventListener('click', () => {
   if (!('geolocation' in navigator)) {
-    alert('Geolocation not supported in this browser.');
+    alert('Geolocation not supported');
     return;
   }
-  if (watchId !== null) return; // already tracking
-
-  watchId = navigator.geolocation.watchPosition(
-    pos => {
-      const { latitude, longitude, accuracy } = pos.coords;
-      ensureUserMarker(latitude, longitude, accuracy);
-    },
-    err => {
-      console.warn('Geolocation error:', err);
-      alert('Could not access your location. Check permissions.');
-      stopTracking();
-    },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-  );
-  locateBtn.textContent = '⏸️ Tracking';
-}
-function stopTracking() {
   if (watchId !== null) {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
   }
-  locateBtn.textContent = '▶️ Track';
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude, longitude, heading, accuracy } = pos.coords;
+      lastPosition = { lat: latitude, lon: longitude, accuracy };
+      meMarker.setLngLat([longitude, latitude]).addTo(map);
+      if (followMode) {
+        map.easeTo({ center: [longitude, latitude], duration: 400 });
+      }
+    },
+    (err) => {
+      console.error('GPS error', err);
+      alert('GPS error: ' + err.message);
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+  );
+});
+
+// ===== Follow Toggle =====
+btnFollow.addEventListener('click', () => {
+  followMode = !followMode;
+  updateFollowButton();
+  if (followMode && lastPosition) {
+    map.jumpTo({ center: [lastPosition.lon, lastPosition.lat] });
+  }
+});
+
+// ===== Compass / Heading =====
+function rotateUIHeading(deg) {
+  headingArrow.style.transform = `translate(-50%, -50%) rotate(${deg}deg)`;
 }
-locateBtn.addEventListener('click', () => (watchId === null ? startTracking() : stopTracking()));
-centerBtn.addEventListener('click', async () => {
-  if (userMarker) {
-    map.flyTo(userMarker.getLatLng(), Math.max(map.getZoom(), 15));
-  } else {
-    // single-shot getCurrentPosition
-    try {
-      const pos = await new Promise((res, rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 15000 })
-      );
-      await ensureUserMarker(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-      map.flyTo([pos.coords.latitude, pos.coords.longitude], 16);
-    } catch (e) {
-      alert('Could not get current position.');
+
+function onHeading(deg) {
+  headingDeg = deg;
+  rotateUIHeading(deg);
+  // Keep map north-aligned to real world by rotating the map bearing opposite the device heading
+  map.setBearing(-deg);
+}
+
+async function enableCompass() {
+  try {
+    // iOS permission flow
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const resp = await DeviceOrientationEvent.requestPermission();
+      if (resp !== 'granted') {
+        alert('Compass permission denied');
+        return;
+      }
+      window.addEventListener('deviceorientation', handleOrientation, true);
+      haveCompass = true;
+      return;
     }
-  }
-});
-
-// ------- Search (Nominatim) -------
-/*
-  Nominatim demo policy: identify via Referer (your GitHub Pages URL) and keep light.
-  We also bias results to current map bounds and limit to 5.
-  Policy refs: OSMF Nominatim usage policy. 
-*/
-const NOM_BASE = 'https://nominatim.openstreetmap.org';
-
-async function geocode(q) {
-  const bbox = map.getBounds();
-  const viewbox = [bbox.getWest(), bbox.getNorth(), bbox.getEast(), bbox.getSouth()].join(',');
-  const url = `${NOM_BASE}/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=5&viewbox=${viewbox}&bounded=1`;
-  const resp = await fetch(url, { headers: { 'Accept-Language': 'en' }});
-  if (!resp.ok) throw new Error('Geocoding failed');
-  return resp.json();
-}
-async function reverseGeocode(lat, lon) {
-  const url = `${NOM_BASE}/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1`;
-  const resp = await fetch(url, { headers: { 'Accept-Language': 'en' }});
-  if (!resp.ok) throw new Error('Reverse geocoding failed');
-  return resp.json();
-}
-
-const renderSuggestions = (items) => {
-  suggestions.innerHTML = '';
-  items.forEach((it, idx) => {
-    const div = document.createElement('div');
-    div.className = 'item' + (idx === 0 ? ' active' : '');
-    div.tabIndex = 0;
-    div.textContent = it.display_name;
-    div.addEventListener('click', () => {
-      const lat = +it.lat, lon = +it.lon;
-      map.flyTo([lat, lon], 16);
-      L.marker([lat, lon]).addTo(map).bindPopup(it.display_name).openPopup();
-      searchInput.value = it.display_name;
-      suggestions.hidden = true;
-    });
-    suggestions.appendChild(div);
-  });
-  suggestions.hidden = items.length === 0;
-};
-
-searchInput.addEventListener('input', debounce(async (e) => {
-  const q = e.target.value.trim();
-  if (!q) { suggestions.hidden = true; return; }
-  try {
-    const results = await geocode(q);
-    renderSuggestions(results);
-  } catch (err) {
-    console.warn(err);
-    suggestions.hidden = true;
-  }
-}, 350));
-
-searchInput.addEventListener('keydown', (e) => {
-  if (suggestions.hidden) return;
-  const items = [...suggestions.querySelectorAll('.item')];
-  const idx = items.findIndex(n => n.classList.contains('active'));
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    const next = items[(idx + 1) % items.length];
-    items.forEach(n => n.classList.remove('active'));
-    next.classList.add('active');
-    next.scrollIntoView({ block: 'nearest' });
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    const prev = items[(idx - 1 + items.length) % items.length];
-    items.forEach(n => n.classList.remove('active'));
-    prev.classList.add('active');
-    prev.scrollIntoView({ block: 'nearest' });
-  } else if (e.key === 'Enter') {
-    e.preventDefault();
-    items[idx]?.click();
-  } else if (e.key === 'Escape') {
-    suggestions.hidden = true;
-  }
-});
-
-// ------- Click to reverse-geocode -------
-map.on('click', async (ev) => {
-  try {
-    const { lat, lng } = ev.latlng;
-    const data = await reverseGeocode(lat, lng);
-    const name = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    const popupHtml = `
-      <div>
-        <div style="margin-bottom:6px"><strong>${name}</strong></div>
-        <div style="display:flex;gap:6px">
-          <button id="popSetA">Set as Start</button>
-          <button id="popSetB">Set as End</button>
-        </div>
-      </div>`;
-    const pop = L.popup().setLatLng([lat, lng]).setContent(popupHtml).openOn(map);
-    // delegate after popup is added to DOM
-    setTimeout(() => {
-      const a = document.getElementById('popSetA');
-      const b = document.getElementById('popSetB');
-      a?.addEventListener('click', () => { setStart({lat,lng}, name); map.closePopup(pop); });
-      b?.addEventListener('click', () => { setEnd({lat,lng}, name); map.closePopup(pop); });
-    }, 0);
+    // Android / Desktop
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    haveCompass = true;
   } catch (e) {
-    console.warn(e);
+    console.error(e);
+    alert('Compass not available on this device/browser.');
+  }
+}
+
+function handleOrientation(e) {
+  // Prefer 'absolute' alpha if present; fallback to webkitCompassHeading (Safari)
+  let deg = null;
+  if (typeof e.webkitCompassHeading === 'number') {
+    // iOS Safari provides heading degrees *clockwise from north*
+    deg = e.webkitCompassHeading;
+  } else if (typeof e.alpha === 'number') {
+    // alpha is degrees clockwise from device's initial orientation relative to Earth's magnetic north (depends on browser)
+    // Try to use e.absolute if available; otherwise treat alpha as 0–360 with north ~ alpha (best-effort)
+    deg = 360 - e.alpha; // invert so 0 means north, positive clockwise
+  }
+  if (deg == null || Number.isNaN(deg)) return;
+  deg = (deg % 360 + 360) % 360;
+  onHeading(deg);
+}
+
+btnCompass.addEventListener('click', enableCompass);
+
+// ===== Waypoints Panel =====
+btnWaypoints.addEventListener('click', () => {
+  wpPanel.classList.remove('hidden');
+  refreshWpList();
+});
+closeWp.addEventListener('click', () => {
+  wpPanel.classList.add('hidden');
+  selectedWp = null;
+  wpForm.reset();
+});
+
+wpForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = (wpName.value || '').trim();
+  const coords = (wpCoords.value || '').trim();
+  if (!name) { alert('Enter a name'); return; }
+  try {
+    const { lat, lon } = parseLatLon(coords);
+    waypoints[name] = { lat, lon };
+    saveWaypoints(waypoints);
+    refreshWpList();
+    selectedWp = name;
+    alert(`Saved "${name}" at ${formatLatLon(lat, lon)}`);
+  } catch (err) {
+    alert(err.message);
   }
 });
 
-// ------- Route (OSRM demo) -------
-/*
-  OSRM public demo endpoint is for light/demo use only — not production/heavy traffic.
-  You can self-host or use a paid provider if needed.
-*/
-const OSRM = 'https://router.project-osrm.org/route/v1/driving';
+wpDelete.addEventListener('click', () => {
+  if (!selectedWp) { alert('Select a waypoint in the list to delete'); return; }
+  if (waypoints[selectedWp]) {
+    delete waypoints[selectedWp];
+    saveWaypoints(waypoints);
+    refreshWpList();
+    selectedWp = null;
+    wpForm.reset();
+  }
+});
 
-async function route(startLatLng, endLatLng) {
-  const a = toLatLng(startLatLng), b = toLatLng(endLatLng);
-  const url = `${OSRM}/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson&alternatives=true&steps=true&annotations=distance,duration`;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error('Routing failed');
-  const json = await resp.json();
-  if (!json.routes?.length) throw new Error('No routes found');
-  return json.routes[0];
-}
-
-function renderRoute(route) {
-  // Remove old route
-  if (routeLayer) { routeLayer.remove(); routeLayer = null; }
-
-  // Draw geometry
-  routeLayer = L.geoJSON(route.geometry, {
-    style: { color: '#22c55e', weight: 5, opacity: 0.9 }
-  }).addTo(map);
-
-  // Fit map to route
-  map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
-
-  // Summary
-  summaryEl.textContent = `${fmtDistance(route.distance)} • ${fmtDuration(route.duration)}`;
-  panel.hidden = false;
-
-  // Steps (basic string from maneuver + road name)
-  stepsList.innerHTML = '';
-  route.legs.forEach(leg => {
-    leg.steps.forEach(step => {
-      const li = document.createElement('li');
-      const m = step.maneuver || {};
-      const name = step.name || '';
-      const modifier = m.modifier ? ` ${m.modifier}` : '';
-      const text = `${(m.type || 'Continue')}${modifier}${name ? ` onto ${name}` : ''} — ${fmtDistance(step.distance)} (${fmtDuration(step.duration)})`;
-      li.textContent = text;
-      stepsList.appendChild(li);
-    });
-  });
-}
-
-routeBtn.addEventListener('click', async () => {
-  if (!startCoord || !endCoord) {
-    alert('Set both Start and End (search or click the map).');
+function refreshWpList() {
+  wpList.innerHTML = '';
+  const names = Object.keys(waypoints).sort((a,b)=>a.localeCompare(b));
+  if (names.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = 'No saved waypoints';
+    wpList.appendChild(li);
     return;
   }
-  try {
-    const r = await route(startCoord, endCoord);
-    renderRoute(r);
-  } catch (e) {
-    console.warn(e);
-    alert('Routing error. Try different points.');
-  }
+  names.forEach((name) => {
+    const { lat, lon } = waypoints[name];
+    const li = document.createElement('li');
+    const label = document.createElement('button');
+    label.type = 'button';
+    label.className = 'wp-item';
+    label.textContent = `${name} — ${formatLatLon(lat, lon)}`;
+    label.addEventListener('click', () => {
+      selectedWp = name;
+      wpName.value = name;
+      wpCoords.value = formatLatLon(lat, lon);
+      // Fly to it
+      map.easeTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
+      // Add a one-off popup marker
+      new maplibregl.Popup({ closeButton: true })
+        .setLngLat([lon, lat])
+        .setHTML(`<strong>${name}</strong><br>${formatLatLon(lat, lon)}`)
+        .addTo(map);
+    });
+    li.appendChild(label);
+    wpList.appendChild(li);
+  });
+}
+
+// ===== Initial UI =====
+updateFollowButton();
+map.on('load', () => {
+  // Stretch map after load, in case CSS/layout changed
+  map.resize();
 });
 
-clearRouteBtn.addEventListener('click', () => {
-  clearRoute();
-  if (startMarker) { startMarker.remove(); startMarker = null; }
-  if (endMarker) { endMarker.remove(); endMarker = null; }
-  startCoord = endCoord = null;
-  startInput.value = endInput.value = '';
-});
-
-closePanel.addEventListener('click', () => { panel.hidden = true; });
-
-// Apply "use my location" buttons
-useLocStartBtn.addEventListener('click', async () => {
-  try {
-    const p = await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 15000 })
-    );
-    const { latitude: lat, longitude: lng } = p.coords;
-    setStart({ lat, lng }, 'My location');
-  } catch { alert('Location unavailable.'); }
-});
-useLocEndBtn.addEventListener('click', async () => {
-  try {
-    const p = await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 15000 })
-    );
-    const { latitude: lat, longitude: lng } = p.coords;
-    setEnd({ lat, lng }, 'My location');
-  } catch { alert('Location unavailable.'); }
-});
-
-// Optional: start lightweight tracking auto
-startTracking();
+// Resize on orientation change / viewport changes
+window.addEventListener('orientationchange', () => setTimeout(()=>map.resize(), 300));
+window.addEventListener('resize', () => map.resize());
