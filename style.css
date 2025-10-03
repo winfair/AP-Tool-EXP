@@ -1,4 +1,4 @@
-/* style.css — full-screen map with dynamic viewport units */
+/* style.css — full-screen map; height set via JS to visual viewport */
 
 :root {
   --bg: #040607;
@@ -11,7 +11,6 @@
   --shadow: rgba(0, 0, 0, 0.35);
 }
 
-/* Reset */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
@@ -23,15 +22,13 @@ html, body {
   font-family: system-ui, sans-serif;
 }
 
-/* Full viewport on mobile: prefer dvh/svh with vh fallback */
+/* JS will override height to exact visual viewport */
 #map {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100vw;
-
-  height: 100vh;   /* fallback */
-  height: 100svh;  /* small viewport height */
-  height: 100dvh;  /* dynamic viewport height */
+  height: 100vh; /* fallback */
 }
 
 /* Attribution footer */

@@ -1,4 +1,4 @@
-// app.js — minimal MapLibre setup with viewport fix
+// app.js — MapLibre setup + robust mobile fullscreen fix
 
 (() => {
   if (typeof maplibregl === "undefined") {
@@ -6,6 +6,7 @@
     return;
   }
 
+  // --- Style: keyless OSM raster tiles ---
   const OSM_RASTER_STYLE = {
     version: 8,
     sources: {
@@ -19,10 +20,10 @@
       },
     },
     layers: [{ id: "osm-tiles", type: "raster", source: "osm" }],
-    glyphs:
-      "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
   };
 
+  // --- Map init ---
   const map = new maplibregl.Map({
     container: "map",
     style: OSM_RASTER_STYLE,
@@ -41,7 +42,7 @@
     cooperativeGestures: true,
   });
 
-  // Controls
+  // --- Controls ---
   const nav = new maplibregl.NavigationControl({
     showCompass: true,
     showZoom: true,
@@ -49,8 +50,10 @@
   });
   map.addControl(nav, "top-right");
 
-  map.addControl(new maplibregl.ScaleControl({ unit: "imperial", maxWidth: 120 }), "bottom-left");
-
+  map.addControl(
+    new maplibregl.ScaleControl({ unit: "imperial", maxWidth: 120 }),
+    "bottom-left"
+  );
   const geolocate = new maplibregl.GeolocateControl({
     positionOptions: { enableHighAccuracy: true, timeout: 10_000 },
     trackUserLocation: false,
@@ -59,11 +62,15 @@
     fitBoundsOptions: { maxZoom: 16 },
   });
   map.addControl(geolocate, "top-left");
+  map.addControl(
+    new maplibregl.ScaleControl({ unit: "metric", maxWidth: 120 }),
+    "bottom-right"
+  );
 
-  map.addControl(new maplibregl.ScaleControl({ unit: "metric", maxWidth: 120 }), "bottom-right");
-
+  // --- Map lifecycle ---
   map.on("load", () => {
     console.log("[map] loaded");
+    fixMapHeight(); // ensure first render uses visual viewport
   });
 
   map.on("error", (e) => {
@@ -72,20 +79,49 @@
     }
   });
 
-  // Resize handling
-  const forceResize = () => map.resize();
-  window.addEventListener("resize", forceResize);
-  window.addEventListener("orientationchange", () => setTimeout(forceResize, 250));
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", forceResize);
+  // --- Robust fullscreen fix for mobile browsers ---
+  function fixMapHeight() {
+    const mapEl = document.getElementById("map");
+    if (!mapEl) return;
+
+    // Prefer visual viewport height when available
+    const h = window.visualViewport
+      ? Math.round(window.visualViewport.height)
+      : Math.round(window.innerHeight);
+
+    mapEl.style.height = h + "px";
+    map.resize();
   }
 
+  // Resize/rotation/URL-bar show-hide handling
+  window.addEventListener("resize", fixMapHeight);
+  window.addEventListener("orientationchange", () =>
+    setTimeout(fixMapHeight, 250)
+  );
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", fixMapHeight);
+    window.visualViewport.addEventListener("scroll", fixMapHeight);
+  }
+
+  // Extra safety: observe container size changes
+  const mapEl = document.getElementById("map");
+  if (mapEl && "ResizeObserver" in window) {
+    const ro = new ResizeObserver(() => map.resize());
+    ro.observe(mapEl);
+  }
+
+  // Expose a tiny debug API
   window.APMap = {
     map,
     rotateTo: (deg = 0, opts = { duration: 300 }) => map.rotateTo(deg, opts),
-    setCenter: (lng, lat, z = 16) => map.flyTo({ center: [lng, lat], zoom: z }),
+    setCenter: (lng, lat, z = 16) =>
+      map.flyTo({ center: [lng, lat], zoom: z }),
     geolocate: () => geolocate.trigger(),
     setPitch: (p = 45) => map.easeTo({ pitch: p, duration: 300 }),
     setZoom: (z = 14) => map.easeTo({ zoom: z, duration: 300 }),
+    fixMapHeight,
   };
+
+  // Run once ASAP
+  fixMapHeight();
 })();
