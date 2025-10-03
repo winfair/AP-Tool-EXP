@@ -1,38 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Access Point Alignment Tool</title>
-  <link rel="stylesheet" href="style.css"/>
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPS Map App</title>
+  <link rel="stylesheet" href="style.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha384‑PiGgF+3cmLug3YvZcEvkQAG3xLjoF+4r/jvGdM4F+K6ybTj1YqbwMu2nduOyQQ8A"
+    crossorigin=""
+  />
 </head>
 <body>
-  <nav class="nav">
-    <span>AP Align</span>
-  </nav>
-  
   <div id="map"></div>
-  
-  <div class="status">
-    <span id="gpsStatus">GPS: –</span>
-    <span id="compassStatus">Compass: –</span>
-    <span id="bearingReadout">–°</span>
-    <button id="followToggle">Follow: OFF</button>
-  </div>
-  
-  <button id="fab">+</button>
-  
-  <div id="wpPanel" class="hidden">
-    <h3>Waypoints</h3>
-    <input id="wpName" placeholder="Name"/>
-    <input id="wpCoords" placeholder="lat,lng"/>
-    <button id="wpAdd">Add</button>
-    <ul id="wpList"></ul>
-  </div>
-  
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha384‑fZprVZKHYOZfh2epmXMXtS+pPbWJGCPx0w2qM9iQk3Z+AYr8W0oC6nZP5V1zKEdH"
+    crossorigin=""
+  ></script>
   <script src="app.js"></script>
 </body>
 </html>
