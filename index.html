@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Simple Map App — Arrow + Heading Ray (Fixed)</title>
+<title>Simple Map App — Unified Arrow + Ray</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -71,10 +71,11 @@
   .leaflet-container a { color: var(--dim); }
 
   /* Green glowing arrow marker */
-  .heading-pin { width: 44px; height: 44px; transform: translate(-22px, -22px) rotate(0deg); pointer-events: none; }
+  .heading-pin { width: 44px; height: 44px; transform: translate(-22px, -22px); pointer-events: none; }
   .heading-pin svg { display: block; width: 44px; height: 44px; }
   .heading-pin .glow { filter: blur(3px); opacity: .85; }
   .heading-pin .stroke { filter: drop-shadow(0 2px 4px rgba(0,0,0,.55)); }
+  .heading-pin .rot { transform-origin: 50% 50%; } /* we rotate this inner group */
 </style>
 </head>
 <body>
@@ -124,7 +125,7 @@
   const followBadge = document.getElementById('followState');
   const btnFollow = document.getElementById('btnFollow');
 
-  // Waypoint DOM refs (declare ONCE)
+  // Waypoint DOM refs (declare once)
   const wpPanel = document.getElementById('wpPanel');
   const wpList  = document.getElementById('wpList');
   const wpName  = document.getElementById('wpName');
@@ -133,15 +134,18 @@
   // --- Accuracy ring ---
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius: 0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
 
-  // --- Arrow marker (green glow) replaces blue dot ---
+  // --- Arrow marker (green glow) ---
+  // IMPORTANT: we rotate the inner <g class="rot"> so Leaflet's own transform doesn't override it.
   const arrowSVG = `
     <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <g class="glow">
-        <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a"/>
-      </g>
-      <g class="stroke">
-        <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a" stroke="#0a3d0a" stroke-width="3" />
-        <circle cx="50" cy="60" r="16" fill="#0b0f10" stroke="#2aff2a" stroke-width="4"/>
+      <g class="rot">
+        <g class="glow">
+          <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a"/>
+        </g>
+        <g class="stroke">
+          <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a" stroke="#0a3d0a" stroke-width="3" />
+          <circle cx="50" cy="60" r="16" fill="#0b0f10" stroke="#2aff2a" stroke-width="4"/>
+        </g>
       </g>
     </svg>
   `;
@@ -153,18 +157,19 @@
   });
   const headingMarker = L.marker([DEFAULT.lat, DEFAULT.lng], { icon: headingIcon, interactive:false, keyboard:false }).addTo(map);
 
-  // --- Heading ray (thin green line from tip out of view) ---
+  // --- Heading ray (thin green line from arrow tip out of view) ---
   const headingRay = L.polyline([[DEFAULT.lat, DEFAULT.lng],[DEFAULT.lat, DEFAULT.lng]], {
     color: '#2aff2a',
     weight: 2,
-    opacity: 0.85,
+    opacity: 0.9,
     interactive: false
   }).addTo(map);
 
   function setHeadingOnMarker(deg){
     const el = headingMarker.getElement();
     if (!el) return;
-    el.style.transform = `translate(-22px, -22px) rotate(${deg}deg)`;
+    const rot = el.querySelector('.rot');
+    if (rot) rot.style.transform = `rotate(${deg}deg)`;
   }
 
   function destinationPoint(lat, lng, bearingDeg, distanceMeters){
@@ -190,8 +195,12 @@
     if (!lastPos) return;
     const { latitude, longitude } = lastPos.coords;
     const pos = [latitude, longitude];
-    headingMarker.setLatLng(pos);
 
+    // keep the marker at the same origin point and rotate the inner group
+    headingMarker.setLatLng(pos);
+    setHeadingOnMarker(currentHeading);
+
+    // compute the ray to extend off-screen
     const b = map.getBounds();
     const diagMeters = map.distance(b.getNorthWest(), b.getSouthEast());
     const rayLen = Math.max(2000, diagMeters);
@@ -239,10 +248,11 @@
   // --- Compass ---
   function handleOrientation(event){
     let heading = null;
-    if (typeof event.webkitCompassHeading === 'number') heading = event.webkitCompassHeading;  // iOS
+    if (typeof event.webkitCompassHeading === 'number') heading = event.webkitCompassHeading;  // iOS true heading
     else if (typeof event.alpha === 'number') heading = (360 - event.alpha);                   // fallback
     if (heading != null && !Number.isNaN(heading)) {
       currentHeading = (heading + 360) % 360;
+      // rotate the inner SVG group and recompute the ray together
       setHeadingOnMarker(currentHeading);
       updateHeadingRay();
       updateReadout();
@@ -323,7 +333,6 @@
 
   function syncMarkers(){
     const data = loadWPs();
-    // add/update
     data.forEach(wp => {
       if (!wpMarkers.has(wp.name)) {
         const m = L.marker([wp.lat, wp.lng]).addTo(map)
@@ -333,7 +342,6 @@
         wpMarkers.get(wp.name).setLatLng([wp.lat, wp.lng]);
       }
     });
-    // remove deleted
     [...wpMarkers.keys()].forEach(name => {
       if (!data.some(w => w.name === name)) {
         map.removeLayer(wpMarkers.get(name));
