@@ -1,74 +1,27 @@
-/* style.css — full-screen map using iOS/Android safe-area insets */
-
-:root {
-  --bg: #040607;
-  --panel: #0a0f0a;
-  --text: #b2ffbd;
-  --dim: #6ddf82;
-  --accent: #1b5120;
-  --green: #2aff2a;
-  --amber: #ffc04d;
-  --shadow: rgba(0, 0, 0, 0.35);
-}
-
-/* Reset */
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-/* Make the page itself fill the device's available area */
-html {
-  height: -webkit-fill-available; /* iOS Safari */
-}
-
-body {
+html, body, #map {
+  margin: 0;
+  padding: 0;
   width: 100%;
   height: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;            /* modern mobile */
-  min-height: -webkit-fill-available; /* iOS fallback */
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, sans-serif;
-  overflow: hidden;
 }
 
-/* Pin the map to the safe visual area (no vh units) */
-#map {
+.controls {
   position: fixed;
-  top: env(safe-area-inset-top);
-  right: env(safe-area-inset-right);
-  bottom: env(safe-area-inset-bottom);
-  left: env(safe-area-inset-left);
-  /* Let the insets define the box; no explicit height needed */
-}
-
-/* Attribution footer */
-#attribution {
-  position: absolute;
-  bottom: calc(env(safe-area-inset-bottom) + 0.5em);
-  right: calc(env(safe-area-inset-right) + 0.75em);
-  background: var(--panel);
-  color: var(--dim);
-  font-size: 11px;
-  padding: 0.25em 0.5em;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px var(--shadow);
-  z-index: 5;
-}
-#attribution a { color: var(--text); text-decoration: none; }
-#attribution a:hover { text-decoration: underline; }
-
-/* MapLibre controls styling */
-.maplibregl-ctrl { font-family: inherit; }
-.maplibregl-ctrl-group {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  background: rgba(0,0,0,0.5);
+  padding: 6px;
   border-radius: 8px;
-  box-shadow: 0 2px 6px var(--shadow);
-  overflow: hidden;
-  background: var(--panel);
+  z-index: 1000;
 }
-.maplibregl-ctrl button {
-  background: var(--panel);
+
+.controls button {
+  background: #fff;
   border: none;
-  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
 }
-.maplibregl-ctrl button:hover { background: var(--accent); color: #fff; }
-.maplibregl-ctrl button:focus { outline: none; box-shadow: 0 0 0 2px var(--amber); }

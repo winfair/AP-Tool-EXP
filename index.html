@@ -2,39 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
-  />
-  <meta name="theme-color" content="#0a0f0a" />
-  <title>AP Alignment Tool — Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>GPS Map Starter</title>
 
-  <!-- MapLibre GL JS (CDN) -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.css"
-  />
-  <script
-    defer
-    src="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.js"
-  ></script>
-
-  <!-- App styles -->
-  <link rel="stylesheet" href="./style.css" />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="./style.css"/>
 </head>
 <body>
-  <noscript><strong>This app requires JavaScript to display the map.</strong></noscript>
+  <div id="map"></div>
 
-  <!-- Map container -->
-  <div id="map" role="application" aria-label="Interactive map"></div>
-
-  <!-- Attribution -->
-  <div id="attribution" class="attribution">
-    © <a href="https://www.openstreetmap.org/copyright"
-      target="_blank" rel="noopener">OpenStreetMap</a> contributors
+  <div class="controls">
+    <button id="btn-gps">Enable GPS</button>
+    <button id="btn-follow">Follow: OFF</button>
   </div>
 
-  <!-- App logic -->
-  <script defer src="./app.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
