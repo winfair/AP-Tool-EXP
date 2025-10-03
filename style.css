@@ -1,0 +1,92 @@
+:root {
+  --bg: #0b0f12;
+  --card: #12181f;
+  --text: #e6f1ff;
+  --muted: #8aa1b1;
+  --accent: #4cc9f0;
+  --danger: #e5383b;
+  --green: #3ddc84; /* Android green-ish for arrow/line */
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--bg); color: var(--text);
+  font: 15px system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif;
+}
+
+header, footer {
+  padding: 10px 16px;
+  background: #0d1117;
+  display: flex; justify-content: space-between; align-items: center;
+}
+h1 { margin: 0; font-size: 18px; }
+.header-actions { display: flex; gap: 8px; }
+
+#map {
+  width: 100%;
+  height: 55vh;
+  position: relative;
+}
+
+#hud {
+  position: absolute;
+  inset: 0; /* full overlay over the map */
+  width: 100%;
+  height: 55vh;
+  pointer-events: none; /* let map interactions pass through */
+  display: block;
+}
+
+.target-info {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 26, 34, 0.9);
+  border: 1px solid #23303c;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 14px;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 6;
+}
+
+.card {
+  background: var(--card);
+  padding: 12px;
+  margin: 12px;
+  border-radius: 10px;
+  border: 1px solid #222;
+}
+
+form { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+input {
+  flex: 1;
+  background: #0c1219; color: var(--text);
+  border: 1px solid #333; border-radius: 6px; padding: 6px;
+}
+button {
+  background: #101620; color: var(--text);
+  border: 1px solid #333; border-radius: 6px; padding: 6px 12px; cursor: pointer;
+}
+button:hover { background: #0e131c; }
+button.danger { background: #2b1214; color: #f99; }
+
+ul { list-style: none; margin: 0; padding: 0; }
+li { margin-bottom: 6px; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+li .meta { color: var(--muted); font-size: 0.9rem; }
+
+.fab-stack {
+  position: fixed; right: 12px; bottom: 12px; display: grid; gap: 10px; z-index: 7;
+}
+.fab {
+  border-radius: 999px; padding: 10px 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+#btnFollow[aria-pressed="true"] { outline: 2px solid var(--accent); }
+
+@media (min-height: 1000px) {
+  #map, #hud { height: 60vh; }
+}
