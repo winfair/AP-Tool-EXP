@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Map App — Rotating Map (Pivot at GPS, Direct Heading)</title>
+  <title>Map App — Rotating Map (Direct Heading + Infinite Ray)</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -153,7 +153,7 @@
       will-change: transform;
     }
 
-    /* HUD: merged arrow + ray */
+    /* HUD: merged arrow + infinite ray */
     .hud {
       position: fixed;
       inset: 0;
@@ -167,7 +167,7 @@
       width: 56px;
       height: 56px;
       transform: rotate(0deg);
-      transition: transform 0.25s ease-out;
+      transition: transform 0.15s ease-out;
       filter: drop-shadow(0 0 8px rgba(42, 255, 42, 0.6));
     }
   </style>
@@ -179,9 +179,9 @@
     <div class="heading-indicator">
       <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <g class="arrow">
-          <!-- Ray extending upward from center -->
-          <line x1="50" y1="60" x2="50" y2="0" stroke="#2aff2a" stroke-width="2" stroke-linecap="round" />
-          <!-- Arrow tip -->
+          <!-- Long ray: go beyond viewport in SVG coords -->
+          <line x1="50" y1="60" x2="50" y2="-500" stroke="#2aff2a" stroke-width="2" stroke-linecap="round" />
+          <!-- Arrow tip (points forward) -->
           <path d="M50 10 L65 55 L50 45 L35 55 Z" fill="#2aff2a" />
           <!-- Center circle -->
           <circle cx="50" cy="60" r="14" fill="#0b0f10" stroke="#2aff2a" stroke-width="3" />
@@ -238,11 +238,11 @@
       radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
     }).addTo(map);
 
-    // Smoothing & deadband parameters
     const EMA_ALPHA = 0.12;
     const DEADBAND = 1.0;
 
     let headingFiltered = null;
+    let cumulativeRotation = 0;  // degrees total applied to arrow (monotonic)
 
     function normalize(d) {
       return (d % 360 + 360) % 360;
@@ -283,9 +283,16 @@
 
     function tick() {
       if (headingFiltered != null) {
-        // directly use headingFiltered
+        // compute smallest delta to add to cumulativeRotation
+        const lastApp = normalize(cumulativeRotation);
+        const delta = diff(lastApp, headingFiltered);
+        cumulativeRotation += delta;
+
         applyBearingWithPivot(headingFiltered);
-        document.querySelector('.heading-indicator svg').style.transform = `rotate(${headingFiltered}deg)`;
+        // rotate arrow using cumulativeRotation to avoid jump at wrap
+        document.querySelector('.heading-indicator svg').style.transform =
+          `rotate(${cumulativeRotation}deg)`;
+
         updateReadout();
       }
       requestAnimationFrame(tick);
@@ -314,9 +321,10 @@
 
       if (headingFiltered == null) {
         headingFiltered = h;
+        // initialize cumulativeRotation so it's aligned
+        cumulativeRotation = h;
       } else {
         const rawDiff = Math.abs(diff(headingFiltered, h));
-        // more aggressive smoothing if large jump
         const a = rawDiff < 12 ? EMA_ALPHA : 0.3;
         const next = emaAngle(headingFiltered, h, a);
         if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) {
@@ -324,6 +332,7 @@
         }
       }
     }
+
     async function enableCompass() {
       if (compassEnabled) return;
       try {
@@ -352,7 +361,7 @@
         return;
       }
       navigator.geolocation.watchPosition(
-        (pos) => {
+        pos => {
           lastPos = pos;
           const { latitude, longitude, accuracy: acc } = pos.coords;
           const latlng = [latitude, longitude];
@@ -364,7 +373,7 @@
           if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
           updateReadout();
         },
-        (err) => {
+        err => {
           console.warn('GPS error:', err);
           alert('Unable to get location: ' + err.message);
         },
@@ -393,7 +402,7 @@
       }
     }
 
-    // Waypoints logic (same as before)
+    // Waypoints (same)
     const wpKey = 'mapapp.waypoints.v1';
     const wpMarkers = new Map();
     function loadWPs() {
@@ -536,6 +545,7 @@
     renderWPs();
     syncMarkers();
     if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
+
   })();
   </script>
 </body>
