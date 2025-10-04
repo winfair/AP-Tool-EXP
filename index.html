@@ -1,552 +1,280 @@
+<!-- File: index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Map App — Rotating Map (Direct Heading + Infinite Ray)</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Map App — Rotating Map (Direct Heading + Infinite Ray)</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 
-  <style>
-    :root {
-      --bg: #0b0f10; --panel: #12181a; --text: #e7f6ef; --accent: #29a36a; --dim: #91c7ae; --danger: #ff6b6b; --green: #2aff2a;
-    }
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      -webkit-tap-highlight-color: transparent;
-    }
-    #map {
-      position: fixed;
-      inset: 0;
-      height: 100svh;
-      width: 100vw;
-    }
-
-    .controls {
-      position: fixed;
-      top: env(safe-area-inset-top, 12px);
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 8px;
-      background: rgba(18, 24, 26, 0.85);
-      padding: 8px 10px;
-      border-radius: 14px;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
-      z-index: 1000;
-      backdrop-filter: blur(6px);
-    }
-    .btn {
-      appearance: none;
-      border: 1px solid rgba(255, 255, 255, .12);
-      background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .02));
-      color: var(--text);
-      padding: 8px 10px;
-      border-radius: 10px;
-      font: 600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      cursor: pointer;
-    }
-    .btn.primary { border-color: var(--accent); }
-    .btn.toggled { outline: 2px solid var(--accent); }
-    .badge {
-      padding: 0 8px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, .1);
-      font-size: 12px;
-      margin-left: 6px;
-    }
-
-    .info {
-      position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: calc(env(safe-area-inset-bottom, 12px));
-      background: rgba(18, 24, 26, 0.9);
-      padding: 8px 12px;
-      border-radius: 12px;
-      font: 500 13px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
-      color: var(--dim);
-      z-index: 1000;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
-      backdrop-filter: blur(6px);
-    }
-
-    .fab {
-      position: fixed;
-      right: 14px;
-      bottom: calc(env(safe-area-inset-bottom, 14px) + 56px);
-      z-index: 1000;
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      background: rgba(18, 24, 26, 0.9);
-      border: 1px solid rgba(255, 255, 255, .12);
-    }
-
-    .panel {
-      position: fixed;
-      right: 12px;
-      bottom: calc(env(safe-area-inset-bottom, 12px) + 120px);
-      width: min(92vw, 360px);
-      max-height: 60vh;
-      overflow: auto;
-      background: rgba(18, 24, 26, 0.95);
-      border: 1px solid rgba(255, 255, 255, .12);
-      border-radius: 16px;
-      padding: 12px;
-      z-index: 1000;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
-      display: none;
-    }
-    .panel.open { display: block; }
-    .row {
-      display: grid;
-      gap: 8px;
-      margin: 10px 0;
-    }
-    .row input, .row button {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, .12);
-      background: rgba(255, 255, 255, .04);
-      color: var(--text);
-      font: 500 14px/1.2 system-ui, sans-serif;
-    }
-    .list {
-      display: grid;
-      gap: 8px;
-    }
-    .item {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      gap: 6px;
-      align-items: center;
-      padding: 8px;
-      border: 1px solid rgba(255, 255, 255, .08);
-      border-radius: 10px;
-    }
-    .item small {
-      color: var(--dim);
-      display: block;
-    }
-    .item button {
-      padding: 6px 10px;
-    }
-    .danger {
-      border-color: var(--danger);
-      color: var(--danger);
-    }
-    .leaflet-control-attribution, .leaflet-control-zoom {
-      filter: drop-shadow(0 6px 12px rgba(0, 0, 0, .35));
-    }
-    .leaflet-container a {
-      color: var(--dim);
-    }
-    .leaflet-map-pane {
-      will-change: transform;
-    }
-
-    /* HUD: merged arrow + infinite ray */
-    .hud {
-      position: fixed;
-      inset: 0;
-      z-index: 900;
-      pointer-events: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .heading-indicator svg {
-      width: 56px;
-      height: 56px;
-      transform: rotate(0deg);
-      transition: transform 0.15s ease-out;
-      filter: drop-shadow(0 0 8px rgba(42, 255, 42, 0.6));
-    }
-  </style>
+<style>
+:root{--bg:#0b0f10;--panel:#12181a;--text:#e7f6ef;--accent:#29a36a;--dim:#91c7ae;--danger:#ff6b6b;--green:#2aff2a}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent}
+#map{position:fixed;inset:0;height:100svh;width:100vw}
+.controls{position:fixed;top:env(safe-area-inset-top,12px);left:50%;transform:translateX(-50%);display:flex;gap:8px;background:rgba(18,24,26,.85);padding:8px 10px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.35);z-index:1000;backdrop-filter:blur(6px)}
+.btn{appearance:none;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));color:var(--text);padding:8px 10px;border-radius:10px;font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer}
+.btn.primary{border-color:var(--accent)}.btn.toggled{outline:2px solid var(--accent)}
+.badge{padding:0 8px;border-radius:999px;background:rgba(255,255,255,.1);font-size:12px;margin-left:6px}
+.info{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,12px));background:rgba(18,24,26,.9);padding:8px 12px;border-radius:12px;font:500 13px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);z-index:1000;box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px)}
+.fab{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,14px) + 56px);z-index:1000;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:rgba(18,24,26,.9);border:1px solid rgba(255,255,255,.12)}
+.panel{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,12px) + 120px);width:min(92vw,360px);max-height:60vh;overflow:auto;background:rgba(18,24,26,.95);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:12px;z-index:1000;box-shadow:0 12px 32px rgba(0,0,0,.45);display:none}
+.panel.open{display:block}
+.row{display:grid;gap:8px;margin:10px 0}
+.row input,.row button{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:var(--text);font:500 14px/1.2 system-ui,sans-serif}
+.list{display:grid;gap:8px}
+.item{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:10px}
+.item small{color:var(--dim);display:block}.item button{padding:6px 10px}
+.danger{border-color:var(--danger);color:var(--danger)}
+.leaflet-control-attribution,.leaflet-control-zoom{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
+.leaflet-container a{color:var(--dim)}.leaflet-map-pane{will-change:transform}
+/* HUD */
+.hud{position:fixed;inset:0;z-index:900;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.heading-indicator svg{width:56px;height:56px;transform:rotate(0deg);transition:transform .15s ease-out;filter:drop-shadow(0 0 8px rgba(42,255,42,.6))}
+</style>
 </head>
 <body>
-  <div id="map"></div>
+<div id="map"></div>
 
-  <div class="hud" aria-hidden="true">
-    <div class="heading-indicator">
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <g class="arrow">
-          <!-- Long ray: go beyond viewport in SVG coords -->
-          <line x1="50" y1="60" x2="50" y2="-500" stroke="#2aff2a" stroke-width="2" stroke-linecap="round" />
-          <!-- Arrow tip (points forward) -->
-          <path d="M50 10 L65 55 L50 45 L35 55 Z" fill="#2aff2a" />
-          <!-- Center circle -->
-          <circle cx="50" cy="60" r="14" fill="#0b0f10" stroke="#2aff2a" stroke-width="3" />
-        </g>
-      </svg>
-    </div>
+<div class="hud" aria-hidden="true">
+  <div class="heading-indicator">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g class="arrow">
+        <line x1="50" y1="60" x2="50" y2="-500" stroke="#2aff2a" stroke-width="2" stroke-linecap="round" />
+        <path d="M50 10 L65 55 L50 45 L35 55 Z" fill="#2aff2a" />
+        <circle cx="50" cy="60" r="14" fill="#0b0f10" stroke="#2aff2a" stroke-width="3" />
+      </g>
+    </svg>
   </div>
+</div>
 
-  <div class="controls">
-    <button id="btnLocate" class="btn primary">Enable GPS</button>
-    <button id="btnFollow" class="btn toggled">Follow: <span id="followState" class="badge">on</span></button>
-    <button id="btnCompass" class="btn">Compass <span id="compassState" class="badge">off</span></button>
-    <button id="btnReset" class="btn">Reset</button>
+<div class="controls">
+  <button id="btnLocate" class="btn primary">Enable GPS</button>
+  <button id="btnFollow" class="btn toggled">Follow: <span id="followState" class="badge">on</span></button>
+  <button id="btnCompass" class="btn">Compass <span id="compassState" class="badge">off</span></button>
+  <button id="btnReset" class="btn">Reset</button>
+</div>
+
+<button id="btnWaypoints" class="btn fab" title="Waypoints">📍</button>
+<div id="wpPanel" class="panel" aria-hidden="true">
+  <div class="row">
+    <input id="wpName" placeholder="Name (e.g., Tower SE)" />
+    <input id="wpCoords" placeholder='Coords (e.g., 34.851939 N, -119.168399 W or 34.851939,-119.168399)' />
+    <button id="wpAdd" class="btn primary">Add / Update</button>
   </div>
+  <div class="list" id="wpList"></div>
+</div>
 
-  <button id="btnWaypoints" class="btn fab" title="Waypoints">📍</button>
-  <div id="wpPanel" class="panel" aria-hidden="true">
-    <div class="row">
-      <input id="wpName" placeholder="Name (e.g., Tower SE)" />
-      <input id="wpCoords" placeholder='Coords (e.g., 34.851939 N, -119.168399 W or 34.851939,-119.168399)' />
-      <button id="wpAdd" class="btn primary">Add / Update</button>
-    </div>
-    <div class="list" id="wpList"></div>
-  </div>
+<div class="info" id="readout">Lat: —, Lng: — | Acc: — m | Head: —° | Map bearing: —°</div>
 
-  <div class="info" id="readout">Lat: —, Lng: — | Acc: — m | Head: —° | Map bearing: —°</div>
+<script>
+(() => {
+  // --- Utils ---
+  const $ = id => document.getElementById(id), q = s => document.querySelector(s);
+  const nz = (n, d='—') => (n==null || Number.isNaN(n) ? d : n);
+  const normalize = d => (d % 360 + 360) % 360;
+  const diff = (a,b) => { let d = normalize(b) - normalize(a); return d>180?d-360:d<-180?d+360:d; };
+  const emaAngle = (prev, next, a) => prev==null ? next : normalize(prev + a*diff(prev,next));
 
-  <script>
-  (function(){
-    // --- Map Setup ---
-    const map = L.map('map', { zoomControl: true, attributionControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 20, minZoom: 2,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
-    const DEFAULT = { lat: 34.9, lng: -119.17, z: 16 };
-    map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
+  // --- Map ---
+  const map = L.map('map', { zoomControl:true, attributionControl:true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom:20, minZoom:2,
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+  const DEFAULT = { lat:34.9, lng:-119.17, z:16 };
+  map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
 
-    // --- State ---
-    let lastPos = null;
-    let follow = true;
+  // --- State ---
+  let lastPos = null, follow = true, headingFiltered = null, cumulativeRotation = 0, compassEnabled = false;
+  const EMA_ALPHA = 0.12, DEADBAND = 1.0;
 
-    const readout = document.getElementById('readout');
-    const compassBadge = document.getElementById('compassState');
-    const followBadge = document.getElementById('followState');
-    const btnFollow = document.getElementById('btnFollow');
+  // --- DOM ---
+  const readout = $('readout'), compassBadge = $('compassState'), followBadge = $('followState'), btnFollow = $('btnFollow');
+  const wpPanel = $('wpPanel'), wpList = $('wpList'), wpName = $('wpName'), wpCoords = $('wpCoords');
 
-    const wpPanel = document.getElementById('wpPanel');
-    const wpList = document.getElementById('wpList');
-    const wpName = document.getElementById('wpName');
-    const wpCoords = document.getElementById('wpCoords');
+  // --- Layers ---
+  const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius:0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
 
-    const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], {
-      radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
-    }).addTo(map);
-
-    const EMA_ALPHA = 0.12;
-    const DEADBAND = 1.0;
-
-    let headingFiltered = null;
-    let cumulativeRotation = 0;  // degrees total applied to arrow (monotonic)
-
-    function normalize(d) {
-      return (d % 360 + 360) % 360;
+  // --- Map rotation around user pivot ---
+  function applyBearingWithPivot(bearingDeg){
+    const pane = map.getPane('mapPane'); if (!pane) return;
+    let origin = '50% 50%';
+    if (lastPos){
+      const p = map.latLngToContainerPoint([lastPos.coords.latitude, lastPos.coords.longitude]);
+      origin = `${p.x}px ${p.y}px`;
     }
-    function diff(a, b) {
-      let d = normalize(b) - normalize(a);
-      if (d > 180) d -= 360;
-      if (d < -180) d += 360;
-      return d;
-    }
-    function emaAngle(prev, newDeg, a) {
-      if (prev == null) return newDeg;
-      return normalize(prev + a * diff(prev, newDeg));
-    }
+    const base = pane.style.transform || '';
+    pane.style.transformOrigin = origin;
+    pane.style.transform = `${base.replace(/rotate\([^)]*\)/g,'').trim()} rotate(${-bearingDeg}deg)`;
+  }
 
-    function applyBearingWithPivot(bearingDeg) {
-      const pane = map.getPane('mapPane');
-      if (!pane) return;
-      let originCss = '50% 50%';
-      if (lastPos) {
-        const px = map.latLngToContainerPoint([lastPos.coords.latitude, lastPos.coords.longitude]);
-        originCss = `${px.x}px ${px.y}px`;
-      }
-      const base = pane.style.transform || '';
-      const cleaned = base.replace(/rotate\([^)]*\)/g, '').trim();
-      pane.style.transformOrigin = originCss;
-      pane.style.transform = `${cleaned} rotate(${-bearingDeg}deg)`;
-    }
+  function updateReadout(){
+    const lat = nz(lastPos?.coords?.latitude?.toFixed(6)), lng = nz(lastPos?.coords?.longitude?.toFixed(6));
+    const acc = nz(lastPos?.coords?.accuracy ? Math.round(lastPos.coords.accuracy) : null);
+    const hdg = nz(headingFiltered!=null ? Math.round(headingFiltered) : null);
+    const mapBear = nz(headingFiltered!=null ? Math.round(normalize(-headingFiltered)) : null);
+    readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
+  }
 
-    function updateReadout() {
-      const lat = lastPos?.coords?.latitude?.toFixed(6) ?? '—';
-      const lng = lastPos?.coords?.longitude?.toFixed(6) ?? '—';
-      const acc = lastPos?.coords?.accuracy ? Math.round(lastPos.coords.accuracy) : '—';
-      const hdg = headingFiltered != null ? Math.round(headingFiltered) : '—';
-      const mapBear = headingFiltered != null ? Math.round(normalize(-headingFiltered)) : '—';
-      readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
-    }
-
-    function tick() {
-      if (headingFiltered != null) {
-        // compute smallest delta to add to cumulativeRotation
-        const lastApp = normalize(cumulativeRotation);
-        const delta = diff(lastApp, headingFiltered);
-        cumulativeRotation += delta;
-
-        applyBearingWithPivot(headingFiltered);
-        // rotate arrow using cumulativeRotation to avoid jump at wrap
-        document.querySelector('.heading-indicator svg').style.transform =
-          `rotate(${cumulativeRotation}deg)`;
-
-        updateReadout();
-      }
-      requestAnimationFrame(tick);
+  // --- Animation ---
+  (function tick(){
+    if (headingFiltered != null){
+      const lastApp = normalize(cumulativeRotation);
+      cumulativeRotation += diff(lastApp, headingFiltered);
+      applyBearingWithPivot(headingFiltered);
+      q('.heading-indicator svg').style.transform = `rotate(${cumulativeRotation}deg)`;
+      updateReadout();
     }
     requestAnimationFrame(tick);
-
-    map.on('move moveend zoom zoomend zoomanim', () => {
-      if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
-    });
-    window.addEventListener('resize', () => {
-      map.invalidateSize();
-      if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
-    }, { passive: true });
-
-    // Compass / DeviceOrientation
-    let compassEnabled = false;
-    function handleOrientation(e) {
-      let h = null;
-      if (typeof e.webkitCompassHeading === 'number') {
-        h = e.webkitCompassHeading;
-      } else if (typeof e.alpha === 'number') {
-        h = e.alpha;
-      }
-      if (h == null || isNaN(h)) return;
-      h = normalize(h);
-
-      if (headingFiltered == null) {
-        headingFiltered = h;
-        // initialize cumulativeRotation so it's aligned
-        cumulativeRotation = h;
-      } else {
-        const rawDiff = Math.abs(diff(headingFiltered, h));
-        const a = rawDiff < 12 ? EMA_ALPHA : 0.3;
-        const next = emaAngle(headingFiltered, h, a);
-        if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) {
-          headingFiltered = next;
-        }
-      }
-    }
-
-    async function enableCompass() {
-      if (compassEnabled) return;
-      try {
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-          const resp = await DeviceOrientationEvent.requestPermission();
-          if (resp !== 'granted') {
-            alert('Compass permission denied.');
-            return;
-          }
-        }
-        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-        window.addEventListener('deviceorientation', handleOrientation, true);
-        compassEnabled = true;
-        compassBadge.textContent = 'on';
-        setFollow(true);
-      } catch (e) {
-        console.error(e);
-        alert('Compass access failed.');
-      }
-    }
-
-    // GPS
-    function startGPS() {
-      if (!('geolocation' in navigator)) {
-        alert('Geolocation not supported.');
-        return;
-      }
-      navigator.geolocation.watchPosition(
-        pos => {
-          lastPos = pos;
-          const { latitude, longitude, accuracy: acc } = pos.coords;
-          const latlng = [latitude, longitude];
-          accuracy.setLatLng(latlng).setRadius(Math.max(acc || 0, 0));
-
-          if (follow) {
-            map.setView(latlng, Math.max(map.getZoom(), 16), { animate: false });
-          }
-          if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
-          updateReadout();
-        },
-        err => {
-          console.warn('GPS error:', err);
-          alert('Unable to get location: ' + err.message);
-        },
-        { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
-      );
-    }
-
-    function resetView() {
-      if (lastPos) {
-        const { latitude, longitude } = lastPos.coords;
-        map.setView([latitude, longitude], Math.max(map.getZoom(), 16));
-      } else {
-        map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
-      }
-      if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
-    }
-
-    function setFollow(val) {
-      follow = !!val;
-      followBadge.textContent = follow ? 'on' : 'off';
-      btnFollow.classList.toggle('toggled', follow);
-      if (follow && lastPos) {
-        const { latitude, longitude } = lastPos.coords;
-        map.setView([latitude, longitude], Math.max(map.getZoom(), 16), { animate: false });
-        if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
-      }
-    }
-
-    // Waypoints (same)
-    const wpKey = 'mapapp.waypoints.v1';
-    const wpMarkers = new Map();
-    function loadWPs() {
-      try {
-        return JSON.parse(localStorage.getItem(wpKey) || '[]');
-      } catch {
-        return [];
-      }
-    }
-    function saveWPs(arr) {
-      localStorage.setItem(wpKey, JSON.stringify(arr));
-    }
-    function renderWPs() {
-      wpList.innerHTML = '';
-      const data = loadWPs();
-      data.forEach((wp, idx) => {
-        const div = document.createElement('div');
-        div.className = 'item';
-        div.innerHTML = `
-          <div><strong>${wp.name}</strong><small>${wp.lat.toFixed(6)}, ${wp.lng.toFixed(6)}</small></div>
-          <button class="btn" data-go="${idx}">Go</button>
-          <button class="btn danger" data-del="${idx}">Del</button>
-        `;
-        wpList.appendChild(div);
-      });
-    }
-    function addOrUpdateWP(name, lat, lng) {
-      if (!name) name = `WP ${Date.now().toString().slice(-5)}`;
-      const data = loadWPs();
-      const i = data.findIndex(w => w.name.toLowerCase() === name.toLowerCase());
-      const entry = { name, lat, lng };
-      if (i >= 0) data[i] = entry;
-      else data.push(entry);
-      saveWPs(data);
-      renderWPs();
-      syncMarkers();
-    }
-    function deleteWP(index) {
-      const data = loadWPs();
-      const [removed] = data.splice(index, 1);
-      saveWPs(data);
-      renderWPs();
-      if (removed && wpMarkers.has(removed.name)) {
-        map.removeLayer(wpMarkers.get(removed.name));
-        wpMarkers.delete(removed.name);
-      }
-    }
-    function syncMarkers() {
-      const data = loadWPs();
-      data.forEach(wp => {
-        if (!wpMarkers.has(wp.name)) {
-          const m = L.marker([wp.lat, wp.lng]).addTo(map)
-            .bindPopup(`<b>${wp.name}</b><br>${wp.lat.toFixed(6)}, ${wp.lng.toFixed(6)}`);
-          wpMarkers.set(wp.name, m);
-        } else {
-          wpMarkers.get(wp.name).setLatLng([wp.lat, wp.lng]);
-        }
-      });
-      [...wpMarkers.keys()].forEach(name => {
-        if (!data.some(w => w.name === name)) {
-          map.removeLayer(wpMarkers.get(name));
-          wpMarkers.delete(name);
-        }
-      });
-    }
-    function parseCoords(input) {
-      const t = input.trim().replace(/\s+/g, ' ').replace(/[,;]+/g, ',');
-      const dec = t.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
-      if (dec) {
-        const lat = parseFloat(dec[1]), lng = parseFloat(dec[3]);
-        if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-          return { lat, lng };
-        }
-      }
-      const parts = t.split(',');
-      if (parts.length === 2) {
-        const parseOne = (s) => {
-          const m = s.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);
-          if (!m) return null;
-          const hemi = (m[1] || m[4] || '').toUpperCase();
-          let val = parseFloat(m[2]);
-          if (hemi === 'S' || hemi === 'W') val = -Math.abs(val);
-          if (hemi === 'N' || hemi === 'E') val = Math.abs(val);
-          return { val, hemi };
-        };
-        const a = parseOne(parts[0]), b = parseOne(parts[1]);
-        if (a && b) {
-          let lat, lng;
-          if (a.hemi === 'N' || a.hemi === 'S') {
-            lat = a.val; lng = b.val;
-          } else if (a.hemi === 'E' || a.hemi === 'W') {
-            lng = a.val; lat = b.val;
-          } else {
-            lat = a.val; lng = b.val;
-          }
-          if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-            return { lat, lng };
-          }
-        }
-      }
-      return null;
-    }
-
-    // UI wiring
-    document.getElementById('btnLocate').addEventListener('click', startGPS);
-    document.getElementById('btnCompass').addEventListener('click', enableCompass);
-    document.getElementById('btnReset').addEventListener('click', resetView);
-    btnFollow.addEventListener('click', () => setFollow(!follow));
-
-    const btnWaypoints = document.getElementById('btnWaypoints');
-    btnWaypoints.addEventListener('click', () => {
-      wpPanel.classList.toggle('open');
-      wpPanel.setAttribute('aria-hidden', wpPanel.classList.contains('open') ? 'false' : 'true');
-    });
-    document.getElementById('wpAdd').addEventListener('click', () => {
-      const name = wpName.value.trim();
-      const parsed = parseCoords(wpCoords.value);
-      if (!parsed) {
-        alert('Could not parse coordinates. Try "34.851939,-119.168399" or "34.851939 N, -119.168399 W".');
-        return;
-      }
-      addOrUpdateWP(name, parsed.lat, parsed.lng);
-      wpName.value = ''; wpCoords.value = '';
-    });
-    wpList.addEventListener('click', (e) => {
-      const go = e.target.getAttribute('data-go');
-      const del = e.target.getAttribute('data-del');
-      if (go != null) {
-        const w = loadWPs()[+go];
-        if (w) {
-          map.setView([w.lat, w.lng], 16);
-          if (wpMarkers.has(w.name)) wpMarkers.get(w.name).openPopup();
-        }
-      }
-      if (del != null) {
-        deleteWP(+del);
-      }
-    });
-
-    renderWPs();
-    syncMarkers();
-    if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
-
   })();
-  </script>
+
+  map.on('move moveend zoom zoomend zoomanim', () => headingFiltered!=null && applyBearingWithPivot(headingFiltered));
+  window.addEventListener('resize', () => { map.invalidateSize(); headingFiltered!=null && applyBearingWithPivot(headingFiltered); }, { passive:true });
+
+  // --- Compass ---
+  function handleOrientation(e){
+    let h = typeof e.webkitCompassHeading === 'number' ? e.webkitCompassHeading
+          : typeof e.alpha === 'number' ? e.alpha : null;
+    if (h==null || isNaN(h)) return;
+    h = normalize(h);
+    if (headingFiltered == null){ headingFiltered = h; cumulativeRotation = h; }
+    else{
+      const a = Math.abs(diff(headingFiltered, h)) < 12 ? EMA_ALPHA : 0.3;
+      const next = emaAngle(headingFiltered, h, a);
+      if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) headingFiltered = next;
+    }
+  }
+  async function enableCompass(){
+    if (compassEnabled) return;
+    try{
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+        if ((await DeviceOrientationEvent.requestPermission()) !== 'granted'){ alert('Compass permission denied.'); return; }
+      }
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+      window.addEventListener('deviceorientation', handleOrientation, true);
+      compassEnabled = true; compassBadge.textContent = 'on'; setFollow(true);
+    }catch(e){ console.error(e); alert('Compass access failed.'); }
+  }
+
+  // --- GPS ---
+  function startGPS(){
+    if (!('geolocation' in navigator)) return alert('Geolocation not supported.');
+    navigator.geolocation.watchPosition(
+      pos => {
+        lastPos = pos;
+        const { latitude, longitude, accuracy: acc } = pos.coords, ll = [latitude, longitude];
+        accuracy.setLatLng(ll).setRadius(Math.max(acc || 0, 0));
+        if (follow) map.setView(ll, Math.max(map.getZoom(), 16), { animate:false });
+        headingFiltered!=null && applyBearingWithPivot(headingFiltered);
+        updateReadout();
+      },
+      err => { console.warn('GPS error:', err); alert('Unable to get location: ' + err.message); },
+      { enableHighAccuracy:true, maximumAge:2000, timeout:15000 }
+    );
+  }
+
+  // --- View / Follow ---
+  function resetView(){
+    if (lastPos){
+      const { latitude, longitude } = lastPos.coords;
+      map.setView([latitude, longitude], Math.max(map.getZoom(), 16));
+    } else map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
+    headingFiltered!=null && applyBearingWithPivot(headingFiltered);
+  }
+  function setFollow(val){
+    follow = !!val;
+    followBadge.textContent = follow ? 'on' : 'off';
+    btnFollow.classList.toggle('toggled', follow);
+    if (follow && lastPos){
+      const { latitude, longitude } = lastPos.coords;
+      map.setView([latitude, longitude], Math.max(map.getZoom(), 16), { animate:false });
+      headingFiltered!=null && applyBearingWithPivot(headingFiltered);
+    }
+  }
+
+  // --- Waypoints ---
+  const wpKey = 'mapapp.waypoints.v1', wpMarkers = new Map();
+  const loadWPs = () => { try{ return JSON.parse(localStorage.getItem(wpKey)||'[]'); }catch{ return []; } };
+  const saveWPs = arr => localStorage.setItem(wpKey, JSON.stringify(arr));
+  function renderWPs(){
+    wpList.innerHTML = '';
+    loadWPs().forEach((wp,idx)=>{
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `<div><strong>${wp.name}</strong><small>${wp.lat.toFixed(6)}, ${wp.lng.toFixed(6)}</small></div>
+        <button class="btn" data-go="${idx}">Go</button>
+        <button class="btn danger" data-del="${idx}">Del</button>`;
+      wpList.appendChild(div);
+    });
+  }
+  function addOrUpdateWP(name, lat, lng){
+    const data = loadWPs(), nm = name?.trim() || `WP ${Date.now().toString().slice(-5)}`;
+    const i = data.findIndex(w => w.name.toLowerCase() === nm.toLowerCase()), entry = { name:nm, lat, lng };
+    if (i>=0) data[i]=entry; else data.push(entry);
+    saveWPs(data); renderWPs(); syncMarkers();
+  }
+  function deleteWP(index){
+    const data = loadWPs(); const [rm] = data.splice(index,1);
+    saveWPs(data); renderWPs();
+    if (rm && wpMarkers.has(rm.name)){ map.removeLayer(wpMarkers.get(rm.name)); wpMarkers.delete(rm.name); }
+  }
+  function syncMarkers(){
+    const data = loadWPs();
+    data.forEach(wp=>{
+      if (!wpMarkers.has(wp.name)){
+        const m = L.marker([wp.lat, wp.lng]).addTo(map).bindPopup(`<b>${wp.name}</b><br>${wp.lat.toFixed(6)}, ${wp.lng.toFixed(6)}`);
+        wpMarkers.set(wp.name, m);
+      } else wpMarkers.get(wp.name).setLatLng([wp.lat, wp.lng]);
+    });
+    [...wpMarkers.keys()].forEach(n => { if (!data.some(w => w.name===n)){ map.removeLayer(wpMarkers.get(n)); wpMarkers.delete(n); } });
+  }
+  function parseCoords(input){
+    const t = input.trim().replace(/\s+/g,' ').replace(/[,;]+/g,',');
+    const dec = t.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
+    if (dec){
+      const lat = parseFloat(dec[1]), lng = parseFloat(dec[3]);
+      if (Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng};
+    }
+    const parts = t.split(','); if (parts.length!==2) return null;
+    const parseOne = s => {
+      const m = s.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);
+      if (!m) return null;
+      const hemi=(m[1]||m[4]||'').toUpperCase(); let v=parseFloat(m[2]);
+      if (hemi==='S'||hemi==='W') v=-Math.abs(v); if (hemi==='N'||hemi==='E') v=Math.abs(v);
+      return {v,hemi};
+    };
+    const a=parseOne(parts[0]), b=parseOne(parts[1]); if (!a||!b) return null;
+    const lat = (a.hemi==='N'||a.hemi==='S') ? a.v : b.v, lng = (a.hemi==='E'||a.hemi==='W') ? a.v : b.v;
+    return (Math.abs(lat)<=90&&Math.abs(lng)<=180) ? {lat,lng} : null;
+  }
+
+  // --- UI ---
+  $('btnLocate').addEventListener('click', startGPS);
+  $('btnCompass').addEventListener('click', enableCompass);
+  $('btnReset').addEventListener('click', resetView);
+  btnFollow.addEventListener('click', () => setFollow(!follow));
+
+  const btnWaypoints = $('btnWaypoints');
+  btnWaypoints.addEventListener('click', () => {
+    wpPanel.classList.toggle('open');
+    wpPanel.setAttribute('aria-hidden', wpPanel.classList.contains('open') ? 'false' : 'true');
+  });
+  $('wpAdd').addEventListener('click', () => {
+    const parsed = parseCoords(wpCoords.value);
+    if (!parsed) return alert('Could not parse coordinates. Try "34.851939,-119.168399" or "34.851939 N, -119.168399 W".');
+    addOrUpdateWP(wpName.value, parsed.lat, parsed.lng);
+    wpName.value=''; wpCoords.value='';
+  });
+  wpList.addEventListener('click', e => {
+    const t=e.target, go=t.getAttribute('data-go'), del=t.getAttribute('data-del');
+    if (go!=null){ const w=loadWPs()[+go]; if (w){ map.setView([w.lat,w.lng],16); wpMarkers.get(w.name)?.openPopup(); } }
+    if (del!=null) deleteWP(+del);
+  });
+
+  renderWPs(); syncMarkers(); headingFiltered!=null && applyBearingWithPivot(headingFiltered);
+})();
+</script>
 </body>
 </html>
