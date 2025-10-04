@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Map App — Rotating Map (Direct Heading + Infinite Ray)</title>
+<title>Map App — Rotating Map (Heading Ray Only)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -29,9 +29,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .danger{border-color:var(--danger);color:var(--danger)}
 .leaflet-control-attribution,.leaflet-control-zoom{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
 .leaflet-container a{color:var(--dim)}.leaflet-map-pane{will-change:transform}
-/* DivIcon arrow size matches previous HUD (56x56). */
-.user-heading{will-change:transform}
-.user-heading svg{width:56px;height:56px;display:block;filter:drop-shadow(0 0 8px rgba(42,255,42,.6))}
 </style>
 </head>
 <body>
@@ -76,8 +73,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 
   // --- State ---
   let lastPos = null, follow = true;
-  let headingFiltered = null, arrowApplied = 0, mapApplied = 0;
-  let compassEnabled = false, rotateMap = true; // map follows heading when compass on
+  let headingFiltered = null, mapApplied = 0;
+  let compassEnabled = false, rotateMap = true; // map follows heading when on
   const EMA_ALPHA = 0.12, DEADBAND = 1.0;
 
   // --- DOM ---
@@ -85,34 +82,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 
   // --- Layers ---
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius:0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
-
-  // User arrow marker (DivIcon with same SVG)
-  const arrowSvg = `
-    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <g class="arrow">
-        <line x1="50" y1="60" x2="50" y2="-500" stroke="#2aff2a" stroke-width="2" stroke-linecap="round" />
-        <path d="M50 10 L65 55 L50 45 L35 55 Z" fill="#2aff2a" />
-        <circle cx="50" cy="60" r="14" fill="#0b0f10" stroke="#2aff2a" stroke-width="3" />
-      </g>
-    </svg>`;
-  let userMarker = null, arrowG = null;
-
-  function ensureUserMarker(latlng){
-    if (userMarker) return;
-    userMarker = L.marker(latlng, {
-      interactive:false,
-      icon: L.divIcon({
-        className:'user-heading',
-        html: arrowSvg,
-        iconSize:[56,56],
-        iconAnchor:[28, 33.6] // circle center at 60% of icon height
-      })
-    }).addTo(map);
-    arrowG = userMarker.getElement()?.querySelector('.arrow');
-  }
+  let ray = null;
 
   // “Infinite” ray from user along heading
-  let ray = null;
   function destination(latlng, bearingDeg, distMeters){
     const R = 6371000, br = toRad(bearingDeg), dr = distMeters / R;
     const lat1 = toRad(latlng.lat), lon1 = toRad(latlng.lng);
@@ -121,18 +93,20 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     return L.latLng(toDeg(lat2), toDeg(lon2));
   }
   function refreshRay(){
-    if (!lastPos || headingFiltered == null) { if (ray) ray.setLatLngs([]); return; }
+    if (!lastPos || headingFiltered == null){
+      if (ray) ray.setLatLngs([]);
+      return;
+    }
     if (!ray){
       ray = L.polyline([], { color:'#2aff2a', weight:2, opacity:1, interactive:false }).addTo(map);
     }
     const origin = L.latLng(lastPos.coords.latitude, lastPos.coords.longitude);
-    const b = map.getBounds();
-    const diag = map.distance(b.getNorthWest(), b.getSouthEast()) || 1000000;
-    const dest = destination(origin, headingFiltered, diag * 1.2 + 1000); // why: ensure it passes viewport
+    const diag = map.distance(map.getNorthWest(), map.getSouthEast()) || 1000000;
+    const dest = destination(origin, headingFiltered, diag * 1.2 + 1000); // keep beyond viewport
     ray.setLatLngs([origin, dest]);
   }
 
-  // --- Map rotation around user pivot ---
+  // --- Map rotation around user pivot (keeps rotation natural while panning) ---
   function applyBearingWithPivot(deg){
     const pane = map.getPane('mapPane'); if (!pane) return;
     let origin = '50% 50%';
@@ -156,22 +130,15 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 
   // --- Animation ---
   (function tick(){
-    if (headingFiltered != null){
-      const t = headingFiltered;
-      arrowApplied += diff(normalize(arrowApplied), t);
-      if (rotateMap) mapApplied += diff(normalize(mapApplied), t); else mapApplied += diff(normalize(mapApplied), 0);
-
-      applyBearingWithPivot(mapApplied);
-
-      // Rotate the on-map arrow relative to the map
-      if (!arrowG && userMarker) arrowG = userMarker.getElement()?.querySelector('.arrow');
-      if (arrowG) arrowG.setAttribute('transform', `rotate(${arrowApplied - mapApplied} 50 60)`);
-    }
+    // Target map rotation (heading when rotateMap, else north-up)
+    const target = rotateMap ? (headingFiltered ?? 0) : 0;
+    mapApplied += diff(normalize(mapApplied), target);
+    applyBearingWithPivot(mapApplied);
     updateReadout();
     requestAnimationFrame(tick);
   })();
 
-  // Keep pivot correct on interactions / resize + keep ray spanning view
+  // Keep pivot + ray correct on interactions / resize
   map.on('move moveend zoom zoomend zoomanim', () => { applyBearingWithPivot(mapApplied); refreshRay(); });
   window.addEventListener('resize', () => { map.invalidateSize(); applyBearingWithPivot(mapApplied); refreshRay(); }, { passive:true });
 
@@ -183,8 +150,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     h = normalize(h);
     if (headingFiltered == null){
       headingFiltered = h;
-      arrowApplied = h;
-      mapApplied   = h;
+      if (rotateMap) mapApplied = h; // avoid initial snap only when rotating map
       refreshRay();
     }else{
       const a = Math.abs(diff(headingFiltered, h)) < 12 ? EMA_ALPHA : 0.3;
@@ -211,8 +177,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
       pos => {
         lastPos = pos;
         const { latitude, longitude, accuracy: acc } = pos.coords, ll = [latitude, longitude];
-        ensureUserMarker(ll);
-        userMarker.setLatLng(ll);
         accuracy.setLatLng(ll).setRadius(Math.max(acc || 0, 0));
         if (follow) map.setView(ll, Math.max(map.getZoom(), 16), { animate:false });
         applyBearingWithPivot(mapApplied);
@@ -235,7 +199,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   function setFollow(val){
     follow = !!val;
     followBadge.textContent = follow ? 'on' : 'off';
-    $('btnFollow').classList.toggle('toggled', follow);
+    btnFollow.classList.toggle('toggled', follow);
     if (follow && lastPos){
       const { latitude, longitude } = lastPos.coords;
       map.setView([latitude, longitude], Math.max(map.getZoom(), 16), { animate:false });
@@ -330,7 +294,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     if (del!=null) deleteWP(+del);
   });
 
-  renderWPs(); syncMarkers(); applyBearingWithPivot(mapApplied);
+  renderWPs(); syncMarkers(); applyBearingWithPivot(mapApplied); refreshRay();
 })();
 </script>
 </body>
