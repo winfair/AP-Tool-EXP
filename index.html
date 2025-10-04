@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-<title>Map App — Lean+Guide</title>
+<title>Map App — Lean+Guide (Hi-Res Heading + Better Info Bar)</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <style>
@@ -11,7 +11,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .btn{appearance:none;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));color:var(--text);padding:8px 10px;border-radius:10px;font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer}
 .btn.primary{border-color:var(--accent)}.btn.toggled{outline:2px solid var(--accent)}
 .badge{padding:0 8px;border-radius:999px;background:rgba(255,255,255,.1);font-size:12px;margin-left:6px}
-.info{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,12px));background:rgba(18,24,26,.9);padding:8px 12px;border-radius:12px;font:500 13px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);z-index:1000;box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px)}
 .fab{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,14px) + 56px);z-index:1000;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:rgba(18,24,26,.9);border:1px solid rgba(255,255,255,.12)}
 .panel{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,12px) + 120px);width:min(92vw,360px);max-height:60vh;overflow:auto;background:rgba(18,24,26,.95);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:12px;z-index:1000;box-shadow:0 12px 32px rgba(0,0,0,.45);display:none}
 .panel.open{display:block}
@@ -33,6 +32,22 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .popup-actions .btn{padding:6px 10px;font-size:13px}
 .popup-input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);font:500 13px/1}
 .mini-label{background:rgba(18,24,26,.85);color:var(--text);padding:2px 6px;border:1px solid rgba(255,255,255,.12);border-radius:8px;font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;backdrop-filter:blur(4px);pointer-events:none}
+
+/* UPDATED bottom info bar — mobile friendly, full width */
+.info{
+  position:fixed;left:12px;right:12px;
+  bottom:env(safe-area-inset-bottom,12px);
+  background:rgba(18,24,26,.9);
+  padding:10px 12px;border-radius:14px;
+  font:500 13px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--dim);z-index:1000;
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+  backdrop-filter:blur(6px)
+}
+.info .metrics{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:baseline}
+.info .metric{display:flex;gap:6px;align-items:baseline}
+.info .metric span{color:var(--dim);font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.info .metric .value{color:var(--text);font:700 15px/1 ui-monospace;letter-spacing:.2px}
 </style>
 </head><body>
 <div id="map"></div>
@@ -54,7 +69,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   <div class="list" id="wpList"></div>
 </div>
 
-<div class="info" id="readout">Lat: —, Lng: — | Acc: — m | Head: —° | Map bearing: —°</div>
+<div class="info" id="readout">
+  <div class="metrics"></div>
+</div>
 
 <script>
 (()=>{const $=i=>document.getElementById(i),
@@ -79,10 +96,43 @@ fmtDist=m=>m<1000?`${Math.round(m)} m`:`${(m/1000).toFixed(2)} km`;
 
 /* rotation + visuals */
 const applyBearing=d=>{const pane=map.getPane('mapPane');if(!pane)return;let o='50% 50%';if(lastPos){const p=map.latLngToContainerPoint([lastPos.coords.latitude,lastPos.coords.longitude]);o=`${p.x}px ${p.y}px`;}pane.style.transformOrigin=o;pane.style.transform=(pane.style.transform||'').replace(/rotate\([^)]*\)/g,'')+` rotate(${-d}deg)`;},
-updateReadout=()=>{const lat=lastPos?.coords?.latitude?.toFixed(6)??'—',lng=lastPos?.coords?.longitude?.toFixed(6)??'—',acc=lastPos?.coords?.accuracy?Math.round(lastPos.coords.accuracy):'—',hd=S.heading!=null?Math.round(S.heading):'—',mb=Math.round(N(-S.bearing));
-let navTxt=''; if(S.dest&&lastPos){const me=L.latLng(lastPos.coords.latitude,lastPos.coords.longitude),to=L.latLng(S.dest.lat,S.dest.lng),d=distM(me,to),b=bear(me,to),steer=S.heading==null?'?':Math.round(D(S.heading,b));navTxt=` | To ${S.dest.name||'Dest'}: ${fmtDist(d)} @ ${Math.round(b)}° (Δ ${typeof steer==='number'?steer:'?'}°)`;}
-readout.textContent=`Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hd}° | Map bearing: ${mb}°${navTxt}`;},
-refreshRay=()=>{if(!lastPos){if(ray)ray.setLatLngs([]);return}const o=L.latLng(lastPos.coords.latitude,lastPos.coords.longitude);if(!originDot){originDot=L.circleMarker(o,{radius:3,color:'#2aff2a',weight:2,fillColor:'#2aff2a',fillOpacity:1,interactive:false}).addTo(map)}else originDot.setLatLng(o).bringToFront();if(S.heading==null)return;if(!ray)ray=L.polyline([],{color:'#2aff2a',weight:3,opacity:1,interactive:false}).addTo(map);ray.setLatLngs([o,dest(o,S.heading,rayLen())]).bringToFront()},
+
+/* UPDATED: higher precision, mobile-friendly readout */
+function updateReadout(){
+  const lat = lastPos?.coords?.latitude?.toFixed(6) ?? '—';
+  const lng = lastPos?.coords?.longitude?.toFixed(6) ?? '—';
+  const acc = lastPos?.coords?.accuracy ? Math.round(lastPos.coords.accuracy) : '—';
+  const hd  = S.heading != null ? (S.heading).toFixed(2) : '—';
+  const mb  = (N(-S.bearing)).toFixed(2);
+
+  let navHtml = '';
+  if (S.dest && lastPos){
+    const me = L.latLng(lastPos.coords.latitude, lastPos.coords.longitude);
+    const to = L.latLng(S.dest.lat, S.dest.lng);
+    const d  = distM(me, to);
+    const b  = bear(me, to);            // numeric
+    const bStr = b.toFixed(2);
+    const steer = S.heading==null ? '—' : (D(S.heading, b)).toFixed(2);
+    navHtml = `
+      <div class="metric"><span>To</span><b class="value">${S.dest.name||'Dest'}</b></div>
+      <div class="metric"><span>Dist</span><b class="value">${fmtDist(d)}</b></div>
+      <div class="metric"><span>Brg</span><b class="value">${bStr}&deg;</b></div>
+      <div class="metric"><span>Δ</span><b class="value">${steer}&deg;</b></div>
+    `;
+  }
+
+  readout.innerHTML = `
+    <div class="metrics">
+      <div class="metric"><span>Lat</span><b class="value">${lat}</b></div>
+      <div class="metric"><span>Lng</span><b class="value">${lng}</b></div>
+      <div class="metric"><span>Acc</span><b class="value">${acc} m</b></div>
+      <div class="metric"><span>Head</span><b class="value">${hd}&deg;</b></div>
+      <div class="metric"><span>Map</span><b class="value">${mb}&deg;</b></div>
+      ${navHtml}
+    </div>`;
+}
+
+const refreshRay=()=>{if(!lastPos){if(ray)ray.setLatLngs([]);return}const o=L.latLng(lastPos.coords.latitude,lastPos.coords.longitude);if(!originDot){originDot=L.circleMarker(o,{radius:3,color:'#2aff2a',weight:2,fillColor:'#2aff2a',fillOpacity:1,interactive:false}).addTo(map)}else originDot.setLatLng(o).bringToFront();if(S.heading==null)return;if(!ray)ray=L.polyline([],{color:'#2aff2a',weight:3,opacity:1,interactive:false}).addTo(map);ray.setLatLngs([o,dest(o,S.heading,rayLen())]).bringToFront()},
 refreshNav=()=>{if(!S.dest||!lastPos){if(navLine){navLine.setLatLngs([])}btnReset.textContent='Reset';return}
 btnReset.textContent='Clear Nav';
 if(!navLine)navLine=L.polyline([], {color:'#29a36a',weight:3,opacity:.9,interactive:false,dashArray:'6 6'}).addTo(map);
