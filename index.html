@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Map App — Rotating Map (Heading Ray Only, Always Long)</title>
+<title>Map App — Rotating Map (Heading Ray + Long-press Pin)</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <style>
@@ -26,6 +26,10 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .danger{border-color:var(--danger);color:var(--danger)}
 .leaflet-control-attribution,.leaflet-control-zoom{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
 .leaflet-container a{color:var(--dim)}.leaflet-map-pane{will-change:transform}
+.leaflet-popup-content{font:500 13px/1.3 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
+.leaflet-popup-content .row{margin:6px 0}
+.leaflet-popup-content input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text)}
+.leaflet-popup-content .actions{display:grid;gap:6px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -52,12 +56,15 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 
 <script>
 (() => {
+  // --- Utils ---
   const $ = id => document.getElementById(id);
   const normalize = d => (d % 360 + 360) % 360;
   const diff = (a,b) => { let d = normalize(b) - normalize(a); return d>180?d-360:d<-180?d+360:d; };
   const emaAngle = (prev, next, a) => prev==null ? next : normalize(prev + a*diff(prev,next));
   const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+  const fmt = (v) => Number(v).toFixed(6);
 
+  // --- Map ---
   const map = L.map('map', { zoomControl:true, attributionControl:true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom:20, minZoom:2,
@@ -66,18 +73,22 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   const DEFAULT = { lat:34.9, lng:-119.17, z:16 };
   map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
 
+  // --- State ---
   let lastPos = null, follow = true;
   let headingFiltered = null, mapApplied = 0;
   let compassEnabled = false, rotateMap = true;
 
   const EMA_ALPHA = 0.12, DEADBAND = 1.0;
-  const LONG_MIN = 3000, OVERSHOOT = 1.35; // why: ensure off-screen at any zoom
+  const LONG_MIN = 3000, OVERSHOOT = 1.35;
 
+  // --- DOM ---
   const readout = $('readout'), compassBadge = $('compassState'), followBadge = $('followState'), btnFollow = $('btnFollow');
 
+  // --- Layers: accuracy + ray + origin ---
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius:0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
   let ray = null, originDot = null;
 
+  // --- Ray helpers ---
   function metersPerPixelAtCenter(){
     const sz = map.getSize();
     const c0 = L.point(sz.x/2, sz.y/2), c1 = L.point(sz.x/2 + 1, sz.y/2);
@@ -90,7 +101,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     const mpp = metersPerPixelAtCenter();
     return Math.max(diagPx * mpp * OVERSHOOT + 200, LONG_MIN);
   }
-
   function destination(latlng, bearingDeg, distMeters){
     const R = 6371000, br = toRad(bearingDeg), dr = distMeters / R;
     const lat1 = toRad(latlng.lat), lon1 = toRad(latlng.lng);
@@ -98,25 +108,19 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     const lon2 = lon1 + Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1), Math.cos(dr)-Math.sin(lat1)*Math.sin(lat2));
     return L.latLng(toDeg(lat2), toDeg(lon2));
   }
-
   function refreshRay(){
     if (!lastPos) { if (ray) ray.setLatLngs([]); return; }
     const origin = L.latLng(lastPos.coords.latitude, lastPos.coords.longitude);
-
     if (!originDot){
       originDot = L.circleMarker(origin, { radius:3, color:'#2aff2a', weight:2, fillColor:'#2aff2a', fillOpacity:1, interactive:false }).addTo(map);
     } else originDot.setLatLng(origin).bringToFront();
-
-    // If no heading yet, keep last drawn ray (dot still updates).
     if (headingFiltered == null) return;
-
-    if (!ray){
-      ray = L.polyline([], { color:'#2aff2a', weight:3, opacity:1, interactive:false }).addTo(map);
-    }
+    if (!ray){ ray = L.polyline([], { color:'#2aff2a', weight:3, opacity:1, interactive:false }).addTo(map); }
     const dest = destination(origin, headingFiltered, longRayLengthMeters());
     ray.setLatLngs([origin, dest]).bringToFront();
   }
 
+  // --- Map rotation (pivot around user) ---
   function applyBearingWithPivot(deg){
     const pane = map.getPane('mapPane'); if (!pane) return;
     let origin = '50% 50%';
@@ -138,6 +142,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
   }
 
+  // --- Animation frame ---
   (function tick(){
     const target = rotateMap ? (headingFiltered ?? 0) : 0;
     mapApplied += diff(normalize(mapApplied), target);
@@ -146,9 +151,11 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     requestAnimationFrame(tick);
   })();
 
+  // Keep pivot/ray correct on interactions
   map.on('move moveend zoom zoomend zoomanim', () => { applyBearingWithPivot(mapApplied); refreshRay(); });
   window.addEventListener('resize', () => { map.invalidateSize(); applyBearingWithPivot(mapApplied); refreshRay(); }, { passive:true });
 
+  // --- Compass ---
   function handleOrientation(e){
     let h = typeof e.webkitCompassHeading === 'number' ? e.webkitCompassHeading
           : typeof e.alpha === 'number' ? e.alpha : null;
@@ -174,6 +181,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }catch(e){ console.error(e); alert('Compass access failed.'); return false; }
   }
 
+  // --- GPS (course fallback) ---
   function startGPS(){
     if (!('geolocation' in navigator)) return alert('Geolocation not supported.');
     navigator.geolocation.watchPosition(
@@ -184,7 +192,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
         accuracy.setLatLng(ll).setRadius(Math.max(acc || 0, 0));
         if (follow) map.setView(ll, Math.max(map.getZoom(), 16), { animate:false });
 
-        // Use GPS course as fallback heading when available.
         if (Number.isFinite(course)) {
           const h = normalize(course);
           if (headingFiltered == null) headingFiltered = h;
@@ -204,6 +211,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     );
   }
 
+  // --- View / Follow ---
   function resetView(){
     if (lastPos){
       const { latitude, longitude } = lastPos.coords;
@@ -222,6 +230,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }
   }
 
+  // --- Waypoints store ---
   const wpKey = 'mapapp.waypoints.v1', wpMarkers = new Map();
   const loadWPs = () => { try{ return JSON.parse(localStorage.getItem(wpKey)||'[]'); }catch{ return []; } };
   const saveWPs = arr => localStorage.setItem(wpKey, JSON.stringify(arr));
@@ -237,8 +246,10 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     });
   }
   function addOrUpdateWP(name, lat, lng){
-    const data = loadWPs(), nm = name?.trim() || `WP ${Date.now().toString().slice(-5)}`;
-    const i = data.findIndex(w => w.name.toLowerCase() === nm.toLowerCase()), entry = { name:nm, lat, lng };
+    const data = loadWPs();
+    const nm = (name?.trim()) || `WP ${Date.now().toString().slice(-5)}`;
+    const i = data.findIndex(w => w.name.toLowerCase() === nm.toLowerCase());
+    const entry = { name:nm, lat, lng };
     if (i>=0) data[i]=entry; else data.push(entry);
     saveWPs(data); renderWPs(); syncMarkers();
   }
@@ -278,6 +289,53 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     return (Math.abs(lat)<=90&&Math.abs(lng)<=180) ? {lat,lng} : null;
   }
 
+  // --- Long-press / context menu pin drop ---
+  let activePin = null;
+  function popupHtml(lat, lng){
+    const latTxt = fmt(lat), lngTxt = fmt(lng), pair = `${latTxt}, ${lngTxt}`;
+    const defaultName = `Pin ${latTxt},${lngTxt}`;
+    return `
+      <div><strong>Lat:</strong> ${latTxt}<br/><strong>Lng:</strong> ${lngTxt}</div>
+      <div class="actions">
+        <button class="btn" data-copy="${pair}">Copy</button>
+        <input type="text" placeholder="Name (optional)" value="${defaultName}" data-name />
+        <button class="btn primary" data-save>Save as Waypoint</button>
+      </div>`;
+  }
+  function dropPinAt(latlng){
+    if (activePin){ map.removeLayer(activePin); activePin = null; }
+    activePin = L.marker(latlng, { draggable:false }).addTo(map);
+    activePin.bindPopup(popupHtml(latlng.lat, latlng.lng), { closeButton:true, autoClose:true }).openPopup();
+
+    activePin.on('popupopen', () => {
+      const el = activePin.getPopup().getElement();
+      const btnCopy = el.querySelector('[data-copy]');
+      const nameInput = el.querySelector('[data-name]');
+      const btnSave = el.querySelector('[data-save]');
+
+      btnCopy?.addEventListener('click', async () => {
+        const text = btnCopy.getAttribute('data-copy') || '';
+        try{
+          await navigator.clipboard.writeText(text);
+          const old = btnCopy.textContent; btnCopy.textContent = 'Copied'; setTimeout(()=>btnCopy.textContent=old, 1200);
+        }catch(e){
+          prompt('Copy to clipboard:', text); // why: fallback when clipboard blocked
+        }
+      });
+
+      btnSave?.addEventListener('click', () => {
+        const nm = nameInput?.value || '';
+        addOrUpdateWP(nm, latlng.lat, latlng.lng);
+        // Keep pin on map but close popup; user can delete via waypoint list if desired.
+        activePin.closePopup();
+      });
+    });
+  }
+
+  // Use Leaflet's contextmenu (right-click + long-press on mobile)
+  map.on('contextmenu', (e) => dropPinAt(e.latlng));
+
+  // --- UI wiring ---
   $('btnLocate').addEventListener('click', startGPS);
   $('btnCompass').addEventListener('click', async () => {
     const ok = await ensureCompassActive(); if (!ok) return;
