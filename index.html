@@ -1,14 +1,11 @@
-<!-- File: index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Map App — Rotating Map (Heading Ray Only)</title>
-
+<title>Map App — Rotating Map (Heading Ray Only, Always Long)</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
-
 <style>
 :root{--bg:#0b0f10;--panel:#12181a;--text:#e7f6ef;--accent:#29a36a;--dim:#91c7ae;--danger:#ff6b6b;--green:#2aff2a}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent}
@@ -55,14 +52,12 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 
 <script>
 (() => {
-  // --- Utils ---
   const $ = id => document.getElementById(id);
   const normalize = d => (d % 360 + 360) % 360;
   const diff = (a,b) => { let d = normalize(b) - normalize(a); return d>180?d-360:d<-180?d+360:d; };
   const emaAngle = (prev, next, a) => prev==null ? next : normalize(prev + a*diff(prev,next));
   const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
 
-  // --- Map ---
   const map = L.map('map', { zoomControl:true, attributionControl:true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom:20, minZoom:2,
@@ -71,20 +66,31 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   const DEFAULT = { lat:34.9, lng:-119.17, z:16 };
   map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
 
-  // --- State ---
   let lastPos = null, follow = true;
   let headingFiltered = null, mapApplied = 0;
   let compassEnabled = false, rotateMap = true;
-  const EMA_ALPHA = 0.12, DEADBAND = 1.0, SPEED_STATIONARY = 0.5, RAY_LEN_STATIONARY = 150;
 
-  // --- DOM ---
+  const EMA_ALPHA = 0.12, DEADBAND = 1.0;
+  const LONG_MIN = 3000, OVERSHOOT = 1.35; // why: ensure off-screen at any zoom
+
   const readout = $('readout'), compassBadge = $('compassState'), followBadge = $('followState'), btnFollow = $('btnFollow');
 
-  // --- Layers ---
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius:0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
   let ray = null, originDot = null;
 
-  // Great-circle destination
+  function metersPerPixelAtCenter(){
+    const sz = map.getSize();
+    const c0 = L.point(sz.x/2, sz.y/2), c1 = L.point(sz.x/2 + 1, sz.y/2);
+    const a = map.containerPointToLatLng(c0), b = map.containerPointToLatLng(c1);
+    return map.distance(a, b) || 1;
+  }
+  function longRayLengthMeters(){
+    const sz = map.getSize();
+    const diagPx = Math.hypot(sz.x, sz.y);
+    const mpp = metersPerPixelAtCenter();
+    return Math.max(diagPx * mpp * OVERSHOOT + 200, LONG_MIN);
+  }
+
   function destination(latlng, bearingDeg, distMeters){
     const R = 6371000, br = toRad(bearingDeg), dr = distMeters / R;
     const lat1 = toRad(latlng.lat), lon1 = toRad(latlng.lng);
@@ -93,43 +99,24 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     return L.latLng(toDeg(lat2), toDeg(lon2));
   }
 
-  // Draw/refresh the origin dot + ray
   function refreshRay(){
-    if (!lastPos){
-      if (ray) ray.setLatLngs([]);
-      return;
-    }
+    if (!lastPos) { if (ray) ray.setLatLngs([]); return; }
     const origin = L.latLng(lastPos.coords.latitude, lastPos.coords.longitude);
 
-    // Ensure & update origin dot
     if (!originDot){
-      originDot = L.circleMarker(origin, {
-        radius:3, color:'#2aff2a', weight:2, fillColor:'#2aff2a', fillOpacity:1, interactive:false
-      }).addTo(map);
+      originDot = L.circleMarker(origin, { radius:3, color:'#2aff2a', weight:2, fillColor:'#2aff2a', fillOpacity:1, interactive:false }).addTo(map);
     } else originDot.setLatLng(origin).bringToFront();
 
-    // No heading yet → only show the dot
-    if (headingFiltered == null){
-      if (ray) ray.setLatLngs([]);
-      return;
-    }
+    // If no heading yet, keep last drawn ray (dot still updates).
+    if (headingFiltered == null) return;
 
-    // Ensure ray
     if (!ray){
       ray = L.polyline([], { color:'#2aff2a', weight:3, opacity:1, interactive:false }).addTo(map);
     }
-
-    // Length: short when stationary, long when moving
-    const spd = lastPos.coords.speed ?? 0;
-    const b = map.getBounds();
-    const diag = map.distance(b.getNorthWest(), b.getSouthEast()) || 1000;
-    const length = spd <= SPEED_STATIONARY ? RAY_LEN_STATIONARY : (diag * 1.2 + 1000);
-
-    const dest = destination(origin, headingFiltered, length);
+    const dest = destination(origin, headingFiltered, longRayLengthMeters());
     ray.setLatLngs([origin, dest]).bringToFront();
   }
 
-  // Map rotation with pivot at user
   function applyBearingWithPivot(deg){
     const pane = map.getPane('mapPane'); if (!pane) return;
     let origin = '50% 50%';
@@ -151,7 +138,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
   }
 
-  // Animation loop
   (function tick(){
     const target = rotateMap ? (headingFiltered ?? 0) : 0;
     mapApplied += diff(normalize(mapApplied), target);
@@ -160,20 +146,16 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     requestAnimationFrame(tick);
   })();
 
-  // Keep pivot + ray correct
   map.on('move moveend zoom zoomend zoomanim', () => { applyBearingWithPivot(mapApplied); refreshRay(); });
   window.addEventListener('resize', () => { map.invalidateSize(); applyBearingWithPivot(mapApplied); refreshRay(); }, { passive:true });
 
-  // Compass heading
   function handleOrientation(e){
     let h = typeof e.webkitCompassHeading === 'number' ? e.webkitCompassHeading
           : typeof e.alpha === 'number' ? e.alpha : null;
     if (h==null || isNaN(h)) return;
     h = normalize(h);
-    if (headingFiltered == null){
-      headingFiltered = h;
-      if (rotateMap) mapApplied = h; // avoid initial snap
-    }else{
+    if (headingFiltered == null){ headingFiltered = h; if (rotateMap) mapApplied = h; }
+    else{
       const a = Math.abs(diff(headingFiltered, h)) < 12 ? EMA_ALPHA : 0.3;
       const next = emaAngle(headingFiltered, h, a);
       if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) headingFiltered = next;
@@ -192,19 +174,18 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }catch(e){ console.error(e); alert('Compass access failed.'); return false; }
   }
 
-  // GPS (with course fallback)
   function startGPS(){
     if (!('geolocation' in navigator)) return alert('Geolocation not supported.');
     navigator.geolocation.watchPosition(
       pos => {
         lastPos = pos;
-        const { latitude, longitude, accuracy: acc, heading: course, speed } = pos.coords;
+        const { latitude, longitude, accuracy: acc, heading: course } = pos.coords;
         const ll = [latitude, longitude];
         accuracy.setLatLng(ll).setRadius(Math.max(acc || 0, 0));
         if (follow) map.setView(ll, Math.max(map.getZoom(), 16), { animate:false });
 
-        // Use GPS course as fallback heading when moving
-        if (Number.isFinite(course) && (speed ?? 0) > SPEED_STATIONARY) {
+        // Use GPS course as fallback heading when available.
+        if (Number.isFinite(course)) {
           const h = normalize(course);
           if (headingFiltered == null) headingFiltered = h;
           else {
@@ -223,7 +204,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     );
   }
 
-  // View / Follow
   function resetView(){
     if (lastPos){
       const { latitude, longitude } = lastPos.coords;
@@ -242,7 +222,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }
   }
 
-  // Waypoints
   const wpKey = 'mapapp.waypoints.v1', wpMarkers = new Map();
   const loadWPs = () => { try{ return JSON.parse(localStorage.getItem(wpKey)||'[]'); }catch{ return []; } };
   const saveWPs = arr => localStorage.setItem(wpKey, JSON.stringify(arr));
@@ -299,7 +278,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     return (Math.abs(lat)<=90&&Math.abs(lng)<=180) ? {lat,lng} : null;
   }
 
-  // UI
   $('btnLocate').addEventListener('click', startGPS);
   $('btnCompass').addEventListener('click', async () => {
     const ok = await ensureCompassActive(); if (!ok) return;
