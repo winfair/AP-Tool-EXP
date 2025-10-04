@@ -10,6 +10,10 @@
 :root{--bg:#0b0f10;--panel:#12181a;--text:#e7f6ef;--accent:#29a36a;--dim:#91c7ae;--danger:#ff6b6b;--green:#2aff2a}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent}
 #map{position:fixed;inset:0;height:100svh;width:100vw}
+
+/* prevent native gestures from nudging during long-press / zoom */
+.leaflet-container{touch-action:none}
+
 .controls{position:fixed;top:env(safe-area-inset-top,12px);left:50%;transform:translateX(-50%);display:flex;gap:8px;background:rgba(18,24,26,.85);padding:8px 10px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.35);z-index:1000;backdrop-filter:blur(6px)}
 .btn{appearance:none;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));color:var(--text);padding:8px 10px;border-radius:10px;font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer}
 .btn.primary{border-color:var(--accent)}.btn.toggled{outline:2px solid var(--accent)}
@@ -100,7 +104,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     return L.latLng(toDeg(lat2), toDeg(lon2));
   }
 
-  // --- Apply rotation around user's screen position (or center)
+  // ------- rotation -------
   function applyBearingWithPivot(deg){
     const pane = map.getPane('mapPane'); if (!pane) return;
     let origin = '50% 50%';
@@ -133,30 +137,35 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     ray.setLatLngs([origin, destination(origin, headingFiltered, longRayLengthMeters())]).bringToFront();
   }
 
-  // --- SUPER PRECISE screen->latlng by undoing rotation in *layer* space
+  // ------- precise screen->latlng with gesture freeze -------
+  // gesture state: freeze rotation/pivot while arming long-press
+  let isPressing = false;
+  let frozenAngle = null;          // degrees
+  let frozenPivotLayer = null;     // L.Point in layer coords
+
+  function getPivotLatLng(){
+    return lastPos ? L.latLng(lastPos.coords.latitude, lastPos.coords.longitude) : map.getCenter();
+  }
   function latLngFromContainerPointPrecise(pt){
-    // Convert container pt -> layer pt (Leaflet subtracts mapPane position)
-    const panePos = map._getMapPanePos(); // internal but reliable
+    // Use current pane position to obtain layer coords
+    const panePos = map._getMapPanePos();
     const layerPt = L.point(pt.x - panePos.x, pt.y - panePos.y);
 
-    // Pivot in layer space (user if we have it; else map center)
-    const pivotLatLng = lastPos
-      ? L.latLng(lastPos.coords.latitude, lastPos.coords.longitude)
-      : map.getCenter();
-    const pivotLayer = map.latLngToLayerPoint(pivotLatLng);
+    // Use frozen values during press; otherwise live ones
+    const angleDeg = (isPressing && frozenAngle!=null) ? frozenAngle : mapApplied;
+    const pivotLayer = (isPressing && frozenPivotLayer) ? frozenPivotLayer : map.latLngToLayerPoint(getPivotLatLng());
 
-    // Inverse of CSS rotate(-mapApplied): rotate by +mapApplied around pivot
-    const th = mapApplied * Math.PI/180, c = Math.cos(th), s = Math.sin(th);
+    // Inverse of CSS rotate(-angle)
+    const th = angleDeg * Math.PI/180, c = Math.cos(th), s = Math.sin(th);
     const dx = layerPt.x - pivotLayer.x, dy = layerPt.y - pivotLayer.y;
     const unrotLayer = L.point(
       pivotLayer.x + dx*c + dy*s,
       pivotLayer.y + (-dx*s) + dy*c
     );
-
     return map.layerPointToLatLng(unrotLayer);
   }
 
-  // --- RAF loop
+  // ------- RAF loop -------
   (function tick(){
     const target = rotateMap ? (headingFiltered ?? 0) : 0;
     mapApplied += diff(normalize(mapApplied), target);
@@ -168,7 +177,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   map.on('move moveend zoom zoomend zoomanim', () => { applyBearingWithPivot(mapApplied); refreshRay(); });
   window.addEventListener('resize', () => { map.invalidateSize(); applyBearingWithPivot(mapApplied); refreshRay(); }, { passive:true });
 
-  // --- sensors
+  // ------- sensors -------
   function handleOrientation(e){
     let h = typeof e.webkitCompassHeading === 'number' ? e.webkitCompassHeading
           : typeof e.alpha === 'number' ? e.alpha : null;
@@ -201,7 +210,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
         const { latitude, longitude, accuracy: acc, heading: course } = pos.coords;
         const ll = [latitude, longitude];
         accuracy.setLatLng(ll).setRadius(Math.max(acc || 0, 0));
-        if (follow) map.setView(ll, Math.max(map.getZoom(), 16), { animate:false });
+        // suppress recenter while arming a long-press
+        if (follow && !isPressing) map.setView(ll, Math.max(map.getZoom(), 16), { animate:false });
         if (Number.isFinite(course)) {
           const h = normalize(course);
           if (headingFiltered == null) headingFiltered = h;
@@ -220,6 +230,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     );
   }
 
+  // ------- view / follow -------
   function resetView(){
     if (lastPos){
       const { latitude, longitude } = lastPos.coords;
@@ -238,7 +249,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }
   }
 
-  // --- waypoints
+  // ------- waypoints -------
   const wpKey = 'mapapp.waypoints.v1', wpMarkers = new Map();
   const loadWPs = () => { try{ return JSON.parse(localStorage.getItem(wpKey)||'[]'); }catch{ return []; } };
   const saveWPs = arr => localStorage.setItem(wpKey, JSON.stringify(arr));
@@ -278,7 +289,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     [...wpMarkers.keys()].forEach(n => { if (!data.some(w => w.name===n)){ map.removeLayer(wpMarkers.get(n)); wpMarkers.delete(n); } });
   }
 
-  // --- long-press (precise & no page drift while arming)
+  // ------- long-press (freeze follow/rotation for accuracy) -------
   const container = map.getContainer();
   let pressTimer=null, pressStart=null, lastPt=null;
   const LONG_MS=420, MOVE_CANCEL=6;
@@ -289,11 +300,20 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   }
   function startPress(pt){
     clearPress();
+    isPressing = true;
+    // freeze rotation angle & pivot at press start
+    frozenAngle = mapApplied;
+    frozenPivotLayer = map.latLngToLayerPoint(getPivotLatLng());
+
     pressStart = pt; lastPt = pt;
     pressTimer = setTimeout(()=>{ // fire
       pressTimer=null;
       const ll = latLngFromContainerPointPrecise(lastPt);
       dropPinAt(ll);
+      // release freeze
+      isPressing = false;
+      frozenAngle = null;
+      frozenPivotLayer = null;
     }, LONG_MS);
   }
   function movePress(pt){
@@ -305,12 +325,14 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   }
   function clearPress(){
     if (pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
+    isPressing = false;
+    frozenAngle = null;
+    frozenPivotLayer = null;
     pressStart=null; lastPt=null;
   }
 
   container.addEventListener('pointerdown', (ev)=>{
     if (ev.button !== 0 && ev.pointerType === 'mouse') return;
-    // prevent page scroll/jitter while arming the long-press
     ev.preventDefault();
     startPress(containerPointFromEvent(ev));
   }, {passive:false});
@@ -328,11 +350,16 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   // Right-click precise
   map.on('contextmenu', (e) => {
     e.originalEvent?.preventDefault();
+    // For right-click, emulate a tap: freeze angle/pivot for that instant
+    isPressing = true;
+    frozenAngle = mapApplied;
+    frozenPivotLayer = map.latLngToLayerPoint(getPivotLatLng());
     const pt = e.containerPoint ?? containerPointFromEvent(e.originalEvent);
     dropPinAt(latLngFromContainerPointPrecise(pt));
+    isPressing = false; frozenAngle = null; frozenPivotLayer = null;
   });
 
-  // --- popup & save
+  // ------- pin popup -------
   let activePin = null;
   function popupHtml(lat, lng){
     const latTxt = fmt(lat), lngTxt = fmt(lng), pair = `${latTxt}, ${lngTxt}`;
@@ -363,7 +390,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     });
   }
 
-  // --- UI wiring
+  // ------- UI wiring -------
   $('btnLocate').addEventListener('click', startGPS);
   $('btnCompass').addEventListener('click', async () => {
     const ok = await ensureCompassActive(); if (!ok) return;
