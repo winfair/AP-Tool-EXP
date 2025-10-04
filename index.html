@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Simple Map App — Unified Arrow + Ray</title>
+<title>Map App — Device-Up HUD, Rotating Map</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -15,6 +15,7 @@
   html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); -webkit-tap-highlight-color: transparent; }
   #map { position: fixed; inset: 0; height: 100svh; width: 100vw; }
 
+  /* Controls */
   .controls {
     position: fixed; top: env(safe-area-inset-top, 12px); left: 50%; transform: translateX(-50%);
     display: flex; gap: 8px; background: rgba(18,24,26,0.85);
@@ -70,26 +71,58 @@
   .leaflet-control-attribution, .leaflet-control-zoom { filter: drop-shadow(0 6px 12px rgba(0,0,0,.35)); }
   .leaflet-container a { color: var(--dim); }
 
-  /* Green glowing arrow marker */
-  .heading-pin { width: 44px; height: 44px; transform: translate(-22px, -22px); pointer-events: none; }
-  .heading-pin svg { display: block; width: 44px; height: 44px; }
+  /* HUD overlay: centered arrow + vertical heading ray (always device-up) */
+  .hud {
+    position: fixed; inset: 0; z-index: 900; pointer-events: none;
+  }
+  .hud .ray {
+    position: fixed;
+    left: 50vw;              /* center horizontally */
+    top: 0;                  /* from screen top */
+    bottom: 50vh;            /* down to screen center */
+    width: 2px;
+    background: var(--green);
+    opacity: .95;
+    box-shadow: 0 0 10px rgba(42,255,42,.7), 0 0 2px rgba(42,255,42,.9) inset;
+  }
+  .heading-pin { position: fixed; left: 50vw; top: 50vh; transform: translate(-22px, -22px); }
+  .heading-pin svg { width: 44px; height: 44px; display:block; }
   .heading-pin .glow { filter: blur(3px); opacity: .85; }
   .heading-pin .stroke { filter: drop-shadow(0 2px 4px rgba(0,0,0,.55)); }
-  .heading-pin .rot { transform-origin: 50% 50%; } /* we rotate this inner group */
+
+  /* Make map pane rotatable and keep origin at center for smoothness */
+  .leaflet-map-pane { transform-origin: 50% 50% !important; }
 </style>
 </head>
 <body>
   <div id="map"></div>
 
+  <!-- HUD overlay (always device-up) -->
+  <div class="hud" aria-hidden="true">
+    <div class="ray"></div>
+    <div class="heading-pin">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <g class="glow">
+          <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a"/>
+        </g>
+        <g class="stroke">
+          <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a" stroke="#0a3d0a" stroke-width="3" />
+          <circle cx="50" cy="60" r="16" fill="#0b0f10" stroke="#2aff2a" stroke-width="4"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Controls -->
   <div class="controls">
     <button id="btnLocate" class="btn primary">Enable GPS</button>
-    <button id="btnFollow" class="btn">Follow: <span id="followState" class="badge">off</span></button>
+    <button id="btnFollow" class="btn">Follow: <span id="followState" class="badge">on</span></button>
     <button id="btnCompass" class="btn">Compass <span id="compassState" class="badge">off</span></button>
     <button id="btnReset" class="btn">Reset</button>
   </div>
 
+  <!-- Waypoints -->
   <button id="btnWaypoints" class="btn fab" title="Waypoints">📍</button>
-
   <div id="wpPanel" class="panel" aria-hidden="true">
     <h3>Waypoints</h3>
     <div class="row">
@@ -100,7 +133,7 @@
     <div class="list" id="wpList"></div>
   </div>
 
-  <div class="info" id="readout">Lat: —, Lng: — | Acc: — m | Head: —°</div>
+  <div class="info" id="readout">Lat: —, Lng: — | Acc: — m | Head: —° | Bearing: —°</div>
 
 <script>
 (function(){
@@ -110,102 +143,40 @@
     maxZoom: 20, minZoom: 2,
     attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
-  const DEFAULT = { lat: 34.9, lng: -119.17, z: 12 };
+  const DEFAULT = { lat: 34.9, lng: -119.17, z: 15 };
   map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
 
   // --- State ---
   let watchId = null;
   let headingOn = false;
-  let currentHeading = 0;  // degrees, 0 = North
+  let currentHeading = 0;  // degrees, 0 = North (compass)
   let lastPos = null;
-  let follow = false;
+  let follow = true;       // force on while rotation is active
 
   const readout = document.getElementById('readout');
   const compassBadge = document.getElementById('compassState');
   const followBadge = document.getElementById('followState');
   const btnFollow = document.getElementById('btnFollow');
 
-  // Waypoint DOM refs (declare once)
+  // Waypoint DOM refs
   const wpPanel = document.getElementById('wpPanel');
   const wpList  = document.getElementById('wpList');
   const wpName  = document.getElementById('wpName');
   const wpCoords= document.getElementById('wpCoords');
 
-  // --- Accuracy ring ---
+  // Accuracy ring (still useful)
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius: 0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
 
-  // --- Arrow marker (green glow) ---
-  // IMPORTANT: we rotate the inner <g class="rot"> so Leaflet's own transform doesn't override it.
-  const arrowSVG = `
-    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <g class="rot">
-        <g class="glow">
-          <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a"/>
-        </g>
-        <g class="stroke">
-          <path d="M50 5 L68 48 L50 40 L32 48 Z" fill="#2aff2a" stroke="#0a3d0a" stroke-width="3" />
-          <circle cx="50" cy="60" r="16" fill="#0b0f10" stroke="#2aff2a" stroke-width="4"/>
-        </g>
-      </g>
-    </svg>
-  `;
-  const headingIcon = L.divIcon({
-    className:'heading-pin',
-    html: arrowSVG,
-    iconSize:[44,44],
-    iconAnchor:[22,22]
-  });
-  const headingMarker = L.marker([DEFAULT.lat, DEFAULT.lng], { icon: headingIcon, interactive:false, keyboard:false }).addTo(map);
-
-  // --- Heading ray (thin green line from arrow tip out of view) ---
-  const headingRay = L.polyline([[DEFAULT.lat, DEFAULT.lng],[DEFAULT.lat, DEFAULT.lng]], {
-    color: '#2aff2a',
-    weight: 2,
-    opacity: 0.9,
-    interactive: false
-  }).addTo(map);
-
-  function setHeadingOnMarker(deg){
-    const el = headingMarker.getElement();
-    if (!el) return;
-    const rot = el.querySelector('.rot');
-    if (rot) rot.style.transform = `rotate(${deg}deg)`;
-  }
-
-  function destinationPoint(lat, lng, bearingDeg, distanceMeters){
-    const R = 6371000; // meters
-    const φ1 = lat * Math.PI/180;
-    const λ1 = lng * Math.PI/180;
-    const θ  = bearingDeg * Math.PI/180;
-    const δ  = distanceMeters / R;
-
-    const sinφ1 = Math.sin(φ1), cosφ1 = Math.cos(φ1);
-    const sinδ = Math.sin(δ), cosδ = Math.cos(δ);
-
-    const sinφ2 = sinφ1*cosδ + cosφ1*sinδ*Math.cos(θ);
-    const φ2 = Math.asin(sinφ2);
-    const y = Math.sin(θ)*sinδ*cosφ1;
-    const x = cosδ - sinφ1*sinφ2;
-    const λ2 = λ1 + Math.atan2(y, x);
-
-    return { lat: φ2*180/Math.PI, lng: ((λ2*180/Math.PI + 540) % 360) - 180 };
-  }
-
-  function updateHeadingRay(){
-    if (!lastPos) return;
-    const { latitude, longitude } = lastPos.coords;
-    const pos = [latitude, longitude];
-
-    // keep the marker at the same origin point and rotate the inner group
-    headingMarker.setLatLng(pos);
-    setHeadingOnMarker(currentHeading);
-
-    // compute the ray to extend off-screen
-    const b = map.getBounds();
-    const diagMeters = map.distance(b.getNorthWest(), b.getSouthEast());
-    const rayLen = Math.max(2000, diagMeters);
-    const tip = destinationPoint(latitude, longitude, currentHeading, rayLen);
-    headingRay.setLatLngs([pos, [tip.lat, tip.lng]]);
+  // --- Map bearing (rotate map pane; keep HUD fixed/up) ---
+  function applyBearing(){
+    const pane = map.getPane('mapPane');
+    if (!pane) return;
+    // Leaflet continuously updates translate3d(...) on this element.
+    // We append a rotate(...) while stripping any prior rotate to avoid stacking.
+    const base = pane.style.transform || '';
+    const cleaned = base.replace(/rotate\\([^)]*\\)/g, '').trim();
+    pane.style.transformOrigin = '50% 50%';
+    pane.style.transform = `${cleaned} rotate(${-currentHeading}deg)`; // negative to rotate map under device-up HUD
   }
 
   function updateReadout(){
@@ -213,7 +184,7 @@
     const lng = lastPos?.coords?.longitude?.toFixed(6) ?? '—';
     const acc = lastPos?.coords?.accuracy ? Math.round(lastPos.coords.accuracy) : '—';
     const hdg = (currentHeading != null) ? Math.round(currentHeading) : '—';
-    readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}°`;
+    readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Bearing: ${(-currentHeading + 360)%360}°`;
   }
 
   // --- GPS ---
@@ -227,7 +198,6 @@
         const latlng = [latitude, longitude];
         accuracy.setLatLng(latlng).setRadius(Math.max(acc || 0, 0));
         if (follow) map.setView(latlng, Math.max(map.getZoom(), 15), { animate: false });
-        updateHeadingRay();
         updateReadout();
       },
       (err) => { console.warn('GPS error:', err); alert('Unable to get location: ' + err.message); },
@@ -242,19 +212,16 @@
     } else {
       map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
     }
-    updateHeadingRay();
   }
 
-  // --- Compass ---
+  // --- Compass -> rotate map ---
   function handleOrientation(event){
     let heading = null;
     if (typeof event.webkitCompassHeading === 'number') heading = event.webkitCompassHeading;  // iOS true heading
-    else if (typeof event.alpha === 'number') heading = (360 - event.alpha);                   // fallback
+    else if (typeof event.alpha === 'number') heading = (360 - event.alpha);                   // fallback (approx)
     if (heading != null && !Number.isNaN(heading)) {
       currentHeading = (heading + 360) % 360;
-      // rotate the inner SVG group and recompute the ray together
-      setHeadingOnMarker(currentHeading);
-      updateHeadingRay();
+      applyBearing();
       updateReadout();
       compassBadge.textContent = 'on';
     }
@@ -273,10 +240,16 @@
       } else {
         alert('Device orientation not supported.');
       }
+      // when rotating the map, keep follow on so your position stays under the HUD arrow
+      setFollow(true);
     } catch(e){ console.error(e); alert('Compass access failed.'); }
   }
 
-  // --- Follow toggle ---
+  // Keep rotation applied whenever Leaflet changes its internal transform
+  map.on('move moveend zoom zoomend zoomanim', applyBearing);
+  window.addEventListener('resize', () => { map.invalidateSize(); applyBearing(); }, { passive: true });
+
+  // --- Follow toggle (allowed to turn off, but re-enabled when compass turns on) ---
   function setFollow(val){
     follow = !!val;
     followBadge.textContent = follow ? 'on' : 'off';
@@ -409,12 +382,10 @@
     if (del != null){ deleteWP(+del); }
   });
 
-  // keep ray sized correctly on map zoom/move
-  map.on('moveend zoomend resize', updateHeadingRay);
-  window.addEventListener('resize', () => map.invalidateSize(), { passive: true });
-
   // init
-  renderWPs(); syncMarkers(); updateHeadingRay();
+  renderWPs(); syncMarkers(); applyBearing();
+  // try to keep it centered if we rotate before GPS lock
+  map.on('load', applyBearing);
 })();
 </script>
 </body>
