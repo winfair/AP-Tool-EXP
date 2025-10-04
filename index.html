@@ -87,7 +87,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
 
   // --- State ---
-  let lastPos = null, follow = true, headingFiltered = null, cumulativeRotation = 0, compassEnabled = false;
+  let lastPos = null, follow = true, headingFiltered = null;
+  let arrowApplied = 0, mapApplied = 0; // cumulative angles
+  let compassEnabled = false;
   const EMA_ALPHA = 0.12, DEADBAND = 1.0;
 
   // --- DOM ---
@@ -98,7 +100,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius:0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
 
   // --- Map rotation around user pivot ---
-  function applyBearingWithPivot(bearingDeg){
+  function applyBearingWithPivot(deg){
     const pane = map.getPane('mapPane'); if (!pane) return;
     let origin = '50% 50%';
     if (lastPos){
@@ -107,31 +109,33 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }
     const base = pane.style.transform || '';
     pane.style.transformOrigin = origin;
-    pane.style.transform = `${base.replace(/rotate\([^)]*\)/g,'').trim()} rotate(${-bearingDeg}deg)`;
+    pane.style.transform = `${base.replace(/rotate\([^)]*\)/g,'').trim()} rotate(${-deg}deg)`;
   }
 
   function updateReadout(){
     const lat = nz(lastPos?.coords?.latitude?.toFixed(6)), lng = nz(lastPos?.coords?.longitude?.toFixed(6));
     const acc = nz(lastPos?.coords?.accuracy ? Math.round(lastPos.coords.accuracy) : null);
     const hdg = nz(headingFiltered!=null ? Math.round(headingFiltered) : null);
-    const mapBear = nz(headingFiltered!=null ? Math.round(normalize(-headingFiltered)) : null);
+    const mapBear = nz(Math.round(normalize(-mapApplied)));
     readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
   }
 
   // --- Animation ---
   (function tick(){
     if (headingFiltered != null){
-      const lastApp = normalize(cumulativeRotation);
-      cumulativeRotation += diff(lastApp, headingFiltered);
-      applyBearingWithPivot(headingFiltered);
-      q('.heading-indicator svg').style.transform = `rotate(${cumulativeRotation}deg)`;
-      updateReadout();
+      const t = headingFiltered;
+      arrowApplied += diff(normalize(arrowApplied), t);
+      mapApplied   += diff(normalize(mapApplied),   t);
+      applyBearingWithPivot(mapApplied);
+      // Keep arrow "forward" relative to map (prevents double spin)
+      q('.heading-indicator svg').style.transform = `rotate(${arrowApplied - mapApplied}deg)`;
     }
+    updateReadout();
     requestAnimationFrame(tick);
   })();
 
-  map.on('move moveend zoom zoomend zoomanim', () => headingFiltered!=null && applyBearingWithPivot(headingFiltered));
-  window.addEventListener('resize', () => { map.invalidateSize(); headingFiltered!=null && applyBearingWithPivot(headingFiltered); }, { passive:true });
+  map.on('move moveend zoom zoomend zoomanim', () => applyBearingWithPivot(mapApplied));
+  window.addEventListener('resize', () => { map.invalidateSize(); applyBearingWithPivot(mapApplied); }, { passive:true });
 
   // --- Compass ---
   function handleOrientation(e){
@@ -139,8 +143,11 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
           : typeof e.alpha === 'number' ? e.alpha : null;
     if (h==null || isNaN(h)) return;
     h = normalize(h);
-    if (headingFiltered == null){ headingFiltered = h; cumulativeRotation = h; }
-    else{
+    if (headingFiltered == null){
+      headingFiltered = h;
+      arrowApplied = h;   // align without jump
+      mapApplied   = h;   // align map instantly to avoid initial relative spin
+    }else{
       const a = Math.abs(diff(headingFiltered, h)) < 12 ? EMA_ALPHA : 0.3;
       const next = emaAngle(headingFiltered, h, a);
       if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) headingFiltered = next;
@@ -167,7 +174,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
         const { latitude, longitude, accuracy: acc } = pos.coords, ll = [latitude, longitude];
         accuracy.setLatLng(ll).setRadius(Math.max(acc || 0, 0));
         if (follow) map.setView(ll, Math.max(map.getZoom(), 16), { animate:false });
-        headingFiltered!=null && applyBearingWithPivot(headingFiltered);
+        applyBearingWithPivot(mapApplied);
         updateReadout();
       },
       err => { console.warn('GPS error:', err); alert('Unable to get location: ' + err.message); },
@@ -181,7 +188,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
       const { latitude, longitude } = lastPos.coords;
       map.setView([latitude, longitude], Math.max(map.getZoom(), 16));
     } else map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
-    headingFiltered!=null && applyBearingWithPivot(headingFiltered);
+    applyBearingWithPivot(mapApplied);
   }
   function setFollow(val){
     follow = !!val;
@@ -190,7 +197,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     if (follow && lastPos){
       const { latitude, longitude } = lastPos.coords;
       map.setView([latitude, longitude], Math.max(map.getZoom(), 16), { animate:false });
-      headingFiltered!=null && applyBearingWithPivot(headingFiltered);
+      applyBearingWithPivot(mapApplied);
     }
   }
 
@@ -273,7 +280,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     if (del!=null) deleteWP(+del);
   });
 
-  renderWPs(); syncMarkers(); headingFiltered!=null && applyBearingWithPivot(headingFiltered);
+  renderWPs(); syncMarkers(); applyBearingWithPivot(mapApplied);
 })();
 </script>
 </body>
