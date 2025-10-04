@@ -74,17 +74,17 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   // --- State ---
   let lastPos = null, follow = true;
   let headingFiltered = null, mapApplied = 0;
-  let compassEnabled = false, rotateMap = true; // map follows heading when on
-  const EMA_ALPHA = 0.12, DEADBAND = 1.0;
+  let compassEnabled = false, rotateMap = true;
+  const EMA_ALPHA = 0.12, DEADBAND = 1.0, SPEED_STATIONARY = 0.5, RAY_LEN_STATIONARY = 150;
 
   // --- DOM ---
   const readout = $('readout'), compassBadge = $('compassState'), followBadge = $('followState'), btnFollow = $('btnFollow');
 
   // --- Layers ---
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius:0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
-  let ray = null;
+  let ray = null, originDot = null;
 
-  // “Infinite” ray from user along heading
+  // Great-circle destination
   function destination(latlng, bearingDeg, distMeters){
     const R = 6371000, br = toRad(bearingDeg), dr = distMeters / R;
     const lat1 = toRad(latlng.lat), lon1 = toRad(latlng.lng);
@@ -92,21 +92,44 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     const lon2 = lon1 + Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1), Math.cos(dr)-Math.sin(lat1)*Math.sin(lat2));
     return L.latLng(toDeg(lat2), toDeg(lon2));
   }
+
+  // Draw/refresh the origin dot + ray
   function refreshRay(){
-    if (!lastPos || headingFiltered == null){
+    if (!lastPos){
       if (ray) ray.setLatLngs([]);
       return;
     }
-    if (!ray){
-      ray = L.polyline([], { color:'#2aff2a', weight:2, opacity:1, interactive:false }).addTo(map);
-    }
     const origin = L.latLng(lastPos.coords.latitude, lastPos.coords.longitude);
-    const diag = map.distance(map.getNorthWest(), map.getSouthEast()) || 1000000;
-    const dest = destination(origin, headingFiltered, diag * 1.2 + 1000); // keep beyond viewport
-    ray.setLatLngs([origin, dest]);
+
+    // Ensure & update origin dot
+    if (!originDot){
+      originDot = L.circleMarker(origin, {
+        radius:3, color:'#2aff2a', weight:2, fillColor:'#2aff2a', fillOpacity:1, interactive:false
+      }).addTo(map);
+    } else originDot.setLatLng(origin).bringToFront();
+
+    // No heading yet → only show the dot
+    if (headingFiltered == null){
+      if (ray) ray.setLatLngs([]);
+      return;
+    }
+
+    // Ensure ray
+    if (!ray){
+      ray = L.polyline([], { color:'#2aff2a', weight:3, opacity:1, interactive:false }).addTo(map);
+    }
+
+    // Length: short when stationary, long when moving
+    const spd = lastPos.coords.speed ?? 0;
+    const b = map.getBounds();
+    const diag = map.distance(b.getNorthWest(), b.getSouthEast()) || 1000;
+    const length = spd <= SPEED_STATIONARY ? RAY_LEN_STATIONARY : (diag * 1.2 + 1000);
+
+    const dest = destination(origin, headingFiltered, length);
+    ray.setLatLngs([origin, dest]).bringToFront();
   }
 
-  // --- Map rotation around user pivot (keeps rotation natural while panning) ---
+  // Map rotation with pivot at user
   function applyBearingWithPivot(deg){
     const pane = map.getPane('mapPane'); if (!pane) return;
     let origin = '50% 50%';
@@ -128,9 +151,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
   }
 
-  // --- Animation ---
+  // Animation loop
   (function tick(){
-    // Target map rotation (heading when rotateMap, else north-up)
     const target = rotateMap ? (headingFiltered ?? 0) : 0;
     mapApplied += diff(normalize(mapApplied), target);
     applyBearingWithPivot(mapApplied);
@@ -138,11 +160,11 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     requestAnimationFrame(tick);
   })();
 
-  // Keep pivot + ray correct on interactions / resize
+  // Keep pivot + ray correct
   map.on('move moveend zoom zoomend zoomanim', () => { applyBearingWithPivot(mapApplied); refreshRay(); });
   window.addEventListener('resize', () => { map.invalidateSize(); applyBearingWithPivot(mapApplied); refreshRay(); }, { passive:true });
 
-  // --- Compass ---
+  // Compass heading
   function handleOrientation(e){
     let h = typeof e.webkitCompassHeading === 'number' ? e.webkitCompassHeading
           : typeof e.alpha === 'number' ? e.alpha : null;
@@ -150,13 +172,13 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     h = normalize(h);
     if (headingFiltered == null){
       headingFiltered = h;
-      if (rotateMap) mapApplied = h; // avoid initial snap only when rotating map
-      refreshRay();
+      if (rotateMap) mapApplied = h; // avoid initial snap
     }else{
       const a = Math.abs(diff(headingFiltered, h)) < 12 ? EMA_ALPHA : 0.3;
       const next = emaAngle(headingFiltered, h, a);
-      if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) { headingFiltered = next; refreshRay(); }
+      if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) headingFiltered = next;
     }
+    refreshRay();
   }
   async function ensureCompassActive(){
     if (compassEnabled) return true;
@@ -170,15 +192,28 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }catch(e){ console.error(e); alert('Compass access failed.'); return false; }
   }
 
-  // --- GPS ---
+  // GPS (with course fallback)
   function startGPS(){
     if (!('geolocation' in navigator)) return alert('Geolocation not supported.');
     navigator.geolocation.watchPosition(
       pos => {
         lastPos = pos;
-        const { latitude, longitude, accuracy: acc } = pos.coords, ll = [latitude, longitude];
+        const { latitude, longitude, accuracy: acc, heading: course, speed } = pos.coords;
+        const ll = [latitude, longitude];
         accuracy.setLatLng(ll).setRadius(Math.max(acc || 0, 0));
         if (follow) map.setView(ll, Math.max(map.getZoom(), 16), { animate:false });
+
+        // Use GPS course as fallback heading when moving
+        if (Number.isFinite(course) && (speed ?? 0) > SPEED_STATIONARY) {
+          const h = normalize(course);
+          if (headingFiltered == null) headingFiltered = h;
+          else {
+            const a = Math.abs(diff(headingFiltered, h)) < 12 ? EMA_ALPHA : 0.3;
+            const next = emaAngle(headingFiltered, h, a);
+            if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) headingFiltered = next;
+          }
+        }
+
         applyBearingWithPivot(mapApplied);
         refreshRay();
         updateReadout();
@@ -188,7 +223,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     );
   }
 
-  // --- View / Follow ---
+  // View / Follow
   function resetView(){
     if (lastPos){
       const { latitude, longitude } = lastPos.coords;
@@ -207,7 +242,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }
   }
 
-  // --- Waypoints (unchanged) ---
+  // Waypoints
   const wpKey = 'mapapp.waypoints.v1', wpMarkers = new Map();
   const loadWPs = () => { try{ return JSON.parse(localStorage.getItem(wpKey)||'[]'); }catch{ return []; } };
   const saveWPs = arr => localStorage.setItem(wpKey, JSON.stringify(arr));
@@ -264,7 +299,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     return (Math.abs(lat)<=90&&Math.abs(lng)<=180) ? {lat,lng} : null;
   }
 
-  // --- UI ---
+  // UI
   $('btnLocate').addEventListener('click', startGPS);
   $('btnCompass').addEventListener('click', async () => {
     const ok = await ensureCompassActive(); if (!ok) return;
