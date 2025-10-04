@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Map App — Rotating Map (Pivot at GPS)</title>
+  <title>Map App — Rotating Map (Pivot at GPS, Direct Heading)</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -235,33 +235,30 @@
     const wpCoords = document.getElementById('wpCoords');
 
     const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], {
-      radius: 0, color:'#4db6ff', weight:1,
-      opacity:.6, fillOpacity:.08
+      radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
     }).addTo(map);
 
+    // Smoothing & deadband parameters
     const EMA_ALPHA = 0.12;
     const DEADBAND = 1.0;
-    const MAX_DEG_PER_SEC = 90;
 
     let headingFiltered = null;
-    let headingAnim = 0;
-    let lastTs = null;
 
-    function normalize(d){
+    function normalize(d) {
       return (d % 360 + 360) % 360;
     }
-    function diff(a, b){
+    function diff(a, b) {
       let d = normalize(b) - normalize(a);
       if (d > 180) d -= 360;
       if (d < -180) d += 360;
       return d;
     }
-    function emaAngle(prev, newDeg, a){
+    function emaAngle(prev, newDeg, a) {
       if (prev == null) return newDeg;
       return normalize(prev + a * diff(prev, newDeg));
     }
 
-    function applyBearingWithPivot(bearingDeg){
+    function applyBearingWithPivot(bearingDeg) {
       const pane = map.getPane('mapPane');
       if (!pane) return;
       let originCss = '50% 50%';
@@ -270,62 +267,56 @@
         originCss = `${px.x}px ${px.y}px`;
       }
       const base = pane.style.transform || '';
-      const cleaned = base.replace(/rotate\\([^)]*\\)/g, '').trim();
+      const cleaned = base.replace(/rotate\([^)]*\)/g, '').trim();
       pane.style.transformOrigin = originCss;
       pane.style.transform = `${cleaned} rotate(${-bearingDeg}deg)`;
     }
 
-    function updateReadout(){
+    function updateReadout() {
       const lat = lastPos?.coords?.latitude?.toFixed(6) ?? '—';
       const lng = lastPos?.coords?.longitude?.toFixed(6) ?? '—';
       const acc = lastPos?.coords?.accuracy ? Math.round(lastPos.coords.accuracy) : '—';
       const hdg = headingFiltered != null ? Math.round(headingFiltered) : '—';
-      const mapBear = Math.round(normalize(-headingAnim));
+      const mapBear = headingFiltered != null ? Math.round(normalize(-headingFiltered)) : '—';
       readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
     }
 
-    function tick(ts){
-      if (lastTs == null) lastTs = ts;
-      const dt = Math.max(0.001, (ts - lastTs) / 1000);
-      lastTs = ts;
-
-      if (headingFiltered != null){
-        const maxStep = MAX_DEG_PER_SEC * dt;
-        const d = diff(headingAnim, headingFiltered);
-        const step = Math.abs(d) > maxStep ? Math.sign(d) * maxStep : d;
-        headingAnim = normalize(headingAnim + step);
-
-        applyBearingWithPivot(headingAnim);
-        document.querySelector('.heading-indicator svg').style.transform = `rotate(${headingAnim}deg)`;
+    function tick() {
+      if (headingFiltered != null) {
+        // directly use headingFiltered
+        applyBearingWithPivot(headingFiltered);
+        document.querySelector('.heading-indicator svg').style.transform = `rotate(${headingFiltered}deg)`;
         updateReadout();
       }
       requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
 
-    map.on('move moveend zoom zoomend zoomanim', () => applyBearingWithPivot(headingAnim));
+    map.on('move moveend zoom zoomend zoomanim', () => {
+      if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
+    });
     window.addEventListener('resize', () => {
       map.invalidateSize();
-      applyBearingWithPivot(headingAnim);
+      if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
     }, { passive: true });
 
-    // Compass
+    // Compass / DeviceOrientation
     let compassEnabled = false;
-    function handleOrientation(e){
+    function handleOrientation(e) {
       let h = null;
       if (typeof e.webkitCompassHeading === 'number') {
         h = e.webkitCompassHeading;
       } else if (typeof e.alpha === 'number') {
-        h = e.alpha;  // use alpha directly
+        h = e.alpha;
       }
       if (h == null || isNaN(h)) return;
       h = normalize(h);
 
       if (headingFiltered == null) {
         headingFiltered = h;
-        headingAnim = h;
       } else {
         const rawDiff = Math.abs(diff(headingFiltered, h));
+        // more aggressive smoothing if large jump
         const a = rawDiff < 12 ? EMA_ALPHA : 0.3;
         const next = emaAngle(headingFiltered, h, a);
         if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) {
@@ -333,7 +324,7 @@
         }
       }
     }
-    async function enableCompass(){
+    async function enableCompass() {
       if (compassEnabled) return;
       try {
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -348,14 +339,14 @@
         compassEnabled = true;
         compassBadge.textContent = 'on';
         setFollow(true);
-      } catch(e){
+      } catch (e) {
         console.error(e);
         alert('Compass access failed.');
       }
     }
 
     // GPS
-    function startGPS(){
+    function startGPS() {
       if (!('geolocation' in navigator)) {
         alert('Geolocation not supported.');
         return;
@@ -370,7 +361,7 @@
           if (follow) {
             map.setView(latlng, Math.max(map.getZoom(), 16), { animate: false });
           }
-          applyBearingWithPivot(headingAnim);
+          if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
           updateReadout();
         },
         (err) => {
@@ -381,41 +372,41 @@
       );
     }
 
-    function resetView(){
+    function resetView() {
       if (lastPos) {
         const { latitude, longitude } = lastPos.coords;
         map.setView([latitude, longitude], Math.max(map.getZoom(), 16));
       } else {
         map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
       }
-      applyBearingWithPivot(headingAnim);
+      if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
     }
 
-    function setFollow(val){
+    function setFollow(val) {
       follow = !!val;
       followBadge.textContent = follow ? 'on' : 'off';
       btnFollow.classList.toggle('toggled', follow);
       if (follow && lastPos) {
         const { latitude, longitude } = lastPos.coords;
         map.setView([latitude, longitude], Math.max(map.getZoom(), 16), { animate: false });
-        applyBearingWithPivot(headingAnim);
+        if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
       }
     }
 
-    // Waypoints (same logic)
+    // Waypoints logic (same as before)
     const wpKey = 'mapapp.waypoints.v1';
     const wpMarkers = new Map();
-    function loadWPs(){
+    function loadWPs() {
       try {
         return JSON.parse(localStorage.getItem(wpKey) || '[]');
       } catch {
         return [];
       }
     }
-    function saveWPs(arr){
+    function saveWPs(arr) {
       localStorage.setItem(wpKey, JSON.stringify(arr));
     }
-    function renderWPs(){
+    function renderWPs() {
       wpList.innerHTML = '';
       const data = loadWPs();
       data.forEach((wp, idx) => {
@@ -429,7 +420,7 @@
         wpList.appendChild(div);
       });
     }
-    function addOrUpdateWP(name, lat, lng){
+    function addOrUpdateWP(name, lat, lng) {
       if (!name) name = `WP ${Date.now().toString().slice(-5)}`;
       const data = loadWPs();
       const i = data.findIndex(w => w.name.toLowerCase() === name.toLowerCase());
@@ -440,17 +431,17 @@
       renderWPs();
       syncMarkers();
     }
-    function deleteWP(index){
+    function deleteWP(index) {
       const data = loadWPs();
       const [removed] = data.splice(index, 1);
       saveWPs(data);
       renderWPs();
-      if (removed && wpMarkers.has(removed.name)){
+      if (removed && wpMarkers.has(removed.name)) {
         map.removeLayer(wpMarkers.get(removed.name));
         wpMarkers.delete(removed.name);
       }
     }
-    function syncMarkers(){
+    function syncMarkers() {
       const data = loadWPs();
       data.forEach(wp => {
         if (!wpMarkers.has(wp.name)) {
@@ -468,7 +459,7 @@
         }
       });
     }
-    function parseCoords(input){
+    function parseCoords(input) {
       const t = input.trim().replace(/\s+/g, ' ').replace(/[,;]+/g, ',');
       const dec = t.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
       if (dec) {
@@ -544,8 +535,7 @@
 
     renderWPs();
     syncMarkers();
-    applyBearingWithPivot(headingAnim);
-
+    if (headingFiltered != null) applyBearingWithPivot(headingFiltered);
   })();
   </script>
 </body>
