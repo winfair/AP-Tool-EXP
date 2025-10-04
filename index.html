@@ -91,6 +91,7 @@ const App={
  S:{follow:true,heading:null,bearing:0,rotate:true,press:false,fAngle:null,fPivot:null,dest:null,compass:false},
  DEF:{lat:34.9,lng:-119.17,z:16},
  map:null,last:null,ray:null,originDot:null,navLine:null,accCircle:null,markers:new Map(),
+ _navState:null, _lastOverlayAngle:null, // caches
  init(){
   this.map=L.map('map',{zoomControl:true,attributionControl:true});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,minZoom:2,attribution:'© OpenStreetMap'}).addTo(this.map);
@@ -98,15 +99,18 @@ const App={
   this.accCircle=L.circle([this.DEF.lat,this.DEF.lng],{radius:0,color:'#4db6ff',weight:1,opacity:.6,fillOpacity:.08}).addTo(this.map);
   this.bindUI(); this.bindMap(); this.loop(); WPs.init(this); Pins.init(this);
  },
- // NEW: keep popups/tooltips upright by counter-rotating overlays
+ // Only re-apply overlay counter-rotation if bearing changed meaningfully
  uprightOverlays(deg){
+   if(this._lastOverlayAngle!=null && Math.abs(Δ(this._lastOverlayAngle,deg))<0.1) return;
+   this._lastOverlayAngle = deg;
    const rot=` rotate(${deg}deg)`;
    const fixEl=el=>{
      const base=(el.style.transform||'').replace(/rotate\([^)]*\)/g,'').trim();
      el.style.transformOrigin = el.classList.contains('leaflet-popup') ? 'bottom center' : 'left center';
      el.style.transform = base + rot;
    };
-   document.querySelectorAll('.leaflet-popup, .leaflet-tooltip').forEach(fixEl);
+   (this.map.getPanes().popupPane?.querySelectorAll('.leaflet-popup')||[]).forEach(fixEl);
+   (this.map.getPanes().tooltipPane?.querySelectorAll('.leaflet-tooltip')||[]).forEach(fixEl);
  },
  mpp(){const s=this.map.getSize(),a=this.map.containerPointToLatLng(L.point(s.x/2,s.y/2)),b=this.map.containerPointToLatLng(L.point(s.x/2+1,s.y/2));return this.map.distance(a,b)||1},
  rayLen(){const s=this.map.getSize();return Math.max(Math.hypot(s.x,s.y)*this.mpp()*1.35+200,3000)},
@@ -116,7 +120,6 @@ const App={
    if(this.last){const p=this.map.latLngToContainerPoint([this.last.coords.latitude,this.last.coords.longitude]);o=`${p.x}px ${p.y}px`;}
    pane.style.transformOrigin=o;
    pane.style.transform=(pane.style.transform||'').replace(/rotate\([^)]*\)/g,'')+` rotate(${-d}deg)`;
-   // NEW call: keep overlays upright
    this.uprightOverlays(d);
  },
  refreshRay(){if(!this.last){this.ray?.setLatLngs([]);return}
@@ -128,12 +131,15 @@ const App={
    this.ray.setLatLngs([o,dest(o,this.S.heading,this.rayLen())]).bringToFront();
  },
  refreshNav(){
-   if(!this.S.dest||!this.last){this.navLine?.setLatLngs([]);$('btnReset').textContent='Reset';return}
+   if(!this.S.dest||!this.last){this.navLine?.setLatLngs([]);$('btnReset').textContent='Reset';this._navState=null;return}
    $('btnReset').textContent='Clear Nav';
    const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude),to=L.latLng(this.S.dest.lat,this.S.dest.lng);
    if(!this.navLine)this.navLine=L.polyline([], {color:'#29a36a',weight:3,opacity:.9,interactive:false,dashArray:'6 6'}).addTo(this.map);
    this.navLine.setLatLngs([from,to]).bringToFront();
-   if(this.S.heading!=null){const b=bearing(from,to),delta=Math.abs(Δ(this.S.heading,b));
+   const b=bearing(from,to), d=haversine(from,to), err=this.S.heading==null?null:Δ(this.S.heading,b);
+   this._navState={b,d,err};
+   if(this.S.heading!=null){
+     const delta=Math.abs(err);
      if(delta<.5){this.navLine.setStyle({color:'#ff4444',weight:4,opacity:1});this.navLine.getElement?.().classList.add('guide-hit')}
      else{this.navLine.setStyle({color:'#29a36a',weight:3,opacity:.9});this.navLine.getElement?.().classList.remove('guide-hit')}
    }
@@ -145,13 +151,10 @@ const App={
          hd=this.S.heading!=null?(this.S.heading).toFixed(2):'—',
          mb=(N(-this.S.bearing)).toFixed(2);
    let nav=''; if(this.S.dest&&this.last){
-     const me=L.latLng(this.last.coords.latitude,this.last.coords.longitude),
-           to=L.latLng(this.S.dest.lat,this.S.dest.lng),
-           d=haversine(me,to), b=bearing(me,to),
-           steer=this.S.heading==null?'—':(Δ(this.S.heading,b)).toFixed(2);
+     const b=this._navState?.b, d=this._navState?.d, steer=(this._navState?.err!=null)?this._navState.err.toFixed(2):'—';
      nav=`<div class="metric"><span>To</span><b class="value">${this.S.dest.name||'Dest'}</b></div>
-          <div class="metric"><span>Dist</span><b class="value">${fmtDist(d)}</b></div>
-          <div class="metric"><span>Brg</span><b class="value">${b.toFixed(2)}&deg;</b></div>
+          <div class="metric"><span>Dist</span><b class="value">${fmtDist(d??0)}</b></div>
+          <div class="metric"><span>Brg</span><b class="value">${(b??0).toFixed(2)}&deg;</b></div>
           <div class="metric"><span>Δ</span><b class="value">${steer}&deg;</b></div>`;
    }
    $('readout').innerHTML=`<div class="metrics">
@@ -161,13 +164,33 @@ const App={
       <div class="metric"><span>Head</span><b class="value">${hd}&deg;</b></div>
       <div class="metric"><span>Map</span><b class="value">${mb}&deg;</b></div>${nav}</div>`;
  },
- loop(){const tgt=(this.S.rotate??true)?(this.S.heading??0):0; this.S.bearing+=Δ(N(this.S.bearing),tgt);
-   this.applyBearing(this.S.bearing); this.refreshRay(); this.refreshNav(); this.updateHUD(); requestAnimationFrame(()=>this.loop())},
- // --- Sensors / Controls ---
- onOrient(e){let h=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:typeof e.alpha==='number'?e.alpha:null; if(h==null||isNaN(h))return;
-   h=N(h); if(this.S.heading==null){this.S.heading=h; if(this.S.rotate)this.S.bearing=h}
-   else{const a=Math.abs(Δ(this.S.heading,h))<12?0.12:0.3, n=blend(this.S.heading,h,a); if(Math.abs(Δ(this.S.heading,n))>=1)this.S.heading=n}
-   this.refreshRay(); this.refreshNav();
+ loop(){
+   const tgt=(this.S.rotate??true)?(this.S.heading??0):0;
+   this.S.bearing+=Δ(N(this.S.bearing),tgt);
+   this.applyBearing(this.S.bearing);
+   this.refreshRay(); this.refreshNav(); this.updateHUD();
+   requestAnimationFrame(()=>this.loop())
+ },
+ // --- Adaptive smoothing for heading (fast near target, smooth otherwise) ---
+ _adaptHeading(raw){
+   // micro-deadband to avoid flicker, but allow tiny precise motions
+   const eps=0.05;
+   const prev=this.S.heading;
+   if(prev!=null && Math.abs(Δ(prev, raw))<eps) return; // ignore <0.05°
+   // if navigating, adapt smoothing by how close we are to the nav bearing
+   let a=0.15; // default smoothing (0..1), higher = faster
+   if(this._navState?.b!=null){
+     const err=Math.abs(Δ(raw,this._navState.b));
+     a = err<6 ? 0.35 : err<15 ? 0.25 : 0.15; // faster near the line
+   }
+   this.S.heading = blend(prev, raw, a);
+ },
+ onOrient(e){
+   let h=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:typeof e.alpha==='number'?e.alpha:null;
+   if(h==null||isNaN(h))return;
+   h=N(h);
+   if(this.S.heading==null){ this.S.heading=h; if(this.S.rotate) this.S.bearing=h; }
+   else{ this._adaptHeading(h); }
  },
  async enableCompass(){
    if(this.S.compass) return true;
@@ -186,8 +209,9 @@ const App={
      this.last=p; const {latitude,longitude,accuracy:acc,heading}=p.coords, ll=[latitude,longitude];
      this.accCircle.setLatLng(ll).setRadius(Math.max(acc||0,0));
      if(this.S.follow&&!this.S.press)this.map.setView(ll,Math.max(this.map.getZoom(),16),{animate:false});
-     if(Number.isFinite(heading)){const h=N(heading);
-       if(this.S.heading==null)this.S.heading=h; else{const a=Math.abs(Δ(this.S.heading,h))<12?0.12:0.3, n=blend(this.S.heading,h,a); if(Math.abs(Δ(this.S.heading,n))>=1)this.S.heading=n}
+     if(Number.isFinite(heading)){
+       const h=N(heading);
+       if(this.S.heading==null) this.S.heading=h; else this._adaptHeading(h);
      }
    },e=>alert('Unable to get location: '+e.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000})
  },
@@ -220,13 +244,11 @@ const App={
       const el=m.getPopup().getElement(),I=el.querySelector('[data-name]'),C=el.querySelector('[data-copy]'),SAV=el.querySelector('[data-save]'),MIN=el.querySelector('[data-min]'),G=el.querySelector('[data-guide]');
       C?.addEventListener('click',async()=>{const txt=`${fix(lat)}, ${fix(lng)}`;try{await navigator.clipboard.writeText(txt);C.textContent='Copied';setTimeout(()=>C.textContent='Copy',900)}catch{prompt('Copy to clipboard:',txt)}});
       SAV?.addEventListener('click',()=>{const nm=(I?.value||'').trim()||`WP ${Date.now().toString().slice(-5)}`; WPs.upsert(nm,lat,lng); m.closePopup(); m._nm=nm});
-      MIN?.addEventListener('click',()=>{const nm=(I?.value||m._nm||'Pin')||'Pin'; m.bindTooltip(nm,{permanent:true,direction:'right',offset:[8,0],className:'mini-label'}).openTooltip(); m.closePopup(); m._nm=nm; this.uprightOverlays(this.S.bearing);});
-      G?.addEventListener('click',()=>{this.S.dest={lat,lng,name:(I?.value||m._nm||'Dest')}; this.refreshNav(); this.updateHUD(); m.closePopup();});
-      // NEW: correct orientation immediately on open
-      this.uprightOverlays(this.S.bearing);
+      MIN?.addEventListener('click',()=>{const nm=(I?.value||m._nm||'Pin')||'Pin'; m.bindTooltip(nm,{permanent:true,direction:'right',offset:[8,0],className:'mini-label'}).openTooltip(); m.closePopup(); m._nm=nm; App.uprightOverlays(App.S.bearing);});
+      G?.addEventListener('click',()=>{App.S.dest={lat,lng,name:(I?.value||m._nm||'Dest')}; App.refreshNav(); App.updateHUD(); m.closePopup();});
+      App.uprightOverlays(App.S.bearing);
     });
-   // Also keep future tooltip openings upright
-   m.on('tooltipopen',()=>this.uprightOverlays(this.S.bearing));
+   m.on('tooltipopen',()=>App.uprightOverlays(App.S.bearing));
  },
  bindUI(){
    $('btnLocate').onclick=()=>this.startGPS();
@@ -287,7 +309,6 @@ const Pins={
    this.pin=makeDot(lat,lng,14).addTo(App.map);
    App.bindPopup(this.pin,{name:`Pin ${fix(lat)},${fix(lng)}`,lat,lng});
    this.pin.openPopup();
-   // ensure upright right away
    App.uprightOverlays(App.S.bearing);
  }
 };
