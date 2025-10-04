@@ -25,6 +25,7 @@
       height: 100svh;
       width: 100vw;
     }
+
     .controls {
       position: fixed;
       top: env(safe-area-inset-top, 12px);
@@ -58,6 +59,7 @@
       font-size: 12px;
       margin-left: 6px;
     }
+
     .info {
       position: fixed;
       left: 50%;
@@ -72,6 +74,7 @@
       box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
       backdrop-filter: blur(6px);
     }
+
     .fab {
       position: fixed;
       right: 14px;
@@ -85,6 +88,7 @@
       background: rgba(18, 24, 26, 0.9);
       border: 1px solid rgba(255, 255, 255, .12);
     }
+
     .panel {
       position: fixed;
       right: 12px;
@@ -149,7 +153,7 @@
       will-change: transform;
     }
 
-    /* HUD: merged compass arrow */
+    /* HUD: merged arrow + ray */
     .hud {
       position: fixed;
       inset: 0;
@@ -175,8 +179,12 @@
     <div class="heading-indicator">
       <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <g class="arrow">
-          <path d="M50 10 L65 55 L50 45 L35 55 Z" fill="#2aff2a"/>
-          <circle cx="50" cy="60" r="14" fill="#0b0f10" stroke="#2aff2a" stroke-width="3"/>
+          <!-- Ray extending upward from center -->
+          <line x1="50" y1="60" x2="50" y2="0" stroke="#2aff2a" stroke-width="2" stroke-linecap="round" />
+          <!-- Arrow tip -->
+          <path d="M50 10 L65 55 L50 45 L35 55 Z" fill="#2aff2a" />
+          <!-- Center circle -->
+          <circle cx="50" cy="60" r="14" fill="#0b0f10" stroke="#2aff2a" stroke-width="3" />
         </g>
       </svg>
     </div>
@@ -222,22 +230,32 @@
     const btnFollow = document.getElementById('btnFollow');
 
     const wpPanel = document.getElementById('wpPanel');
-    const wpList  = document.getElementById('wpList');
-    const wpName  = document.getElementById('wpName');
-    const wpCoords= document.getElementById('wpCoords');
+    const wpList = document.getElementById('wpList');
+    const wpName = document.getElementById('wpName');
+    const wpCoords = document.getElementById('wpCoords');
 
-    const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius: 0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
+    const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], {
+      radius: 0, color:'#4db6ff', weight:1,
+      opacity:.6, fillOpacity:.08
+    }).addTo(map);
 
-    // Smoothing & constants
-    const EMA_ALPHA = 0.12;   // lower alpha = more smoothing
-    const DEADBAND = 1.0;     // minimum change to update
+    const EMA_ALPHA = 0.12;
+    const DEADBAND = 1.0;
     const MAX_DEG_PER_SEC = 90;
 
-    let headingTarget = 0, headingFiltered = null, headingAnim = 0;
+    let headingFiltered = null;
+    let headingAnim = 0;
     let lastTs = null;
 
-    function normalize(d){ return (d % 360 + 360) % 360; }
-    function diff(a, b){ let d = normalize(b) - normalize(a); if (d > 180) d -= 360; if (d < -180) d += 360; return d; }
+    function normalize(d){
+      return (d % 360 + 360) % 360;
+    }
+    function diff(a, b){
+      let d = normalize(b) - normalize(a);
+      if (d > 180) d -= 360;
+      if (d < -180) d += 360;
+      return d;
+    }
     function emaAngle(prev, newDeg, a){
       if (prev == null) return newDeg;
       return normalize(prev + a * diff(prev, newDeg));
@@ -246,16 +264,13 @@
     function applyBearingWithPivot(bearingDeg){
       const pane = map.getPane('mapPane');
       if (!pane) return;
-
       let originCss = '50% 50%';
       if (lastPos) {
         const px = map.latLngToContainerPoint([lastPos.coords.latitude, lastPos.coords.longitude]);
         originCss = `${px.x}px ${px.y}px`;
       }
-
       const base = pane.style.transform || '';
       const cleaned = base.replace(/rotate\\([^)]*\\)/g, '').trim();
-
       pane.style.transformOrigin = originCss;
       pane.style.transform = `${cleaned} rotate(${-bearingDeg}deg)`;
     }
@@ -294,14 +309,14 @@
       applyBearingWithPivot(headingAnim);
     }, { passive: true });
 
-    // Compass / DeviceOrientation
+    // Compass
     let compassEnabled = false;
     function handleOrientation(e){
-      let h = (typeof e.webkitCompassHeading === 'number') ? e.webkitCompassHeading : null;
-      if (h == null && typeof e.absolute === 'boolean' && e.absolute === true && typeof e.alpha === 'number') {
-        h = 360 - e.alpha;
-      } else if (h == null && typeof e.alpha === 'number') {
-        h = 360 - e.alpha;
+      let h = null;
+      if (typeof e.webkitCompassHeading === 'number') {
+        h = e.webkitCompassHeading;
+      } else if (typeof e.alpha === 'number') {
+        h = e.alpha;  // use alpha directly
       }
       if (h == null || isNaN(h)) return;
       h = normalize(h);
@@ -387,7 +402,7 @@
       }
     }
 
-    // Waypoints
+    // Waypoints (same logic)
     const wpKey = 'mapapp.waypoints.v1';
     const wpMarkers = new Map();
     function loadWPs(){
@@ -530,6 +545,7 @@
     renderWPs();
     syncMarkers();
     applyBearingWithPivot(headingAnim);
+
   })();
   </script>
 </body>
