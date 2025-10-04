@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Map App — Device-Up HUD, Rotating Map</title>
+<title>Map App — Rotating Map (Stabilized)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -15,24 +15,17 @@
   html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); -webkit-tap-highlight-color: transparent; }
   #map { position: fixed; inset: 0; height: 100svh; width: 100vw; }
 
-  /* Controls */
   .controls {
     position: fixed; top: env(safe-area-inset-top, 12px); left: 50%; transform: translateX(-50%);
     display: flex; gap: 8px; background: rgba(18,24,26,0.85);
     padding: 8px 10px; border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.35); z-index: 1000; backdrop-filter: blur(6px);
   }
-  .btn {
-    appearance: none; border: 1px solid rgba(255,255,255,.12);
-    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-    color: var(--text); padding: 8px 10px; border-radius: 10px;
-    font: 600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    cursor: pointer; transition: transform .05s ease, background .2s ease, border-color .2s ease; white-space: nowrap;
-  }
-  .btn:active { transform: translateY(1px) scale(.99); }
+  .btn { appearance:none; border:1px solid rgba(255,255,255,.12); background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+    color:var(--text); padding:8px 10px; border-radius:10px; font:600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; cursor:pointer; }
   .btn.primary { border-color: var(--accent); }
   .btn.toggled { outline: 2px solid var(--accent); }
+  .badge { padding:0 8px; border-radius:999px; background:rgba(255,255,255,.1); font-size:12px; margin-left:6px; }
 
-  .badge { padding: 0 8px; border-radius: 999px; background: rgba(255,255,255,.1); font-size: 12px; margin-left: 6px; }
   .info {
     position: fixed; left: 50%; transform: translateX(-50%);
     bottom: calc(env(safe-area-inset-bottom, 12px));
@@ -41,27 +34,17 @@
     color: var(--dim); z-index: 1000; box-shadow: 0 6px 18px rgba(0,0,0,.35); backdrop-filter: blur(6px);
   }
 
-  .fab {
-    position: fixed; right: 14px; bottom: calc(env(safe-area-inset-bottom, 14px) + 56px);
-    z-index: 1000; width: 48px; height: 48px; border-radius: 50%;
-    display: grid; place-items: center; background: rgba(18,24,26,0.9); border:1px solid rgba(255,255,255,.12);
-  }
+  .fab { position: fixed; right: 14px; bottom: calc(env(safe-area-inset-bottom, 14px) + 56px);
+    z-index: 1000; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: rgba(18,24,26,0.9); border:1px solid rgba(255,255,255,.12); }
 
   /* Waypoints panel */
-  .panel {
-    position: fixed; right: 12px; bottom: calc(env(safe-area-inset-bottom, 12px) + 120px);
-    width: min(92vw, 360px); max-height: 60vh; overflow: auto;
-    background: rgba(18,24,26,0.95);
-    border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 12px; z-index: 1000;
-    box-shadow: 0 12px 32px rgba(0,0,0,.45); display: none; backdrop-filter: blur(8px);
-  }
+  .panel { position: fixed; right: 12px; bottom: calc(env(safe-area-inset-bottom, 12px) + 120px);
+    width: min(92vw, 360px); max-height: 60vh; overflow: auto; background: rgba(18,24,26,0.95);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 12px; z-index: 1000; box-shadow: 0 12px 32px rgba(0,0,0,.45); display: none; }
   .panel.open { display: block; }
-  .panel h3 { margin: 0 0 8px 0; font: 700 16px/1.1 system-ui, sans-serif; color: var(--text); }
-  .row { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 10px 0; }
-  .row input, .row button {
-    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
-    background: rgba(255,255,255,.04); color: var(--text); font: 500 14px/1.2 system-ui, sans-serif;
-  }
+  .row { display: grid; gap: 8px; margin: 10px 0; }
+  .row input, .row button { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.04); color: var(--text); font: 500 14px/1.2 system-ui, sans-serif; }
   .list { display: grid; gap: 8px; }
   .item { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; }
   .item small { color: var(--dim); display:block; }
@@ -71,33 +54,23 @@
   .leaflet-control-attribution, .leaflet-control-zoom { filter: drop-shadow(0 6px 12px rgba(0,0,0,.35)); }
   .leaflet-container a { color: var(--dim); }
 
-  /* HUD overlay: centered arrow + vertical heading ray (always device-up) */
-  .hud {
-    position: fixed; inset: 0; z-index: 900; pointer-events: none;
-  }
-  .hud .ray {
-    position: fixed;
-    left: 50vw;              /* center horizontally */
-    top: 0;                  /* from screen top */
-    bottom: 50vh;            /* down to screen center */
-    width: 2px;
-    background: var(--green);
-    opacity: .95;
-    box-shadow: 0 0 10px rgba(42,255,42,.7), 0 0 2px rgba(42,255,42,.9) inset;
-  }
+  /* HUD: fixed, device-up arrow + ray */
+  .hud { position: fixed; inset: 0; z-index: 900; pointer-events: none; }
+  .hud .ray { position: fixed; left: 50vw; top: 0; bottom: 50vh; width: 2px; background: var(--green);
+    opacity: .95; box-shadow: 0 0 10px rgba(42,255,42,.7), 0 0 2px rgba(42,255,42,.9) inset; }
   .heading-pin { position: fixed; left: 50vw; top: 50vh; transform: translate(-22px, -22px); }
   .heading-pin svg { width: 44px; height: 44px; display:block; }
   .heading-pin .glow { filter: blur(3px); opacity: .85; }
   .heading-pin .stroke { filter: drop-shadow(0 2px 4px rgba(0,0,0,.55)); }
 
-  /* Make map pane rotatable and keep origin at center for smoothness */
+  /* Rotating map pane */
   .leaflet-map-pane { transform-origin: 50% 50% !important; }
 </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- HUD overlay (always device-up) -->
+  <!-- HUD overlay (device-up) -->
   <div class="hud" aria-hidden="true">
     <div class="ray"></div>
     <div class="heading-pin">
@@ -116,7 +89,7 @@
   <!-- Controls -->
   <div class="controls">
     <button id="btnLocate" class="btn primary">Enable GPS</button>
-    <button id="btnFollow" class="btn">Follow: <span id="followState" class="badge">on</span></button>
+    <button id="btnFollow" class="btn toggled">Follow: <span id="followState" class="badge">on</span></button>
     <button id="btnCompass" class="btn">Compass <span id="compassState" class="badge">off</span></button>
     <button id="btnReset" class="btn">Reset</button>
   </div>
@@ -124,7 +97,6 @@
   <!-- Waypoints -->
   <button id="btnWaypoints" class="btn fab" title="Waypoints">📍</button>
   <div id="wpPanel" class="panel" aria-hidden="true">
-    <h3>Waypoints</h3>
     <div class="row">
       <input id="wpName" placeholder="Name (e.g., Tower SE)" />
       <input id="wpCoords" placeholder='Coords (e.g., 34.851939 N, -119.168399 W or 34.851939,-119.168399)' />
@@ -133,7 +105,7 @@
     <div class="list" id="wpList"></div>
   </div>
 
-  <div class="info" id="readout">Lat: —, Lng: — | Acc: — m | Head: —° | Bearing: —°</div>
+  <div class="info" id="readout">Lat: —, Lng: — | Acc: — m | Head: —° | Map bearing: —°</div>
 
 <script>
 (function(){
@@ -141,63 +113,159 @@
   const map = L.map('map', { zoomControl: true, attributionControl: true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 20, minZoom: 2,
-    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
-  const DEFAULT = { lat: 34.9, lng: -119.17, z: 15 };
+  const DEFAULT = { lat: 34.9, lng: -119.17, z: 16 };
   map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
 
   // --- State ---
-  let watchId = null;
-  let headingOn = false;
-  let currentHeading = 0;  // degrees, 0 = North (compass)
   let lastPos = null;
-  let follow = true;       // force on while rotation is active
+  let follow = true;
 
   const readout = document.getElementById('readout');
   const compassBadge = document.getElementById('compassState');
   const followBadge = document.getElementById('followState');
   const btnFollow = document.getElementById('btnFollow');
 
-  // Waypoint DOM refs
   const wpPanel = document.getElementById('wpPanel');
   const wpList  = document.getElementById('wpList');
   const wpName  = document.getElementById('wpName');
   const wpCoords= document.getElementById('wpCoords');
 
-  // Accuracy ring (still useful)
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius: 0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
 
-  // --- Map bearing (rotate map pane; keep HUD fixed/up) ---
-  function applyBearing(){
+  // ---- MAP ROTATION (stabilized) ----
+  // targetHeading: raw compass (0..360). mapBearing = -filteredHeading
+  let headingTarget = 0;         // degrees 0..360
+  let headingFiltered = null;    // filtered (EMA on unit circle)
+  let headingAnim = 0;           // current displayed heading (deg)
+  const EMA_ALPHA = 0.18;        // smoothing factor (lower = smoother)
+  const DEADBAND = 2.0;          // ignore tiny changes (<2°)
+  const MAX_DEG_PER_SEC = 180;   // cap spin rate (deg/sec)
+
+  function normalize(deg){ return (deg % 360 + 360) % 360; }
+  function shortestDiff(a, b){
+    // returns signed diff from a->b in range [-180, 180]
+    let d = normalize(b) - normalize(a);
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return d;
+  }
+
+  function emaAngle(prevDeg, newDeg, alpha){
+    if (prevDeg == null) return newDeg;
+    const diff = shortestDiff(prevDeg, newDeg);
+    return normalize(prevDeg + alpha * diff);
+  }
+
+  function applyBearing(bearingDeg){
+    // rotate the map pane to -bearing (so HUD is device-up)
     const pane = map.getPane('mapPane');
     if (!pane) return;
-    // Leaflet continuously updates translate3d(...) on this element.
-    // We append a rotate(...) while stripping any prior rotate to avoid stacking.
     const base = pane.style.transform || '';
-    const cleaned = base.replace(/rotate\\([^)]*\\)/g, '').trim();
+    const cleaned = base.replace(/rotate\([^)]*\)/g, '').trim();
     pane.style.transformOrigin = '50% 50%';
-    pane.style.transform = `${cleaned} rotate(${-currentHeading}deg)`; // negative to rotate map under device-up HUD
+    pane.style.transform = `${cleaned} rotate(${-bearingDeg}deg)`;
   }
+
+  // Animation loop to move headingAnim toward headingFiltered with speed cap
+  let lastTs = null;
+  function tick(ts){
+    if (lastTs == null) lastTs = ts;
+    const dt = Math.max(0.001, (ts - lastTs)/1000);
+    lastTs = ts;
+
+    if (headingFiltered != null){
+      // cap the rate of change
+      const maxStep = MAX_DEG_PER_SEC * dt;
+      const diff = shortestDiff(headingAnim, headingFiltered);
+      const step = Math.abs(diff) > maxStep ? Math.sign(diff) * maxStep : diff;
+      headingAnim = normalize(headingAnim + step);
+      applyBearing(headingAnim);
+      updateReadout();
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 
   function updateReadout(){
     const lat = lastPos?.coords?.latitude?.toFixed(6) ?? '—';
     const lng = lastPos?.coords?.longitude?.toFixed(6) ?? '—';
     const acc = lastPos?.coords?.accuracy ? Math.round(lastPos.coords.accuracy) : '—';
-    const hdg = (currentHeading != null) ? Math.round(currentHeading) : '—';
-    readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Bearing: ${(-currentHeading + 360)%360}°`;
+    const hdg = headingFiltered != null ? Math.round(headingFiltered) : '—';
+    const mapBear = Math.round(normalize(-headingAnim));
+    readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
   }
 
-  // --- GPS ---
+  // Keep rotation applied whenever Leaflet writes transform
+  map.on('move moveend zoom zoomend zoomanim', ()=>applyBearing(headingAnim));
+  window.addEventListener('resize', ()=>{ map.invalidateSize(); applyBearing(headingAnim); }, { passive:true });
+
+  // ---- COMPASS INPUT (robust) ----
+  let compassEnabled = false;
+
+  function handleOrientation(e){
+    // Prefer iOS true heading
+    let h = (typeof e.webkitCompassHeading === 'number') ? e.webkitCompassHeading : null;
+
+    // Try absolute alpha if available (Android/Chrome)
+    if (h == null){
+      // Some browsers expose 'absolute' flag; alpha=0 when device points north (screen up).
+      if (typeof e.absolute === 'boolean' && e.absolute === true && typeof e.alpha === 'number'){
+        h = 360 - e.alpha; // convert to compass (0° = North, clockwise)
+      } else if (typeof e.alpha === 'number'){
+        // Fallback: treat alpha as roughly compass; may drift indoors.
+        h = 360 - e.alpha;
+      }
+    }
+
+    if (h == null || isNaN(h)) return;
+
+    // normalize and smooth with deadband
+    h = normalize(h);
+    if (headingFiltered == null){
+      headingFiltered = h;
+      headingAnim = h;
+    } else {
+      // if change is tiny, ignore to prevent shimmer
+      const rawDiff = Math.abs(shortestDiff(headingFiltered, h));
+      const useAlpha = rawDiff < 12 ? EMA_ALPHA : 0.30; // react faster to big swings
+      const next = emaAngle(headingFiltered, h, useAlpha);
+      if (Math.abs(shortestDiff(headingFiltered, next)) >= DEADBAND){
+        headingFiltered = next;
+      }
+    }
+  }
+
+  async function enableCompass(){
+    if (compassEnabled) return;
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const resp = await DeviceOrientationEvent.requestPermission();
+        if (resp !== 'granted') { alert('Compass permission denied.'); return; }
+      }
+      // Some browsers fire 'deviceorientationabsolute', prefer it if present
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+      window.addEventListener('deviceorientation', handleOrientation, true);
+      compassEnabled = true;
+      compassBadge.textContent = 'on';
+      setFollow(true); // keep centered while rotating map
+    } catch (e){
+      console.error(e);
+      alert('Compass access failed.');
+    }
+  }
+
+  // ---- GPS ----
   function startGPS(){
     if (!('geolocation' in navigator)) { alert('Geolocation not supported.'); return; }
-    if (watchId != null) return;
-    watchId = navigator.geolocation.watchPosition(
+    navigator.geolocation.watchPosition(
       (pos) => {
         lastPos = pos;
         const { latitude, longitude, accuracy: acc } = pos.coords;
         const latlng = [latitude, longitude];
         accuracy.setLatLng(latlng).setRadius(Math.max(acc || 0, 0));
-        if (follow) map.setView(latlng, Math.max(map.getZoom(), 15), { animate: false });
+        if (follow) map.setView(latlng, Math.max(map.getZoom(), 16), { animate: false });
         updateReadout();
       },
       (err) => { console.warn('GPS error:', err); alert('Unable to get location: ' + err.message); },
@@ -208,65 +276,29 @@
   function resetView(){
     if (lastPos) {
       const { latitude, longitude } = lastPos.coords;
-      map.setView([latitude, longitude], Math.max(map.getZoom(), 15));
+      map.setView([latitude, longitude], Math.max(map.getZoom(), 16));
     } else {
       map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
     }
+    applyBearing(headingAnim);
   }
 
-  // --- Compass -> rotate map ---
-  function handleOrientation(event){
-    let heading = null;
-    if (typeof event.webkitCompassHeading === 'number') heading = event.webkitCompassHeading;  // iOS true heading
-    else if (typeof event.alpha === 'number') heading = (360 - event.alpha);                   // fallback (approx)
-    if (heading != null && !Number.isNaN(heading)) {
-      currentHeading = (heading + 360) % 360;
-      applyBearing();
-      updateReadout();
-      compassBadge.textContent = 'on';
-    }
-  }
-  async function enableCompass(){
-    if (headingOn) return;
-    try {
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        const resp = await DeviceOrientationEvent.requestPermission();
-        if (resp !== 'granted') { alert('Compass permission denied.'); return; }
-        window.addEventListener('deviceorientation', handleOrientation, true);
-        headingOn = true; compassBadge.textContent = 'on';
-      } else if (typeof DeviceOrientationEvent !== 'undefined') {
-        window.addEventListener('deviceorientation', handleOrientation, true);
-        headingOn = true; compassBadge.textContent = 'on';
-      } else {
-        alert('Device orientation not supported.');
-      }
-      // when rotating the map, keep follow on so your position stays under the HUD arrow
-      setFollow(true);
-    } catch(e){ console.error(e); alert('Compass access failed.'); }
-  }
-
-  // Keep rotation applied whenever Leaflet changes its internal transform
-  map.on('move moveend zoom zoomend zoomanim', applyBearing);
-  window.addEventListener('resize', () => { map.invalidateSize(); applyBearing(); }, { passive: true });
-
-  // --- Follow toggle (allowed to turn off, but re-enabled when compass turns on) ---
+  // ---- Follow toggle ----
   function setFollow(val){
     follow = !!val;
     followBadge.textContent = follow ? 'on' : 'off';
     btnFollow.classList.toggle('toggled', follow);
     if (follow && lastPos) {
       const { latitude, longitude } = lastPos.coords;
-      map.setView([latitude, longitude], Math.max(map.getZoom(), 15), { animate:false });
+      map.setView([latitude, longitude], Math.max(map.getZoom(), 16), { animate:false });
     }
   }
 
-  // --- Waypoints (localStorage) ---
+  // ---- Waypoints (same as before) ----
   const wpKey = 'mapapp.waypoints.v1';
-  const wpMarkers = new Map(); // name -> Leaflet marker
-
+  const wpMarkers = new Map();
   function loadWPs(){ try { return JSON.parse(localStorage.getItem(wpKey) || '[]'); } catch { return []; } }
   function saveWPs(arr){ localStorage.setItem(wpKey, JSON.stringify(arr)); }
-
   function renderWPs(){
     wpList.innerHTML = '';
     const data = loadWPs();
@@ -281,29 +313,18 @@
       wpList.appendChild(div);
     });
   }
-
   function addOrUpdateWP(name, lat, lng){
     if (!name) name = `WP ${Date.now().toString().slice(-5)}`;
     const data = loadWPs();
-    const existing = data.findIndex(w => w.name.toLowerCase() === name.toLowerCase());
+    const i = data.findIndex(w => w.name.toLowerCase() === name.toLowerCase());
     const entry = { name, lat, lng };
-    if (existing >= 0) data[existing] = entry; else data.push(entry);
-    saveWPs(data);
-    renderWPs();
-    syncMarkers();
+    if (i >= 0) data[i] = entry; else data.push(entry);
+    saveWPs(data); renderWPs(); syncMarkers();
   }
-
   function deleteWP(index){
-    const data = loadWPs();
-    const [removed] = data.splice(index, 1);
-    saveWPs(data);
-    renderWPs();
-    if (removed && wpMarkers.has(removed.name)) {
-      map.removeLayer(wpMarkers.get(removed.name));
-      wpMarkers.delete(removed.name);
-    }
+    const data = loadWPs(); const [removed] = data.splice(index,1); saveWPs(data); renderWPs();
+    if (removed && wpMarkers.has(removed.name)) { map.removeLayer(wpMarkers.get(removed.name)); wpMarkers.delete(removed.name); }
   }
-
   function syncMarkers(){
     const data = loadWPs();
     data.forEach(wp => {
@@ -311,50 +332,28 @@
         const m = L.marker([wp.lat, wp.lng]).addTo(map)
           .bindPopup(`<b>${wp.name}</b><br>${wp.lat.toFixed(6)}, ${wp.lng.toFixed(6)}`);
         wpMarkers.set(wp.name, m);
-      } else {
-        wpMarkers.get(wp.name).setLatLng([wp.lat, wp.lng]);
-      }
+      } else { wpMarkers.get(wp.name).setLatLng([wp.lat, wp.lng]); }
     });
     [...wpMarkers.keys()].forEach(name => {
-      if (!data.some(w => w.name === name)) {
-        map.removeLayer(wpMarkers.get(name));
-        wpMarkers.delete(name);
-      }
+      if (!data.some(w => w.name === name)) { map.removeLayer(wpMarkers.get(name)); wpMarkers.delete(name); }
     });
   }
-
   function parseCoords(input){
     const t = input.trim().replace(/\s+/g,' ').replace(/[,;]+/g, ',');
     const dec = t.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
-    if (dec) {
-      const lat = parseFloat(dec[1]), lng = parseFloat(dec[3]);
-      if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat)<=90 && Math.abs(lng)<=180) return {lat, lng};
-    }
-    const parts = t.split(',');
-    if (parts.length === 2){
-      const parseOne = (s)=>{
-        const m = s.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);
-        if (!m) return null;
-        const hemi = (m[1] || m[4] || '').toUpperCase();
-        let val = parseFloat(m[2]);
-        if (hemi === 'S' || hemi === 'W') val = -Math.abs(val);
-        if (hemi === 'N' || hemi === 'E') val = Math.abs(val);
-        return {val, hemi};
-      };
-      const a = parseOne(parts[0]);
-      const b = parseOne(parts[1]);
-      if (a && b){
-        let lat, lng;
-        if (a.hemi === 'N' || a.hemi === 'S') { lat = a.val; lng = b.val; }
-        else if (a.hemi === 'E' || a.hemi === 'W') { lng = a.val; lat = b.val; }
-        else { lat = a.val; lng = b.val; }
-        if (Math.abs(lat)<=90 && Math.abs(lng)<=180) return {lat, lng};
-      }
-    }
-    return null;
+    if (dec) { const lat = parseFloat(dec[1]), lng = parseFloat(dec[3]);
+      if (Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
+    const parts = t.split(','); if (parts.length===2){
+      const parseOne = (s)=>{ const m=s.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i); if(!m) return null;
+        const hemi=(m[1]||m[4]||'').toUpperCase(); let val=parseFloat(m[2]);
+        if(hemi==='S'||hemi==='W') val=-Math.abs(val); if(hemi==='N'||hemi==='E') val=Math.abs(val); return {val,hemi}; };
+      const a=parseOne(parts[0]), b=parseOne(parts[1]); if(a&&b){ let lat,lng;
+        if(a.hemi==='N'||a.hemi==='S'){lat=a.val; lng=b.val;} else if(a.hemi==='E'||a.hemi==='W'){lng=a.val; lat=b.val;} else {lat=a.val; lng=b.val;}
+        if(Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
+    } return null;
   }
 
-  // --- UI wiring ---
+  // ---- UI wiring ----
   document.getElementById('btnLocate').addEventListener('click', startGPS);
   document.getElementById('btnCompass').addEventListener('click', enableCompass);
   document.getElementById('btnReset').addEventListener('click', resetView);
@@ -383,9 +382,7 @@
   });
 
   // init
-  renderWPs(); syncMarkers(); applyBearing();
-  // try to keep it centered if we rotate before GPS lock
-  map.on('load', applyBearing);
+  renderWPs(); syncMarkers(); applyBearing(headingAnim);
 })();
 </script>
 </body>
