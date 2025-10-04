@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-<title>Map App — Lean+Recompressed</title>
+<title>Map App — Lean+Guide</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <style>
@@ -28,7 +28,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .floating-popup .leaflet-popup-content-wrapper{background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.45)}
 .floating-popup .leaflet-popup-tip{background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12)}
 .floating-popup .leaflet-popup-content{margin:10px 12px}
-.popup-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.popup-grid{display:grid;gap:8px}
 .popup-actions{display:flex;gap:8px;justify-content:flex-end}
 .popup-actions .btn{padding:6px 10px;font-size:13px}
 .popup-input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);font:500 13px/1}
@@ -60,35 +60,55 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 (()=>{const $=i=>document.getElementById(i),
 N=d=>(d%360+360)%360,D=(a,b)=>{let d=N(b)-N(a);return d>180?d-360:d<-180?d+360:d},
 E=(p,n,a)=>p==null?n:N(p+a*D(p,n)),R=d=>d*Math.PI/180,Deg=r=>r*180/Math.PI,F=v=>Number(v).toFixed(6),
-S={follow:true,heading:null,bearing:0,compass:false,press:false,fAngle:null,fPivot:null},
+S={follow:true,heading:null,bearing:0,compass:false,press:false,fAngle:null,fPivot:null,dest:null},
 DEF={lat:34.9,lng:-119.17,z:16},
 map=L.map('map',{zoomControl:true,attributionControl:true});
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,minZoom:2,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
 map.setView([DEF.lat,DEF.lng],DEF.z);
-let lastPos=null,ray=null,originDot=null;
-const readout=$('readout'),followBadge=$('followState'),btnFollow=$('btnFollow'),compassBadge=$('compassState');
+let lastPos=null,ray=null,originDot=null,navLine=null;
+const readout=$('readout'),followBadge=$('followState'),btnFollow=$('btnFollow'),compassBadge=$('compassState'),btnReset=$('btnReset');
 const accuracy=L.circle([DEF.lat,DEF.lng],{radius:0,color:'#4db6ff',weight:1,opacity:.6,fillOpacity:.08}).addTo(map);
 
+/* geo helpers */
 const mpp=()=>{const s=map.getSize(),a=map.containerPointToLatLng(L.point(s.x/2,s.y/2)),b=map.containerPointToLatLng(L.point(s.x/2+1,s.y/2));return map.distance(a,b)||1},
 rayLen=()=>{const s=map.getSize();return Math.max(Math.hypot(s.x,s.y)*mpp()*1.35+200,3000)},
 dest=(ll,b,dm)=>{const br=R(b),dr=dm/6371000,lat1=R(ll.lat),lon1=R(ll.lng),lat2=Math.asin(Math.sin(lat1)*Math.cos(dr)+Math.cos(lat1)*Math.sin(dr)*Math.cos(br)),lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1),Math.cos(dr)-Math.sin(lat1)*Math.sin(lat2));return L.latLng(Deg(lat2),Deg(lon2))},
-applyBearing=d=>{const pane=map.getPane('mapPane');if(!pane)return;let o='50% 50%';if(lastPos){const p=map.latLngToContainerPoint([lastPos.coords.latitude,lastPos.coords.longitude]);o=`${p.x}px ${p.y}px`;}pane.style.transformOrigin=o;pane.style.transform=(pane.style.transform||'').replace(/rotate\([^)]*\)/g,'')+` rotate(${-d}deg)`;},
-updateReadout=()=>{const lat=lastPos?.coords?.latitude?.toFixed(6)??'—',lng=lastPos?.coords?.longitude?.toFixed(6)??'—',acc=lastPos?.coords?.accuracy?Math.round(lastPos.coords.accuracy):'—',hd=S.heading!=null?Math.round(S.heading):'—',mb=Math.round(N(-S.bearing));readout.textContent=`Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hd}° | Map bearing: ${mb}°`;},
+distM=(a,b)=>{const Rm=6371000,φ1=R(a.lat),φ2=R(b.lat),dφ=R(b.lat-a.lat),dλ=R(b.lng-a.lng),s=Math.sin(dφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;return 2*Rm*Math.asin(Math.min(1,Math.sqrt(s)))},
+bear=(a,b)=>{const φ1=R(a.lat),φ2=R(b.lat),λ1=R(a.lng),λ2=R(b.lng),y=Math.sin(λ2-λ1)*Math.cos(φ2),x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);return N(Deg(Math.atan2(y,x)))},
+fmtDist=m=>m<1000?`${Math.round(m)} m`:`${(m/1000).toFixed(2)} km`;
+
+/* rotation + visuals */
+const applyBearing=d=>{const pane=map.getPane('mapPane');if(!pane)return;let o='50% 50%';if(lastPos){const p=map.latLngToContainerPoint([lastPos.coords.latitude,lastPos.coords.longitude]);o=`${p.x}px ${p.y}px`;}pane.style.transformOrigin=o;pane.style.transform=(pane.style.transform||'').replace(/rotate\([^)]*\)/g,'')+` rotate(${-d}deg)`;},
+updateReadout=()=>{const lat=lastPos?.coords?.latitude?.toFixed(6)??'—',lng=lastPos?.coords?.longitude?.toFixed(6)??'—',acc=lastPos?.coords?.accuracy?Math.round(lastPos.coords.accuracy):'—',hd=S.heading!=null?Math.round(S.heading):'—',mb=Math.round(N(-S.bearing));
+let navTxt=''; if(S.dest&&lastPos){const me=L.latLng(lastPos.coords.latitude,lastPos.coords.longitude),to=L.latLng(S.dest.lat,S.dest.lng),d=distM(me,to),b=bear(me,to),steer=S.heading==null?'?':Math.round(D(S.heading,b));navTxt=` | To ${S.dest.name||'Dest'}: ${fmtDist(d)} @ ${Math.round(b)}° (Δ ${typeof steer==='number'?steer:'?'}°)`;}
+readout.textContent=`Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hd}° | Map bearing: ${mb}°${navTxt}`;},
 refreshRay=()=>{if(!lastPos){if(ray)ray.setLatLngs([]);return}const o=L.latLng(lastPos.coords.latitude,lastPos.coords.longitude);if(!originDot){originDot=L.circleMarker(o,{radius:3,color:'#2aff2a',weight:2,fillColor:'#2aff2a',fillOpacity:1,interactive:false}).addTo(map)}else originDot.setLatLng(o).bringToFront();if(S.heading==null)return;if(!ray)ray=L.polyline([],{color:'#2aff2a',weight:3,opacity:1,interactive:false}).addTo(map);ray.setLatLngs([o,dest(o,S.heading,rayLen())]).bringToFront()},
+refreshNav=()=>{if(!S.dest||!lastPos){if(navLine){navLine.setLatLngs([])}btnReset.textContent='Reset';return}
+btnReset.textContent='Clear Nav';
+if(!navLine)navLine=L.polyline([], {color:'#29a36a',weight:3,opacity:.9,interactive:false,dashArray:'6 6'}).addTo(map);
+navLine.setLatLngs([ [lastPos.coords.latitude,lastPos.coords.longitude], [S.dest.lat,S.dest.lng] ]).bringToFront();},
+
 pivotLL=()=>lastPos?L.latLng(lastPos.coords.latitude,lastPos.coords.longitude):map.getCenter(),
 latLngFromPt=pt=>{const panePos=map._getMapPanePos(),layer=L.point(pt.x-panePos.x,pt.y-panePos.y),ang=(S.press&&S.fAngle!=null)?S.fAngle:S.bearing,pivot=(S.press&&S.fPivot)?S.fPivot:map.latLngToLayerPoint(pivotLL()),th=R(ang),c=Math.cos(th),s=Math.sin(th),dx=layer.x-pivot.x,dy=layer.y-pivot.y,un=L.point(pivot.x+dx*c+dy*s,pivot.y+(-dx*s)+dy*c);return map.layerPointToLatLng(un)};
 
+/* RAF */
 (function loop(){const target=(S.rotate??true)?(S.heading??0):0;S.bearing+=D(N(S.bearing),target);applyBearing(S.bearing);updateReadout();requestAnimationFrame(loop)})();
-map.on('move moveend zoom zoomend zoomanim',()=>{applyBearing(S.bearing);refreshRay()});
-addEventListener('resize',()=>{map.invalidateSize();applyBearing(S.bearing);refreshRay()},{passive:true});
+map.on('move moveend zoom zoomend zoomanim',()=>{applyBearing(S.bearing);refreshRay();refreshNav()});
+addEventListener('resize',()=>{map.invalidateSize();applyBearing(S.bearing);refreshRay();refreshNav()},{passive:true});
 
-function onOrient(e){let h=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:typeof e.alpha==='number'?e.alpha:null;if(h==null||isNaN(h))return;h=N(h);if(S.heading==null){S.heading=h;if(S.rotate)S.bearing=h}else{const a=Math.abs(D(S.heading,h))<12?0.12:0.3,n=E(S.heading,h,a);if(Math.abs(D(S.heading,n))>=1)S.heading=n}refreshRay()}
+/* sensors */
+function onOrient(e){let h=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:typeof e.alpha==='number'?e.alpha:null;if(h==null||isNaN(h))return;h=N(h);if(S.heading==null){S.heading=h;if(S.rotate)S.bearing=h}else{const a=Math.abs(D(S.heading,h))<12?0.12:0.3,n=E(S.heading,h,a);if(Math.abs(D(S.heading,n))>=1)S.heading=n}refreshRay();refreshNav()}
 async function enableCompass(){if(S.compass)return true;try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){if((await DeviceOrientationEvent.requestPermission())!=='granted'){alert('Compass permission denied.');return false}}addEventListener('deviceorientationabsolute',onOrient,true);addEventListener('deviceorientation',onOrient,true);S.compass=true;return true}catch{alert('Compass access failed.');return false}}
 
-function startGPS(){if(!('geolocation'in navigator))return alert('Geolocation not supported.');navigator.geolocation.watchPosition(p=>{lastPos=p;const{latitude,longitude,accuracy:acc,heading}=p.coords,ll=[latitude,longitude];accuracy.setLatLng(ll).setRadius(Math.max(acc||0,0));if(S.follow&&!S.press)map.setView(ll,Math.max(map.getZoom(),16),{animate:false});if(Number.isFinite(heading)){const h=N(heading);if(S.heading==null)S.heading=h;else{const a=Math.abs(D(S.heading,h))<12?0.12:0.3,n=E(S.heading,h,a);if(Math.abs(D(S.heading,n))>=1)S.heading=n}}applyBearing(S.bearing);refreshRay();updateReadout()},e=>alert('Unable to get location: '+e.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000})}
-function resetView(){if(lastPos){const{latitude,longitude}=lastPos.coords;map.setView([latitude,longitude],Math.max(map.getZoom(),16))}else map.setView([DEF.lat,DEF.lng],DEF.z);applyBearing(S.bearing)}
+/* GPS */
+function startGPS(){if(!('geolocation'in navigator))return alert('Geolocation not supported.');navigator.geolocation.watchPosition(p=>{lastPos=p;const{latitude,longitude,accuracy:acc,heading}=p.coords,ll=[latitude,longitude];accuracy.setLatLng(ll).setRadius(Math.max(acc||0,0));if(S.follow&&!S.press)map.setView(ll,Math.max(map.getZoom(),16),{animate:false});if(Number.isFinite(heading)){const h=N(heading);if(S.heading==null)S.heading=h;else{const a=Math.abs(D(S.heading,h))<12?0.12:0.3,n=E(S.heading,h,a);if(Math.abs(D(S.heading,n))>=1)S.heading=n}}applyBearing(S.bearing);refreshRay();refreshNav();updateReadout()},e=>alert('Unable to get location: '+e.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000})}
+
+/* view/follow/reset */
+function resetView(){ if(S.dest){ S.dest=null; refreshNav(); updateReadout(); return; }
+if(lastPos){const{latitude,longitude}=lastPos.coords;map.setView([latitude,longitude],Math.max(map.getZoom(),16))}else map.setView([DEF.lat,DEF.lng],DEF.z);applyBearing(S.bearing)}
 function setFollow(v){S.follow=!!v;followBadge.textContent=S.follow?'on':'off';btnFollow.classList.toggle('toggled',S.follow);if(S.follow&&lastPos){const{latitude,longitude}=lastPos.coords;map.setView([latitude,longitude],Math.max(map.getZoom(),16),{animate:false});applyBearing(S.bearing)}}
 
+/* waypoints */
 const key='mapapp.waypoints.v1',markers=new Map(),
 loadW=()=>{try{return JSON.parse(localStorage.getItem(key)||'[]')}catch{return[]}},
 saveW=a=>localStorage.setItem(key,JSON.stringify(a)),
@@ -97,12 +117,15 @@ upsertW=(name,lat,lng)=>{const a=loadW(),nm=(name?.trim())||`WP ${Date.now().toS
 delW=i=>{const a=loadW();const[rm]=a.splice(i,1);saveW(a);renderW();if(rm&&markers.has(rm.name)){map.removeLayer(markers.get(rm.name));markers.delete(rm.name)}},
 syncM=()=>{const a=loadW();a.forEach(w=>{if(!markers.has(w.name)){const m=L.marker([w.lat,w.lng]).addTo(map);bindPopup(m,{name:w.name,lat:w.lat,lng:w.lng,wp:true});markers.set(w.name,m)}else{const m=markers.get(w.name);m.setLatLng([w.lat,w.lng]);bindPopup(m,{name:w.name,lat:w.lat,lng:w.lng,wp:true})}});[...markers.keys()].forEach(n=>{if(!a.some(w=>w.name===n)){map.removeLayer(markers.get(n));markers.delete(n)}})};
 
-const popHTML=(nm,lat,lng)=>{const a=F(lat),b=F(lng);return `<div class="popup-grid"><input class="popup-input" type="text" placeholder="Name" value="${nm||`Pin ${a},${b}`}" data-name/><div style="color:var(--dim);font-size:12px">${a}, ${b}</div><div class="popup-actions"><button class="btn" data-copy>Copy</button><button class="btn" data-min>Minimize</button><button class="btn primary" data-save>Save</button></div></div>`};
-function bindPopup(m,o){const{name,lat,lng}=o;m.unbindPopup();m.bindPopup(popHTML(name,lat,lng),{className:'floating-popup',autoClose:true,closeButton:true,offset:[0,-10]}).off('popupopen').on('popupopen',()=>{const el=m.getPopup().getElement(),I=el.querySelector('[data-name]'),C=el.querySelector('[data-copy]'),SAV=el.querySelector('[data-save]'),MIN=el.querySelector('[data-min]');
+/* popup */
+const popHTML=(nm,lat,lng)=>{const a=F(lat),b=F(lng);return `<div class="popup-grid"><input class="popup-input" type="text" placeholder="Name" value="${nm||`Pin ${a},${b}`}" data-name/><div style="color:var(--dim);font-size:12px">${a}, ${b}</div><div class="popup-actions"><button class="btn" data-copy>Copy</button><button class="btn" data-min>Minimize</button><button class="btn" data-guide>Guide</button><button class="btn primary" data-save>Save</button></div></div>`};
+function bindPopup(m,o){const{name,lat,lng}=o;m.unbindPopup();m.bindPopup(popHTML(name,lat,lng),{className:'floating-popup',autoClose:true,closeButton:true,offset:[0,-10]}).off('popupopen').on('popupopen',()=>{const el=m.getPopup().getElement(),I=el.querySelector('[data-name]'),C=el.querySelector('[data-copy]'),SAV=el.querySelector('[data-save]'),MIN=el.querySelector('[data-min]'),G=el.querySelector('[data-guide]');
 C?.addEventListener('click',async()=>{const txt=`${F(lat)}, ${F(lng)}`;try{await navigator.clipboard.writeText(txt);C.textContent='Copied';setTimeout(()=>C.textContent='Copy',1000)}catch{prompt('Copy to clipboard:',txt)}});
 SAV?.addEventListener('click',()=>{const nm=(I?.value||'').trim()||`WP ${Date.now().toString().slice(-5)}`;upsertW(nm,lat,lng);m.closePopup();m._nm=nm});
-MIN?.addEventListener('click',()=>{const nm=(I?.value||m._nm||'Pin')||'Pin';m.bindTooltip(nm,{permanent:true,direction:'right',offset:[8,0],className:'mini-label'}).openTooltip();m.closePopup();m._nm=nm});})}
+MIN?.addEventListener('click',()=>{const nm=(I?.value||m._nm||'Pin')||'Pin';m.bindTooltip(nm,{permanent:true,direction:'right',offset:[8,0],className:'mini-label'}).openTooltip();m.closePopup();m._nm=nm});
+G?.addEventListener('click',()=>{S.dest={lat,lng,name:(I?.value||m._nm||'Dest')};refreshNav();updateReadout();m.closePopup();});})}
 
+/* precise long-press */
 const container=map.getContainer();let t=null,start=null,last=null;const LONG=420,MOVE=6,
 pt=e=>{const r=container.getBoundingClientRect();return L.point(e.clientX-r.left,e.clientY-r.top)},
 freezeS=()=>{S.press=true;S.fAngle=S.bearing;S.fPivot=map.latLngToLayerPoint(pivotLL())},
@@ -114,9 +137,10 @@ container.addEventListener('pointermove',e=>{if(!t)return;e.preventDefault();las
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>container.addEventListener(ev,()=>{clearTimeout(t);freezeE()},{passive:true}));
 map.on('contextmenu',e=>{e.originalEvent?.preventDefault();freezeS();const p=e.containerPoint??pt(e.originalEvent);dropAt(latLngFromPt(p));freezeE()});
 
+/* UI */
 $('btnLocate').addEventListener('click',startGPS);
 $('btnCompass').addEventListener('click',async()=>{if(!await enableCompass())return;S.rotate=!(S.rotate??true);compassBadge.textContent=S.rotate?'on':'off';$('btnCompass').classList.toggle('toggled',S.rotate);applyBearing(S.bearing);if(S.rotate)setFollow(true)});
-$('btnReset').addEventListener('click',resetView);
+btnReset.addEventListener('click',resetView);
 btnFollow.addEventListener('click',()=>setFollow(!S.follow));
 
 const btnWP=$('btnWaypoints'),wpPanel=$('wpPanel'),wpName=$('wpName'),wpCoords=$('wpCoords');
@@ -125,7 +149,7 @@ $('wpAdd').addEventListener('click',()=>{const t=wpCoords.value.trim().replace(/
 if(!p)return alert('Could not parse coordinates. Try "34.851939,-119.168399" or "34.851939 N, -119.168399 W".');upsertW(wpName.value,p.lat,p.lng);wpName.value='';wpCoords.value=''});
 $('wpList').addEventListener('click',e=>{const t=e.target,go=t.getAttribute('data-go'),del=t.getAttribute('data-del');if(go!=null){const w=loadW()[+go];if(w){map.setView([w.lat,w.lng],16);markers.get(w.name)?.openPopup()}}if(del!=null)delW(+del)});
 
-renderW();syncM();applyBearing(S.bearing);refreshRay();
+renderW();syncM();applyBearing(S.bearing);refreshRay();refreshNav();
 })();
 </script>
 </body></html>
