@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-<title>Map App — Lean Build</title>
+<title>Map App — Lean Build + Mini Popup</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <style>
@@ -24,8 +24,16 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .leaflet-control-attribution,.leaflet-control-zoom{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
 .leaflet-container a{color:var(--dim)}.leaflet-map-pane{will-change:transform}
 .leaflet-popup-content{font:500 13px/1.3 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
-.leaflet-popup-content .actions{display:grid;gap:6px;margin-top:8px}
-.leaflet-popup-content input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text)}
+/* === New: lightweight floating popup + tiny label === */
+.floating-popup .leaflet-popup-content-wrapper{background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.45)}
+.floating-popup .leaflet-popup-tip{background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12)}
+.floating-popup .leaflet-popup-content{margin:10px 12px}
+.popup-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.popup-row{display:grid;grid-template-columns:1fr;gap:6px}
+.popup-actions{display:flex;gap:8px;justify-content:flex-end}
+.popup-actions .btn{padding:6px 10px;font-size:13px}
+.popup-input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);font:500 13px/1}
+.mini-label{background:rgba(18,24,26,.85);color:var(--text);padding:2px 6px;border:1px solid rgba(255,255,255,.12);border-radius:8px;font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;backdrop-filter:blur(4px);pointer-events:none}
 </style>
 </head><body>
 <div id="map"></div>
@@ -73,7 +81,6 @@ pivotLatLng=()=>lastPos?L.latLng(lastPos.coords.latitude,lastPos.coords.longitud
 latLngFromContainerPoint=(pt)=>{const panePos=map._getMapPanePos(),layer=L.point(pt.x-panePos.x,pt.y-panePos.y),ang=(S.press&&S.fAngle!=null)?S.fAngle:S.bearing,pivot=(S.press&&S.fPivot)?S.fPivot:map.latLngToLayerPoint(pivotLatLng()),th=R(ang),c=Math.cos(th),s=Math.sin(th),dx=layer.x-pivot.x,dy=layer.y-pivot.y,un=L.point(pivot.x+dx*c+dy*s,pivot.y+(-dx*s)+dy*c);return map.layerPointToLatLng(un)};
 
 (function loop(){const target=(S.rotate??true)?(S.heading??0):0;S.bearing+=D(N(S.bearing),target);applyBearing(S.bearing);updateReadout();requestAnimationFrame(loop)})();
-
 map.on('move moveend zoom zoomend zoomanim',()=>{applyBearing(S.bearing);refreshRay()});
 addEventListener('resize',()=>{map.invalidateSize();applyBearing(S.bearing);refreshRay()},{passive:true});
 
@@ -93,19 +100,61 @@ saveWPs=a=>localStorage.setItem(wpKey,JSON.stringify(a)),
 renderWPs=()=>{const list=$('wpList');list.innerHTML='';loadWPs().forEach((w,i)=>{const d=document.createElement('div');d.className='item';d.innerHTML=`<div><strong>${w.name}</strong><small>${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}</small></div><button class="btn" data-go="${i}">Go</button><button class="btn danger" data-del="${i}">Del</button>`;list.appendChild(d)})},
 addOrUpdateWP=(name,lat,lng)=>{const data=loadWPs(),nm=(name?.trim())||`WP ${Date.now().toString().slice(-5)}`,i=data.findIndex(w=>w.name.toLowerCase()===nm.toLowerCase()),e={name:nm,lat,lng};if(i>=0)data[i]=e;else data.push(e);saveWPs(data);renderWPs();syncMarkers()},
 delWP=i=>{const data=loadWPs();const[rm]=data.splice(i,1);saveWPs(data);renderWPs();if(rm&&wpMarkers.has(rm.name)){map.removeLayer(wpMarkers.get(rm.name));wpMarkers.delete(rm.name)}},
-syncMarkers=()=>{const data=loadWPs();data.forEach(w=>{if(!wpMarkers.has(w.name)){const m=L.marker([w.lat,w.lng]).addTo(map).bindPopup(`<b>${w.name}</b><br>${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}`);wpMarkers.set(w.name,m)}else wpMarkers.get(w.name).setLatLng([w.lat,w.lng])});[...wpMarkers.keys()].forEach(n=>{if(!data.some(w=>w.name===n)){map.removeLayer(wpMarkers.get(n));wpMarkers.delete(n)}})};
+syncMarkers=()=>{const data=loadWPs();data.forEach(w=>{if(!wpMarkers.has(w.name)){const m=L.marker([w.lat,w.lng]).addTo(map);attachPopupControls(m,{name:w.name,lat:w.lat,lng:w.lng,isWaypoint:true});wpMarkers.set(w.name,m)}else{const m=wpMarkers.get(w.name);m.setLatLng([w.lat,w.lng]);attachPopupControls(m,{name:w.name,lat:w.lat,lng:w.lng,isWaypoint:true})}});[...wpMarkers.keys()].forEach(n=>{if(!data.some(w=>w.name===n)){map.removeLayer(wpMarkers.get(n));wpMarkers.delete(n)}})};
+
+/* === New: compact floating popup + minimize label === */
+const buildPopupHTML=(name,lat,lng)=>{const a=F(lat),b=F(lng);return `
+  <div class="popup-grid">
+    <div class="popup-row">
+      <input class="popup-input" type="text" placeholder="Name" value="${name||`Pin ${a},${b}`}" data-name/>
+      <div style="color:var(--dim);font-size:12px">${a}, ${b}</div>
+    </div>
+    <div class="popup-actions">
+      <button class="btn" data-copy>Copy</button>
+      <button class="btn" data-min>Minimize</button>
+      <button class="btn primary" data-save>Save</button>
+    </div>
+  </div>`};
+
+function attachPopupControls(marker, opts){
+  const {name,lat,lng}=opts;
+  marker.unbindPopup();
+  marker.bindPopup(buildPopupHTML(name,lat,lng),{className:'floating-popup',autoClose:true,closeButton:true,offset:[0,-10]});
+  marker.off('popupopen').on('popupopen',()=>{
+    const el=marker.getPopup().getElement();
+    const input=el.querySelector('[data-name]'),btnCopy=el.querySelector('[data-copy]'),btnSave=el.querySelector('[data-save]'),btnMin=el.querySelector('[data-min]');
+    btnCopy?.addEventListener('click',async()=>{
+      const txt=`${F(lat)}, ${F(lng)}`;
+      try{await navigator.clipboard.writeText(txt);btnCopy.textContent='Copied';setTimeout(()=>btnCopy.textContent='Copy',1000)}catch{prompt('Copy to clipboard:',txt)}
+    });
+    btnSave?.addEventListener('click',()=>{
+      const nm=(input?.value||'').trim()||`WP ${Date.now().toString().slice(-5)}`;
+      addOrUpdateWP(nm,lat,lng);
+      marker.closePopup();
+      // if it was a temporary pin, keep its label in sync with new name
+      marker._nm=nm;
+    });
+    btnMin?.addEventListener('click',()=>{
+      const nm=(input?.value||marker._nm||'Pin')||'Pin';
+      marker.bindTooltip(nm,{permanent:true,direction:'right',offset:[8,0],className:'mini-label'}).openTooltip();
+      marker.closePopup();
+      marker._nm=nm;
+    });
+  });
+}
 
 const container=map.getContainer();let t=null,start=null,last=null;const LONG=420,MOVE=6,
 ptFrom=e=>{const r=container.getBoundingClientRect();return L.point(e.clientX-r.left,e.clientY-r.top)},
 freezeStart=()=>{S.press=true;S.fAngle=S.bearing;S.fPivot=map.latLngToLayerPoint(pivotLatLng())},
 freezeEnd=()=>{S.press=false;S.fAngle=null;S.fPivot=null},
-dropPinAt=ll=>{if(window.__pin){map.removeLayer(window.__pin)}window.__pin=L.marker(ll).addTo(map).bindPopup(((lat,lng)=>{const a=F(lat),b=F(lng),pair=`${a}, ${b}`,def=`Pin ${a},${b}`;return `<div><strong>Lat:</strong> ${a}<br/><strong>Lng:</strong> ${b}</div><div class="actions"><button class="btn" data-copy="${pair}">Copy</button><input type="text" placeholder="Name (optional)" value="${def}" data-name/><button class="btn primary" data-save>Save as Waypoint</button></div>`})(ll.lat,ll.lng),{closeButton:true,autoClose:true}).openPopup();
-window.__pin.on('popupopen',()=>{const el=window.__pin.getPopup().getElement(),copy=el.querySelector('[data-copy]'),name=el.querySelector('[data-name]'),save=el.querySelector('[data-save]');copy?.addEventListener('click',async()=>{const s=copy.getAttribute('data-copy')||'';try{await navigator.clipboard.writeText(s);const old=copy.textContent;copy.textContent='Copied';setTimeout(()=>copy.textContent=old,1200)}catch{prompt('Copy to clipboard:',s)}});save?.addEventListener('click',()=>{addOrUpdateWP(name?.value||'',ll.lat,ll.lng);window.__pin.closePopup()})})};
+dropPinAt=ll=>{if(window.__pin){map.removeLayer(window.__pin)}
+window.__pin=L.marker(ll).addTo(map);
+attachPopupControls(window.__pin,{name:`Pin ${F(ll.lat)},${F(ll.lng)}`,lat:ll.lat,lng:ll.lng,isWaypoint:false});
+window.__pin.openPopup();};
 
 container.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;e.preventDefault();freezeStart();start=last=ptFrom(e);clearTimeout(t);t=setTimeout(()=>{t=null;dropPinAt(latLngFromContainerPoint(last));freezeEnd()},LONG)},{passive:false});
 container.addEventListener('pointermove',e=>{if(!t)return;e.preventDefault();last=ptFrom(e);if(Math.hypot(last.x-start.x,last.y-start.y)>MOVE){clearTimeout(t);freezeEnd()}},{passive:false});
 ['pointerup','pointercancel','pointerleave'].forEach(ev=>container.addEventListener(ev,()=>{clearTimeout(t);freezeEnd()},{passive:true}));
-
 map.on('contextmenu',e=>{e.originalEvent?.preventDefault();freezeStart();const pt=e.containerPoint??ptFrom(e.originalEvent);dropPinAt(latLngFromContainerPoint(pt));freezeEnd()});
 
 $('btnLocate').addEventListener('click',startGPS);
