@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Map App — Rotating Map (Stabilized)</title>
+<title>Map App — Rotating Map (Pivot at GPS)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -63,8 +63,7 @@
   .heading-pin .glow { filter: blur(3px); opacity: .85; }
   .heading-pin .stroke { filter: drop-shadow(0 2px 4px rgba(0,0,0,.55)); }
 
-  /* Rotating map pane */
-  .leaflet-map-pane { transform-origin: 50% 50% !important; }
+  .leaflet-map-pane { will-change: transform; } /* smoother */
 </style>
 </head>
 <body>
@@ -134,54 +133,45 @@
 
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius: 0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
 
-  // ---- MAP ROTATION (stabilized) ----
-  // targetHeading: raw compass (0..360). mapBearing = -filteredHeading
-  let headingTarget = 0;         // degrees 0..360
-  let headingFiltered = null;    // filtered (EMA on unit circle)
-  let headingAnim = 0;           // current displayed heading (deg)
-  const EMA_ALPHA = 0.18;        // smoothing factor (lower = smoother)
-  const DEADBAND = 2.0;          // ignore tiny changes (<2°)
-  const MAX_DEG_PER_SEC = 180;   // cap spin rate (deg/sec)
+  // ---- STABILIZED MAP ROTATION (pivot = GPS pixel) ----
+  let headingTarget = 0, headingFiltered = null, headingAnim = 0;
+  const EMA_ALPHA = 0.18, DEADBAND = 2.0, MAX_DEG_PER_SEC = 180;
 
-  function normalize(deg){ return (deg % 360 + 360) % 360; }
-  function shortestDiff(a, b){
-    // returns signed diff from a->b in range [-180, 180]
-    let d = normalize(b) - normalize(a);
-    if (d > 180) d -= 360;
-    if (d < -180) d += 360;
-    return d;
-  }
+  function normalize(d){ return (d%360+360)%360; }
+  function diff(a,b){ let d = normalize(b)-normalize(a); if(d>180) d-=360; if(d<-180) d+=360; return d; }
+  function emaAngle(prev,newDeg,a){ if(prev==null) return newDeg; return normalize(prev + a*diff(prev,newDeg)); }
 
-  function emaAngle(prevDeg, newDeg, alpha){
-    if (prevDeg == null) return newDeg;
-    const diff = shortestDiff(prevDeg, newDeg);
-    return normalize(prevDeg + alpha * diff);
-  }
-
-  function applyBearing(bearingDeg){
-    // rotate the map pane to -bearing (so HUD is device-up)
+  function applyBearingWithPivot(bearingDeg){
     const pane = map.getPane('mapPane');
     if (!pane) return;
+
+    // figure out the intended pivot point
+    let originCss = '50% 50%';
+    if (lastPos) {
+      const px = map.latLngToContainerPoint([lastPos.coords.latitude, lastPos.coords.longitude]);
+      originCss = `${px.x}px ${px.y}px`;
+    }
+
+    // strip any prior rotate(...) the Leaflet translate3d(...) must be kept
     const base = pane.style.transform || '';
     const cleaned = base.replace(/rotate\([^)]*\)/g, '').trim();
-    pane.style.transformOrigin = '50% 50%';
+
+    pane.style.transformOrigin = originCss;              // <-- pivot at your on-screen GPS point
     pane.style.transform = `${cleaned} rotate(${-bearingDeg}deg)`;
   }
 
-  // Animation loop to move headingAnim toward headingFiltered with speed cap
+  // animation loop (rate-limited rotation)
   let lastTs = null;
   function tick(ts){
     if (lastTs == null) lastTs = ts;
-    const dt = Math.max(0.001, (ts - lastTs)/1000);
-    lastTs = ts;
+    const dt = Math.max(0.001, (ts - lastTs)/1000); lastTs = ts;
 
     if (headingFiltered != null){
-      // cap the rate of change
       const maxStep = MAX_DEG_PER_SEC * dt;
-      const diff = shortestDiff(headingAnim, headingFiltered);
-      const step = Math.abs(diff) > maxStep ? Math.sign(diff) * maxStep : diff;
+      const d = diff(headingAnim, headingFiltered);
+      const step = Math.abs(d) > maxStep ? Math.sign(d)*maxStep : d;
       headingAnim = normalize(headingAnim + step);
-      applyBearing(headingAnim);
+      applyBearingWithPivot(headingAnim);
       updateReadout();
     }
     requestAnimationFrame(tick);
@@ -197,46 +187,27 @@
     readout.textContent = `Lat: ${lat}, Lng: ${lng} | Acc: ${acc} m | Head: ${hdg}° | Map bearing: ${mapBear}°`;
   }
 
-  // Keep rotation applied whenever Leaflet writes transform
-  map.on('move moveend zoom zoomend zoomanim', ()=>applyBearing(headingAnim));
-  window.addEventListener('resize', ()=>{ map.invalidateSize(); applyBearing(headingAnim); }, { passive:true });
+  // keep pivot + rotation applied whenever Leaflet writes its translate
+  map.on('move moveend zoom zoomend zoomanim', ()=>applyBearingWithPivot(headingAnim));
+  window.addEventListener('resize', ()=>{ map.invalidateSize(); applyBearingWithPivot(headingAnim); }, { passive:true });
 
-  // ---- COMPASS INPUT (robust) ----
+  // ---- COMPASS INPUT (smoothed) ----
   let compassEnabled = false;
-
   function handleOrientation(e){
-    // Prefer iOS true heading
     let h = (typeof e.webkitCompassHeading === 'number') ? e.webkitCompassHeading : null;
-
-    // Try absolute alpha if available (Android/Chrome)
-    if (h == null){
-      // Some browsers expose 'absolute' flag; alpha=0 when device points north (screen up).
-      if (typeof e.absolute === 'boolean' && e.absolute === true && typeof e.alpha === 'number'){
-        h = 360 - e.alpha; // convert to compass (0° = North, clockwise)
-      } else if (typeof e.alpha === 'number'){
-        // Fallback: treat alpha as roughly compass; may drift indoors.
-        h = 360 - e.alpha;
-      }
-    }
-
+    if (h == null && typeof e.absolute === 'boolean' && e.absolute === true && typeof e.alpha === 'number') h = 360 - e.alpha;
+    else if (h == null && typeof e.alpha === 'number') h = 360 - e.alpha;
     if (h == null || isNaN(h)) return;
-
-    // normalize and smooth with deadband
     h = normalize(h);
-    if (headingFiltered == null){
-      headingFiltered = h;
-      headingAnim = h;
-    } else {
-      // if change is tiny, ignore to prevent shimmer
-      const rawDiff = Math.abs(shortestDiff(headingFiltered, h));
-      const useAlpha = rawDiff < 12 ? EMA_ALPHA : 0.30; // react faster to big swings
-      const next = emaAngle(headingFiltered, h, useAlpha);
-      if (Math.abs(shortestDiff(headingFiltered, next)) >= DEADBAND){
-        headingFiltered = next;
-      }
+
+    if (headingFiltered == null){ headingFiltered = h; headingAnim = h; }
+    else {
+      const rawDiff = Math.abs(diff(headingFiltered, h));
+      const a = rawDiff < 12 ? EMA_ALPHA : 0.30;
+      const next = emaAngle(headingFiltered, h, a);
+      if (Math.abs(diff(headingFiltered, next)) >= DEADBAND) headingFiltered = next;
     }
   }
-
   async function enableCompass(){
     if (compassEnabled) return;
     try {
@@ -244,16 +215,11 @@
         const resp = await DeviceOrientationEvent.requestPermission();
         if (resp !== 'granted') { alert('Compass permission denied.'); return; }
       }
-      // Some browsers fire 'deviceorientationabsolute', prefer it if present
       window.addEventListener('deviceorientationabsolute', handleOrientation, true);
       window.addEventListener('deviceorientation', handleOrientation, true);
-      compassEnabled = true;
-      compassBadge.textContent = 'on';
-      setFollow(true); // keep centered while rotating map
-    } catch (e){
-      console.error(e);
-      alert('Compass access failed.');
-    }
+      compassEnabled = true; compassBadge.textContent = 'on';
+      setFollow(true);
+    } catch(e){ console.error(e); alert('Compass access failed.'); }
   }
 
   // ---- GPS ----
@@ -265,7 +231,13 @@
         const { latitude, longitude, accuracy: acc } = pos.coords;
         const latlng = [latitude, longitude];
         accuracy.setLatLng(latlng).setRadius(Math.max(acc || 0, 0));
-        if (follow) map.setView(latlng, Math.max(map.getZoom(), 16), { animate: false });
+
+        if (follow) {
+          // recenter so your GPS stays under the HUD arrow
+          map.setView(latlng, Math.max(map.getZoom(), 16), { animate: false });
+        }
+        // after any move, re-apply rotation with the new pivot
+        applyBearingWithPivot(headingAnim);
         updateReadout();
       },
       (err) => { console.warn('GPS error:', err); alert('Unable to get location: ' + err.message); },
@@ -280,7 +252,7 @@
     } else {
       map.setView([DEFAULT.lat, DEFAULT.lng], DEFAULT.z);
     }
-    applyBearing(headingAnim);
+    applyBearingWithPivot(headingAnim);
   }
 
   // ---- Follow toggle ----
@@ -291,10 +263,11 @@
     if (follow && lastPos) {
       const { latitude, longitude } = lastPos.coords;
       map.setView([latitude, longitude], Math.max(map.getZoom(), 16), { animate:false });
+      applyBearingWithPivot(headingAnim);
     }
   }
 
-  // ---- Waypoints (same as before) ----
+  // ---- Waypoints (unchanged) ----
   const wpKey = 'mapapp.waypoints.v1';
   const wpMarkers = new Map();
   function loadWPs(){ try { return JSON.parse(localStorage.getItem(wpKey) || '[]'); } catch { return []; } }
@@ -382,7 +355,7 @@
   });
 
   // init
-  renderWPs(); syncMarkers(); applyBearing(headingAnim);
+  renderWPs(); syncMarkers(); applyBearingWithPivot(headingAnim);
 })();
 </script>
 </body>
