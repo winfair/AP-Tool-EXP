@@ -10,8 +10,6 @@
 :root{--bg:#0b0f10;--panel:#12181a;--text:#e7f6ef;--accent:#29a36a;--dim:#91c7ae;--danger:#ff6b6b;--green:#2aff2a}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent}
 #map{position:fixed;inset:0;height:100svh;width:100vw}
-
-/* UI */
 .controls{position:fixed;top:env(safe-area-inset-top,12px);left:50%;transform:translateX(-50%);display:flex;gap:8px;background:rgba(18,24,26,.85);padding:8px 10px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.35);z-index:1000;backdrop-filter:blur(6px)}
 .btn{appearance:none;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));color:var(--text);padding:8px 10px;border-radius:10px;font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer}
 .btn.primary{border-color:var(--accent)}.btn.toggled{outline:2px solid var(--accent)}
@@ -57,7 +55,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 
 <script>
 (() => {
-  // ------- helpers -------
   const $ = id => document.getElementById(id);
   const normalize = d => (d % 360 + 360) % 360;
   const diff = (a,b) => { let d = normalize(b) - normalize(a); return d>180?d-360:d<-180?d+360:d; };
@@ -65,7 +62,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   const toRad = d => d*Math.PI/180, toDeg = r => r*180/Math.PI;
   const fmt = v => Number(v).toFixed(6);
 
-  // ------- map -------
   const map = L.map('map', { zoomControl:true, attributionControl:true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom:20, minZoom:2,
@@ -83,11 +79,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 
   const readout = $('readout'), compassBadge = $('compassState'), followBadge = $('followState'), btnFollow = $('btnFollow');
 
-  // accuracy + ray + origin dot
   const accuracy = L.circle([DEFAULT.lat, DEFAULT.lng], { radius:0, color:'#4db6ff', weight:1, opacity:.6, fillOpacity:.08 }).addTo(map);
   let ray = null, originDot = null;
 
-  // ------- geometry -------
   function metersPerPixelAtCenter(){
     const sz = map.getSize();
     const a = map.containerPointToLatLng(L.point(sz.x/2, sz.y/2));
@@ -106,7 +100,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     return L.latLng(toDeg(lat2), toDeg(lon2));
   }
 
-  // ------- rotation -------
+  // --- Apply rotation around user's screen position (or center)
   function applyBearingWithPivot(deg){
     const pane = map.getPane('mapPane'); if (!pane) return;
     let origin = '50% 50%';
@@ -114,7 +108,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
       const p = map.latLngToContainerPoint([lastPos.coords.latitude, lastPos.coords.longitude]);
       origin = `${p.x}px ${p.y}px`;
     }
-    // Keep Leaflet's translate3d() and add our rotate()
     const base = (pane.style.transform || '').replace(/rotate\([^)]*\)/g,'');
     pane.style.transformOrigin = origin;
     pane.style.transform = `${base} rotate(${-deg}deg)`.trim();
@@ -140,21 +133,30 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     ray.setLatLngs([origin, destination(origin, headingFiltered, longRayLengthMeters())]).bringToFront();
   }
 
-  function getPivotPx(){
-    if (lastPos) return map.latLngToContainerPoint([lastPos.coords.latitude, lastPos.coords.longitude]);
-    const s = map.getSize(); return L.point(s.x/2, s.y/2);
-  }
-  function unrotateContainerPoint(pt){
-    const o = getPivotPx();
+  // --- SUPER PRECISE screen->latlng by undoing rotation in *layer* space
+  function latLngFromContainerPointPrecise(pt){
+    // Convert container pt -> layer pt (Leaflet subtracts mapPane position)
+    const panePos = map._getMapPanePos(); // internal but reliable
+    const layerPt = L.point(pt.x - panePos.x, pt.y - panePos.y);
+
+    // Pivot in layer space (user if we have it; else map center)
+    const pivotLatLng = lastPos
+      ? L.latLng(lastPos.coords.latitude, lastPos.coords.longitude)
+      : map.getCenter();
+    const pivotLayer = map.latLngToLayerPoint(pivotLatLng);
+
+    // Inverse of CSS rotate(-mapApplied): rotate by +mapApplied around pivot
     const th = mapApplied * Math.PI/180, c = Math.cos(th), s = Math.sin(th);
-    const dx = pt.x - o.x, dy = pt.y - o.y;
-    return L.point(o.x + dx*c + dy*s, o.y + (-dx*s) + dy*c);
-  }
-  function latLngFromContainerPointAccurate(pt){
-    return map.containerPointToLatLng(unrotateContainerPoint(pt));
+    const dx = layerPt.x - pivotLayer.x, dy = layerPt.y - pivotLayer.y;
+    const unrotLayer = L.point(
+      pivotLayer.x + dx*c + dy*s,
+      pivotLayer.y + (-dx*s) + dy*c
+    );
+
+    return map.layerPointToLatLng(unrotLayer);
   }
 
-  // ------- RAF loop -------
+  // --- RAF loop
   (function tick(){
     const target = rotateMap ? (headingFiltered ?? 0) : 0;
     mapApplied += diff(normalize(mapApplied), target);
@@ -166,7 +168,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   map.on('move moveend zoom zoomend zoomanim', () => { applyBearingWithPivot(mapApplied); refreshRay(); });
   window.addEventListener('resize', () => { map.invalidateSize(); applyBearingWithPivot(mapApplied); refreshRay(); }, { passive:true });
 
-  // ------- sensors -------
+  // --- sensors
   function handleOrientation(e){
     let h = typeof e.webkitCompassHeading === 'number' ? e.webkitCompassHeading
           : typeof e.alpha === 'number' ? e.alpha : null;
@@ -218,7 +220,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     );
   }
 
-  // ------- view / follow -------
   function resetView(){
     if (lastPos){
       const { latitude, longitude } = lastPos.coords;
@@ -237,7 +238,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     }
   }
 
-  // ------- waypoints -------
+  // --- waypoints
   const wpKey = 'mapapp.waypoints.v1', wpMarkers = new Map();
   const loadWPs = () => { try{ return JSON.parse(localStorage.getItem(wpKey)||'[]'); }catch{ return []; } };
   const saveWPs = arr => localStorage.setItem(wpKey, JSON.stringify(arr));
@@ -276,30 +277,11 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     });
     [...wpMarkers.keys()].forEach(n => { if (!data.some(w => w.name===n)){ map.removeLayer(wpMarkers.get(n)); wpMarkers.delete(n); } });
   }
-  function parseCoords(input){
-    const t = input.trim().replace(/\s+/g,' ').replace(/[,;]+/g,',');
-    const dec = t.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
-    if (dec){
-      const lat = parseFloat(dec[1]), lng = parseFloat(dec[3]);
-      if (Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng};
-    }
-    const parts = t.split(','); if (parts.length!==2) return null;
-    const parseOne = s => {
-      const m = s.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);
-      if (!m) return null;
-      const hemi=(m[1]||m[4]||'').toUpperCase(); let v=parseFloat(m[2]);
-      if (hemi==='S'||hemi==='W') v=-Math.abs(v); if (hemi==='N'||hemi==='E') v=Math.abs(v);
-      return {v,hemi};
-    };
-    const a=parseOne(parts[0]), b=parseOne(parts[1]); if (!a||!b) return null;
-    const lat = (a.hemi==='N'||a.hemi==='S') ? a.v : b.v, lng = (a.hemi==='E'||a.hemi==='W') ? a.v : b.v;
-    return (Math.abs(lat)<=90&&Math.abs(lng)<=180) ? {lat,lng} : null;
-  }
 
-  // ------- precise long-press -------
+  // --- long-press (precise & no page drift while arming)
   const container = map.getContainer();
   let pressTimer=null, pressStart=null, lastPt=null;
-  const LONG_MS=450, MOVE_CANCEL=10;
+  const LONG_MS=420, MOVE_CANCEL=6;
 
   function containerPointFromEvent(ev){
     const r = container.getBoundingClientRect();
@@ -310,7 +292,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     pressStart = pt; lastPt = pt;
     pressTimer = setTimeout(()=>{ // fire
       pressTimer=null;
-      const ll = latLngFromContainerPointAccurate(lastPt);
+      const ll = latLngFromContainerPointPrecise(lastPt);
       dropPinAt(ll);
     }, LONG_MS);
   }
@@ -327,28 +309,30 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   }
 
   container.addEventListener('pointerdown', (ev)=>{
-    // only primary mouse or touch/pen
     if (ev.button !== 0 && ev.pointerType === 'mouse') return;
+    // prevent page scroll/jitter while arming the long-press
+    ev.preventDefault();
     startPress(containerPointFromEvent(ev));
-  }, {passive:true});
+  }, {passive:false});
 
   container.addEventListener('pointermove', (ev)=>{
     if (!pressTimer) return;
+    ev.preventDefault();
     movePress(containerPointFromEvent(ev));
-  }, {passive:true});
+  }, {passive:false});
 
   ['pointerup','pointercancel','pointerleave'].forEach(t=>{
     container.addEventListener(t, clearPress, {passive:true});
   });
 
-  // right-click precise
+  // Right-click precise
   map.on('contextmenu', (e) => {
     e.originalEvent?.preventDefault();
     const pt = e.containerPoint ?? containerPointFromEvent(e.originalEvent);
-    dropPinAt(latLngFromContainerPointAccurate(pt));
+    dropPinAt(latLngFromContainerPointPrecise(pt));
   });
 
-  // ------- pin popup -------
+  // --- popup & save
   let activePin = null;
   function popupHtml(lat, lng){
     const latTxt = fmt(lat), lngTxt = fmt(lng), pair = `${latTxt}, ${lngTxt}`;
@@ -379,7 +363,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     });
   }
 
-  // ------- UI wiring -------
+  // --- UI wiring
   $('btnLocate').addEventListener('click', startGPS);
   $('btnCompass').addEventListener('click', async () => {
     const ok = await ensureCompassActive(); if (!ok) return;
@@ -398,17 +382,18 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     wpPanel.setAttribute('aria-hidden', wpPanel.classList.contains('open') ? 'false' : 'true');
   });
   $('wpAdd').addEventListener('click', () => {
-    const t = wpCoords.value.trim();
-    const parsed = (function(s){
-      const t = s.replace(/\s+/g,' ').replace(/[,;]+/g,',');
-      const dec = t.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
-      if (dec){ const lat = parseFloat(dec[1]), lng = parseFloat(dec[3]); if (isFinite(lat)&&isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
-      const parts = t.split(','); if (parts.length!==2) return null;
-      const parseOne = s => { const m = s.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i); if (!m) return null; const hemi=(m[1]||m[4]||'').toUpperCase(); let v=parseFloat(m[2]); if (hemi==='S'||hemi==='W') v=-Math.abs(v); if (hemi==='N'||hemi==='E') v=Math.abs(v); return {v,hemi}; };
-      const a=parseOne(parts[0]), b=parseOne(parts[1]); if (!a||!b) return null;
-      const lat = (a.hemi==='N'||a.hemi==='S') ? a.v : b.v, lng = (a.hemi==='E'||a.hemi==='W') ? a.v : b.v;
-      return (Math.abs(lat)<=90&&Math.abs(lng)<=180) ? {lat,lng} : null;
-    })(t);
+    const t = wpCoords.value.trim().replace(/\s+/g,' ').replace(/[,;]+/g,',');
+    const dec = t.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
+    let parsed=null;
+    if (dec){ const lat = parseFloat(dec[1]), lng = parseFloat(dec[3]); if (isFinite(lat)&&isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180) parsed={lat,lng}; }
+    if (!parsed){
+      const parts = t.split(','); if (parts.length===2){
+        const parseOne = s => { const m = s.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i); if (!m) return null; const hemi=(m[1]||m[4]||'').toUpperCase(); let v=parseFloat(m[2]); if (hemi==='S'||hemi==='W') v=-Math.abs(v); if (hemi==='N'||hemi==='E') v=Math.abs(v); return {v,hemi}; };
+        const a=parseOne(parts[0]), b=parseOne(parts[1]);
+        if (a&&b){ const lat = (a.hemi==='N'||a.hemi==='S') ? a.v : b.v, lng = (a.hemi==='E'||a.hemi==='W') ? a.v : b.v;
+          if (Math.abs(lat)<=90&&Math.abs(lng)<=180) parsed={lat,lng}; }
+      }
+    }
     if (!parsed) return alert('Could not parse coordinates. Try "34.851939,-119.168399" or "34.851939 N, -119.168399 W".');
     addOrUpdateWP(wpName.value, parsed.lat, parsed.lng);
     wpName.value=''; wpCoords.value='';
@@ -419,7 +404,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
     if (del!=null) deleteWP(+del);
   });
 
-  // ------- init -------
+  // init
   renderWPs(); syncMarkers(); applyBearingWithPivot(mapApplied); refreshRay();
 })();
 </script>
