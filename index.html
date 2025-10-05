@@ -52,11 +52,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   <button id="btnReset" class="btn">Reset</button>
 </div>
 
-<!-- FABs -->
 <button id="btnWaypoints" class="btn fab wp" title="Waypoints" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false">📍</button>
 <button id="btnSettings" class="btn fab gear" title="Settings" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false">⚙️</button>
 
-<!-- Waypoints Panel -->
 <div id="wpPanel" class="panel" aria-hidden="true">
   <div class="row">
     <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
@@ -66,7 +64,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   <div class="list" id="wpList" aria-live="polite"></div>
 </div>
 
-<!-- Settings Panel -->
 <div id="settingsPanel" class="panel" aria-hidden="true">
   <div class="settings-group">
     <div class="settings-label">Declination Offset (°)</div>
@@ -108,14 +105,36 @@ parseCoords=t=>{
   return null;
 };
 
-// Haptics (why: tactile confirmation when aligned)
+// ------- Cross-platform haptics (Android: Vibration API; iOS: WebAudio click fallback) -------
+const AudioHaptics=(()=>{
+  let ctx=null;
+  const ensure=()=>{ if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; ctx=new AC(); } if(ctx.state==='suspended') ctx.resume(); return ctx; };
+  const prime=()=>{ ensure(); };
+  window.addEventListener('pointerdown',prime,{passive:true});
+  window.addEventListener('keydown',prime);
+  const click=()=>{
+    const c=ensure(); if(!c || c.state!=='running') return;
+    const t=c.currentTime, osc=c.createOscillator(), g=c.createGain();
+    osc.type='square'; osc.frequency.setValueAtTime(120, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.25, t+0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+0.03);
+    osc.connect(g).connect(c.destination);
+    osc.start(t); osc.stop(t+0.035);
+  };
+  return { click };
+})();
+
 const Haptics=(()=>{
   let last=0;
   return{
-    hit(){ // short buzz, throttled
-      const now=performance.now();
-      if(now-last<400) return; last=now;
-      if(navigator.vibrate) navigator.vibrate(15);
+    hit(){
+      const now=performance.now(); if(now-last<350) return; last=now; // throttle
+      try{
+        if('vibrate' in navigator){ navigator.vibrate(12); return; } // Android
+      }catch{}
+      // iOS/web fallback: subtle audio click (why: iOS Safari lacks Vibration API)
+      AudioHaptics.click();
     }
   };
 })();
@@ -127,7 +146,6 @@ const App={
  map:null,last:null,ray:null,originDot:null,navLine:null,accCircle:null,markers:new Map(),
  _navState:null, _lastOverlayAngle:null, _compassBound:false, watchId:null, _guideHit:false,
  init(){
-  // restore minimal state
   try{
     const saved=JSON.parse(localStorage.getItem('mapapp.state.v1')||'{}');
     if(typeof saved.follow==='boolean') this.S.follow=saved.follow;
@@ -143,7 +161,6 @@ const App={
 
   this.bindUI(); this.bindMap(); this.loop(); WPs.init(this); Pins.init(this);
 
-  // reflect restored toggles
   this.applyBearing(this.S.bearing);
   $('followState').textContent=this.S.follow?'on':'off';
   $('btnFollow').classList.toggle('toggled',this.S.follow);
@@ -151,7 +168,6 @@ const App={
   $('compassState').textContent=this.S.rotate?'on':'off';
   $('btnCompass').classList.toggle('toggled',this.S.rotate);
   $('btnCompass').setAttribute('aria-pressed',String(this.S.rotate));
-  // settings initial
   $('declInput').value=String(this.S.decl);
 
   addEventListener('beforeunload',()=>{this.persist(); this.stopGPS();},{once:true});
@@ -160,6 +176,16 @@ const App={
   try{
     localStorage.setItem('mapapp.state.v1',JSON.stringify({follow:this.S.follow,rotate:this.S.rotate,bearing:this.S.bearing,decl:this.S.decl}));
   }catch{}
+ },
+ // rotate UI/state centralized (why: single source of truth)
+ setRotate(v){
+   this.S.rotate=!!v;
+   $('compassState').textContent=this.S.rotate?'on':'off';
+   $('btnCompass').classList.toggle('toggled',this.S.rotate);
+   $('btnCompass').setAttribute('aria-pressed',String(this.S.rotate));
+   this.applyBearing(this.S.bearing);
+   if(this.S.rotate) this.setFollow(true);
+   this.persist();
  },
  uprightOverlays(deg){
    if(this._lastOverlayAngle!=null && Math.abs(Δ(this._lastOverlayAngle,deg))<0.1) return;
@@ -204,7 +230,7 @@ const App={
      const was=this._guideHit, now=delta<.5;
      if(now){this.navLine.setStyle({color:'#ff4444',weight:4,opacity:1});this.navLine.getElement?.().classList.add('guide-hit')}
      else{this.navLine.setStyle({color:'#29a36a',weight:3,opacity:.9});this.navLine.getElement?.().classList.remove('guide-hit')}
-     if(!was && now){ Haptics.hit(); } // haptic on transition into hit
+     if(!was && now){ Haptics.hit(); } // tactile feedback on lock-in
      this._guideHit=now;
    }
  },
@@ -249,7 +275,7 @@ const App={
  onOrient(e){
    let h=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:typeof e.alpha==='number'?e.alpha:null;
    if(h==null||isNaN(h))return;
-   h=N(h + (this.S.decl||0)); // apply declination
+   h=N(h + (this.S.decl||0));
    if(this.S.heading==null){ this.S.heading=h; if(this.S.rotate) this.S.bearing=h; }
    else{ this._adaptHeading(h); }
  },
@@ -277,7 +303,7 @@ const App={
      this.accCircle.setLatLng(ll).setRadius(Math.max(acc||0,0));
      if(this.S.follow&&!this.S.press)this.map.setView(ll,Math.max(this.map.getZoom(),16),{animate:false});
      if(Number.isFinite(heading)){
-       const h=N(heading + (this.S.decl||0)); // apply declination to course if provided
+       const h=N(heading + (this.S.decl||0));
        if(this.S.heading==null) this.S.heading=h; else this._adaptHeading(h);
      }
    },e=>alert('Unable to get location: '+e.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
@@ -326,24 +352,27 @@ const App={
  },
  bindUI(){
    $('btnLocate').onclick=()=>this.startGPS();
-   $('btnCompass').onclick=async()=>{if(!await this.enableCompass())return; this.S.rotate=!(this.S.rotate??true);
-     $('compassState').textContent=this.S.rotate?'on':'off'; $('btnCompass').classList.toggle('toggled',this.S.rotate); $('btnCompass').setAttribute('aria-pressed',String(this.S.rotate));
-     this.applyBearing(this.S.bearing); if(this.S.rotate)this.setFollow(true)};
+
+   $('btnCompass').onclick=async()=>{
+     if(!this.S.rotate){
+       if(!await this.enableCompass()) return; // only required when enabling
+       this.setRotate(true);
+     }else{
+       this.setRotate(false);
+     }
+   };
+
    $('btnReset').onclick=()=>this.resetView();
    $('btnFollow').onclick=()=>this.setFollow(!this.S.follow);
 
-   // Waypoints
    const btnWP=$('btnWaypoints'), wpPanel=$('wpPanel');
    btnWP.onclick=()=>{const open=!wpPanel.classList.contains('open'); wpPanel.classList.toggle('open',open); wpPanel.setAttribute('aria-hidden',open?'false':'true'); btnWP.setAttribute('aria-expanded',String(open))};
    $('wpAdd').onclick=()=>{const p=parseCoords($('wpCoords').value); if(!p)return alert('Could not parse coordinates. Try "34.851939,-119.168399" or "34.851939 N, -119.168399 W".'); WPs.upsert($('wpName').value,p.lat,p.lng); $('wpName').value=''; $('wpCoords').value=''};
 
-   // Waypoint list actions (Go, Guide, Edit, Save, Cancel, Del)
+   // Waypoint list actions
    $('wpList').onclick=e=>{
-     const t=e.target;
-     const idx = t.getAttribute('data-idx');
-     if(idx==null) return;
-     const i=+idx;
-     if(t.hasAttribute('data-go')){ const w=WPs.load()[i]; if(w){ this.setFollow(false); this.map.setView([w.lat,w.lng],16); WPs.ensureMarker(w.name)?.openPopup(); } }
+     const t=e.target; const idx=t.getAttribute('data-idx'); if(idx==null) return; const i=+idx;
+     if(t.hasAttribute('data-go')){ const w=WPs.load()[i]; if(w){ this.setFollow(false); this.setRotate(false); this.map.setView([w.lat,w.lng],16); WPs.ensureMarker(w.name)?.openPopup(); } }
      else if(t.hasAttribute('data-guide')){ const w=WPs.load()[i]; if(w){ this.S.dest={lat:w.lat,lng:w.lng,name:w.name}; this.refreshNav(); this.updateHUD(); } }
      else if(t.hasAttribute('data-edit')){ WPs.edit(i); }
      else if(t.hasAttribute('data-save-edit')){ WPs.saveEdit(i); }
@@ -351,7 +380,6 @@ const App={
      else if(t.hasAttribute('data-del')){ WPs.del(i); }
    };
 
-   // Settings
    const btnSettings=$('btnSettings'), settings=$('settingsPanel');
    btnSettings.onclick=()=>{const open=!settings.classList.contains('open'); settings.classList.toggle('open',open); settings.setAttribute('aria-hidden',open?'false':'true'); btnSettings.setAttribute('aria-expanded',String(open))};
    $('declSave').onclick=()=>{ const v=parseFloat(($('declInput').value||'0').trim()); if(Number.isFinite(v)){ this.S.decl=Math.max(-60,Math.min(60,v)); this.persist(); } };
@@ -434,7 +462,7 @@ const WPs={
  }
 };
 
-// ------- Ad-hoc Pins -------
+// ------- Pins -------
 const Pins={
  app:null, pin:null,
  init(app){this.app=app},
