@@ -27,11 +27,13 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .danger{border-color:var(--danger);color:var(--danger)}
 .leaflet-control-attribution,.leaflet-control-zoom{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
 .leaflet-container a{color:var(--dim)}.leaflet-map-pane{will-change:transform}
+/* HUD */
 .info{position:fixed;left:12px;right:12px;bottom:env(safe-area-inset-bottom,12px);background:rgba(18,24,26,.9);padding:10px 12px;border-radius:14px;font:500 13px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);z-index:900;box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px);pointer-events:none}
 .info .metrics{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:baseline}
 .info .metric{display:flex;gap:6px;align-items:baseline}
 .info .metric span{color:var(--dim);font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 .info .metric .value{color:var(--text);font:700 15px/1 ui-monospace;letter-spacing:.2px}
+/* Popups */
 .leaflet-popup-content{font:500 13px/1.3 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
 .floating-popup .leaflet-popup-content-wrapper{background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.45)}
 .floating-popup .leaflet-popup-tip{background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12)}
@@ -40,7 +42,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .popup-actions .btn{padding:6px 10px;font-size:13px}
 .popup-input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);font:500 13px/1}
 .mini-label{background:rgba(18,24,26,.85);color:var(--text);padding:2px 6px;border:1px solid rgba(255,255,255,.12);border-radius:8px;font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;backdrop-filter:blur(4px);pointer-events:none}
-/* On-screen alignment banner */
+/* Always-on alignment banner */
 .align-banner{position:fixed;top:calc(env(safe-area-inset-top,12px) + 58px);left:50%;transform:translateX(-50%);z-index:1150;
   background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 12px;
   font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px);display:none}
@@ -63,6 +65,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 <button id="btnWaypoints" class="btn fab wp" title="Waypoints" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false">📍</button>
 <button id="btnSettings" class="btn fab gear" title="Settings" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false">⚙️</button>
 
+<!-- Waypoints -->
 <div id="wpPanel" class="panel" aria-hidden="true">
   <div class="row">
     <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
@@ -72,6 +75,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   <div class="list" id="wpList" aria-live="polite"></div>
 </div>
 
+<!-- Settings -->
 <div id="settingsPanel" class="panel" aria-hidden="true">
   <div class="settings-group">
     <div class="settings-label">Declination Offset</div>
@@ -130,8 +134,10 @@ const App={
  // alignment state & perf
  _tHUD:0,_tNav:0,_tAlign:0,_lastAlignLL:null,_lastAlignHead:null,
  _aligned:null, _pending:null,
- ALIGN:{ENTER:0.35, EXIT:0.60, DWELL_BASE:60}, // lock thresholds (laser)
- SCAN:{FLASH:700, COOLDOWN:600},               // flash timings
+ ALIGN:{ENTER:0.35, EXIT:0.60, DWELL_BASE:60},
+ SCAN:{FLASH:500, COOLDOWN:600},
+ RAY:{ACTIVE:0.30}, // red ray only when instantaneous error ≤ ACTIVE
+
  _flashName:null,_flashUntil:0,_flashCooldown:new Map(),
 
  init(){
@@ -207,10 +213,10 @@ const App={
    this.ray.setLatLngs([o,dest(o,this.S.heading,this.rayLen())]).bringToFront();
  },
 
- setRayAligned(v){
+ _setRay(red){
    if(!this.ray) return;
-   if(v){ this.ray.setStyle({color:'#ff4444',weight:4,opacity:1}); this.ray.getElement?.().classList.add('guide-hit'); }
-   else { this.ray.setStyle({color:'#2aff2a',weight:3,opacity:1}); this.ray.getElement?.().classList.remove('guide-hit'); }
+   if(red){ this.ray.setStyle({color:'#ff4444',weight:4,opacity:1}); this.ray.getElement?.().classList.add('guide-hit'); }
+   else   { this.ray.setStyle({color:'#2aff2a',weight:3,opacity:1}); this.ray.getElement?.().classList.remove('guide-hit'); }
  },
 
  refreshNav(){
@@ -228,19 +234,21 @@ const App={
    }
  },
 
- // ===== Alignment (off-screen OK) — laser + fast scan =====
+ // ===== Alignment (off-screen OK) — laser + fast scan, ray color is INSTANT =====
  candidates(){
    const list=[]; WPs.markers.forEach((m,name)=>{list.push({name,ll:m.getLatLng()})});
    if(Pins.pin){ const ll=Pins.pin.getLatLng(); list.push({name:(Pins._nm||`Pin ${fix(ll.lat)},${fix(ll.lng)}`), ll}); }
    return list;
  },
- between(a,b,x){ // is x on the shortest arc from a->b? (why: fast sweep hit)
-   const ab=Δ(a,b), ax=Δ(a,x);
-   return Math.sign(ab)===Math.sign(ax) && Math.abs(ax)<=Math.abs(ab);
- },
+ between(a,b,x){ const ab=Δ(a,b), ax=Δ(a,x); return Math.sign(ab)===Math.sign(ax) && Math.abs(ax)<=Math.abs(ab); },
+
  checkAnyAlignment(){
    const now=performance.now();
-   if(!this.last || this.S.heading==null){ this.clearLockAndMaybeFlash(now); return; }
+   if(!this.last || this.S.heading==null){
+     this._pending=null;
+     if(!(this._flashName && now<(this._flashUntil||0))){ this._aligned=null; this._flashName=null; this._flashUntil=0; this._setRay(false); this.hideAlignUI(); }
+     return;
+   }
    if(now - this._tAlign < 30) return; this._tAlign=now;
 
    const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
@@ -250,47 +258,52 @@ const App={
    if(!movedLL && !movedHead) return;
    this._lastAlignLL=from; this._lastAlignHead=head;
 
-   const cand=this.candidates(); if(cand.length===0){ this.clearLockAndMaybeFlash(now); return; }
+   const cand=this.candidates(); if(cand.length===0){ this._setRay(false); this.hideAlignUI(); return; }
 
+   // --- Instantaneous ray color (no persistence)
+   let instBestErr=999, instBest=null;
+   for(const c of cand){
+     const brg=bearing(from,c.ll), err=Math.abs(Δ(head,brg));
+     if(err<instBestErr){ instBestErr=err; instBest=c; }
+   }
+   this._setRay(instBestErr<=this.RAY.ACTIVE);
+
+   // --- Lock path (banner/haptics only)
    const step=Math.abs(Δ(prevHead,head));
    const omega=this.S.omega||0;
-   const dwell=Math.max(0, this.ALIGN.DWELL_BASE - 0.6*omega); // faster spin => ~0ms dwell
+   const dwell=Math.max(0, this.ALIGN.DWELL_BASE - 0.6*omega);
    const enter=this.ALIGN.ENTER, exit=this.ALIGN.EXIT;
 
-   // Hold lock if within EXIT
    if(this._aligned){
      const e=Math.abs(Δ(head, bearing(from,this._aligned.ll)));
-     if(e<=exit){ this.setRayAligned(true); this.showAlignUI(this._aligned.name); return; }
+     if(e<=exit){ this.showAlignUI(this._aligned.name); return; }
      this._aligned=null;
    }
 
-   // Best candidate (min heading error, then distance)
+   // Best for lock
    let best=null, bestErr=999, bestDist=Infinity;
    for(const c of cand){
      const brg=bearing(from,c.ll), err=Math.abs(Δ(head,brg)), dist=haversine(from,c.ll);
      if(err<bestErr-1e-6 || (Math.abs(err-bestErr)<1e-6 && dist<bestDist)){ best={...c,brg}; bestErr=err; bestDist=dist; }
    }
 
-   // Lock path (tight enter + dynamic dwell)
    if(best && bestErr<=enter){
      if(this._pending && this._pending.name===best.name){
        if(now - this._pending.since >= dwell){
          this._aligned={name:best.name,ll:best.ll,err:bestErr,dist:bestDist};
          this._pending=null; this._flashName=null; this._flashUntil=0;
-         this.setRayAligned(true); this.showAlignUI(this._aligned.name); Haptics.hit(); return;
+         this.showAlignUI(this._aligned.name); Haptics.hit(); return;
        }
      }else this._pending={name:best.name,since:now};
    }else this._pending=null;
 
-   // Fast scan flash (arc-crossing OR close pass with dynamic window)
-   const dynHit=Math.max(0.25, 0.55*step); // why: widen only as much as needed at speed
+   // Fast scan flash (arc-crossing)
    let flashPick=null, flashErr=999;
-   if(step<=35){ // ignore wild swings
+   if(step<=35){
      for(const c of cand){
        const brg=bearing(from,c.ll);
        const between=this.between(prevHead,head,brg);
-       const closeNow=Math.abs(Δ(head,brg))<=dynHit || Math.abs(Δ(prevHead,brg))<=dynHit;
-       if(between || closeNow){
+       if(between){
          const e=Math.abs(Δ(head,brg));
          if(e<flashErr){ flashErr=e; flashPick=c; }
        }
@@ -301,21 +314,12 @@ const App={
      if(now-lastFire>this.SCAN.COOLDOWN){
        this._flashCooldown.set(flashPick.name, now);
        this._flashName=flashPick.name; this._flashUntil=now+this.SCAN.FLASH;
-       this.setRayAligned(true); this.showAlignUI(this._flashName); Haptics.hit();
+       this.showAlignUI(this._flashName); Haptics.hit();
      }
    }
+   if(this._flashName && now>this._flashUntil){ this._flashName=null; this._flashUntil=0; this.hideAlignUI(); }
+ },
 
-   if(this._flashName && now>this._flashUntil){
-     this._flashName=null; this._flashUntil=0;
-     this.setRayAligned(false); this.hideAlignUI();
-   }
- },
- clearLockAndMaybeFlash(now){
-   this._pending=null;
-   if(!(this._flashName && now<(this._flashUntil||0))){
-     this._aligned=null; this._flashName=null; this._flashUntil=0; this.setRayAligned(false); this.hideAlignUI();
-   }
- },
  showAlignUI(name){ const b=$('alignBanner'), n=$('alignName'); if(n) n.textContent=name||'—'; if(b && !b.classList.contains('show')) b.classList.add('show'); },
  hideAlignUI(){ const b=$('alignBanner'); if(b) b.classList.remove('show'); const n=$('alignName'); if(n) n.textContent='—'; },
 
@@ -343,12 +347,12 @@ const App={
       <div class="metric"><span>Alignment Point</span><b class="value">${align}</b></div>${nav}</div>`;
  },
 
- // ===== Loop (adaptive, snap-deadband to kill flutter) =====
+ // ===== Loop (adaptive rotation, snap-deadband) =====
  loop(){
    const tgt=(this.S.rotate??true)?(this.S.heading??0):0;
    const err=Math.abs(Δ(this.S.bearing, tgt));
-   const aRot=0.12 + 0.38 * Math.min(1, (this.S.omega||0)/240); // why: more smoothing at rest, agile at speed
-   this.S.bearing = err<0.08 ? this.S.bearing : blend(this.S.bearing, tgt, aRot); // snap-deadband
+   const aRot=0.12 + 0.38 * Math.min(1, (this.S.omega||0)/240);
+   this.S.bearing = err<0.08 ? this.S.bearing : blend(this.S.bearing, tgt, aRot);
    this.applyBearing(this.S.bearing);
    this.refreshRay();
    const now=performance.now();
@@ -358,9 +362,9 @@ const App={
    requestAnimationFrame(()=>this.loop());
  },
 
- // ===== Heading (dedup absolute vs relative events, compute ω) =====
+ // ===== Heading (dedup abs/rel, compute ω) =====
  _lastHeadTs:null,_prevHead:null,
- _setHeadingRaw(magRaw){ // why: keep magnetic separate to reapply decl instantly
+ _setHeadingRaw(magRaw){
    const mag=N(magRaw);
    const adj=N(mag + (this.S.decl||0));
    const t=performance.now(), p=this.S.heading;
@@ -377,9 +381,9 @@ const App={
    const now=performance.now();
    const hasWCH=typeof e.webkitCompassHeading==='number';
    const hasAlpha=typeof e.alpha==='number';
-   const isAbs = (e.absolute===true) || hasWCH; // prefer absolute/ios
+   const isAbs=(e.absolute===true)||hasWCH;
    if(isAbs){ this._lastAbsTs=now; if(hasWCH) this._setHeadingRaw(e.webkitCompassHeading); else if(hasAlpha) this._setHeadingRaw(e.alpha); return; }
-   if(now - this._lastAbsTs < 120) return; // why: ignore relative samples right after absolute
+   if(now - this._lastAbsTs < 120) return;
    if(hasAlpha) this._setHeadingRaw(e.alpha);
  },
 
@@ -428,14 +432,11 @@ const App={
    if(this.S.follow&&this.last){const{latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude],Math.max(this.map.getZoom(),16),{animate:false}); this.applyBearing(this.S.bearing)}
  },
 
- latLngFromPt(pt){ // why: keep gestures correct in rotated map
-   const ang=(this.S.press&&this.S.fAngle!=null)?this.S.fAngle:this.S.bearing,
-         layer=this.map.containerPointToLayerPoint(pt),
-         pivot=(this.S.press&&this.S.fPivot)?this.S.fPivot:this.map.latLngToLayerPoint(this.pivotLL()),
-         th=R(ang),c=Math.cos(th),s=Math.sin(th),dx=layer.x-pivot.x,dy=layer.y-pivot.y,
-         un=L.point(pivot.x+dx*c+dy*s, pivot.y+(-dx*s)+dy*c);
-   return this.map.layerPointToLatLng(un)
- },
+ // pointer transform under rotation
+ latLngFromPt(pt){const ang=(this.S.press&&this.S.fAngle!=null)?this.S.fAngle:this.S.bearing,
+   layer=this.map.containerPointToLayerPoint(pt), pivot=(this.S.press&&this.S.fPivot)?this.S.fPivot:this.map.latLngToLayerPoint(this.pivotLL()),
+   th=R(ang),c=Math.cos(th),s=Math.sin(th),dx=layer.x-pivot.x,dy=layer.y-pivot.y,
+   un=L.point(pivot.x+dx*c+dy*s, pivot.y+(-dx*s)+dy*c); return this.map.layerPointToLatLng(un)},
 
  bindPopup(m,{name,lat,lng}){
    const html=nm=>`<div class="popup-grid">
