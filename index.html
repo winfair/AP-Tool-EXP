@@ -27,13 +27,11 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .danger{border-color:var(--danger);color:var(--danger)}
 .leaflet-control-attribution,.leaflet-control-zoom{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
 .leaflet-container a{color:var(--dim)}.leaflet-map-pane{will-change:transform}
-/* HUD */
 .info{position:fixed;left:12px;right:12px;bottom:env(safe-area-inset-bottom,12px);background:rgba(18,24,26,.9);padding:10px 12px;border-radius:14px;font:500 13px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);z-index:900;box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px);pointer-events:none}
 .info .metrics{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:baseline}
 .info .metric{display:flex;gap:6px;align-items:baseline}
 .info .metric span{color:var(--dim);font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 .info .metric .value{color:var(--text);font:700 15px/1 ui-monospace;letter-spacing:.2px}
-/* Popups */
 .leaflet-popup-content{font:500 13px/1.3 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
 .floating-popup .leaflet-popup-content-wrapper{background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.45)}
 .floating-popup .leaflet-popup-tip{background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12)}
@@ -42,7 +40,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .popup-actions .btn{padding:6px 10px;font-size:13px}
 .popup-input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);font:500 13px/1}
 .mini-label{background:rgba(18,24,26,.85);color:var(--text);padding:2px 6px;border:1px solid rgba(255,255,255,.12);border-radius:8px;font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;backdrop-filter:blur(4px);pointer-events:none}
-/* On-screen alignment banner (always visible) */
+/* On-screen alignment banner */
 .align-banner{position:fixed;top:calc(env(safe-area-inset-top,12px) + 58px);left:50%;transform:translateX(-50%);z-index:1150;
   background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 12px;
   font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px);display:none}
@@ -65,7 +63,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 <button id="btnWaypoints" class="btn fab wp" title="Waypoints" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false">📍</button>
 <button id="btnSettings" class="btn fab gear" title="Settings" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false">⚙️</button>
 
-<!-- Waypoints -->
 <div id="wpPanel" class="panel" aria-hidden="true">
   <div class="row">
     <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
@@ -75,7 +72,6 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   <div class="list" id="wpList" aria-live="polite"></div>
 </div>
 
-<!-- Settings -->
 <div id="settingsPanel" class="panel" aria-hidden="true">
   <div class="settings-group">
     <div class="settings-label">Declination Offset</div>
@@ -93,7 +89,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 // ===== Utils =====
 const $=id=>document.getElementById(id),
 R=d=>d*Math.PI/180, Dg=r=>r*180/Math.PI, fix=v=>Number(v).toFixed(6),
-N=d=>(d%360+360)%360, Δ=(a,b)=>{let d=N(b)-N(a);return d>180?d-360:d<-180?d+360:d},
+N=d=>(d%360+360)%360,
+Δ=(a,b)=>{let d=N(b)-N(a);return d>180?d-360:d<-180?d+360:d},
 blend=(p,n,a)=>p==null?n:N(p+a*Δ(p,n)),
 haversine=(a,b)=>{const Rm=6371000,φ1=R(a.lat),φ2=R(b.lat),dφ=R(b.lat-a.lat),dλ=R(b.lng-a.lng),s=Math.sin(dφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;return 2*Rm*Math.asin(Math.min(1,Math.sqrt(s)))},
 bearing=(a,b)=>{const φ1=R(a.lat),φ2=R(b.lat),λ1=R(a.lng),λ2=R(b.lng),y=Math.sin(λ2-λ1)*Math.cos(φ2),x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);return N(Dg(Math.atan2(y,x)))},
@@ -119,7 +116,7 @@ parseCoords=t=>{
 
 // ===== Haptics (Android vibrate; iOS WebAudio click) =====
 const AudioHaptics=(()=>{let ctx=null;const ensure=()=>{if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;ctx=new AC()} if(ctx.state==='suspended')ctx.resume();return ctx};const prime=()=>{ensure()};addEventListener('pointerdown',prime,{passive:true});addEventListener('keydown',prime);const click=()=>{const c=ensure();if(!c||c.state!=='running')return;const t=c.currentTime,osc=c.createOscillator(),g=c.createGain();osc.type='square';osc.frequency.setValueAtTime(120,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.25,t+0.001);g.gain.exponentialRampToValueAtTime(0.0001,t+0.03);osc.connect(g).connect(c.destination);osc.start(t);osc.stop(t+0.035)};return{click}})();
-const Haptics=(()=>{let last=0;return{hit(){const n=performance.now();if(n-last<280)return;last=n;try{if('vibrate'in navigator){navigator.vibrate(10);return}}catch{}AudioHaptics.click();}}})();
+const Haptics=(()=>{let last=0;return{hit(){const n=performance.now();if(n-last<260)return;last=n;try{if('vibrate'in navigator){navigator.vibrate(10);return}}catch{}AudioHaptics.click();}}})();
 
 // ===== App =====
 const App={
@@ -128,12 +125,13 @@ const App={
  DEF:{lat:34.9,lng:-119.17,z:16},
  map:null,last:null,ray:null,originDot:null,navLine:null,accCircle:null,
  _navState:null, _lastOverlayAngle:null, _compassBound:false, watchId:null,
+ _preferAbs:true,_lastAbsTs:0,
 
  // alignment state & perf
  _tHUD:0,_tNav:0,_tAlign:0,_lastAlignLL:null,_lastAlignHead:null,
  _aligned:null, _pending:null,
- ALIGN:{ENTER:0.35, EXIT:0.60, DWELL_BASE:60}, // degrees / ms base
- SCAN:{HIT:0.25, CROSS:0.45, FLASH:700, COOLDOWN:600}, // degrees / ms
+ ALIGN:{ENTER:0.35, EXIT:0.60, DWELL_BASE:60}, // lock thresholds (laser)
+ SCAN:{FLASH:700, COOLDOWN:600},               // flash timings
  _flashName:null,_flashUntil:0,_flashCooldown:new Map(),
 
  init(){
@@ -176,7 +174,7 @@ const App={
  },
 
  uprightOverlays(deg){
-   if(this._lastOverlayAngle!=null && Math.abs(Δ(this._lastOverlayAngle,deg))<0.1) return;
+   if(this._lastOverlayAngle!=null && Math.abs(Δ(this._lastOverlayAngle,deg))<0.12) return;
    this._lastOverlayAngle = deg;
    const rot=` rotate(${deg}deg)`, fixEl=el=>{
      const base=(el.style.transform||'').replace(/rotate\([^)]*\)/g,'').trim();
@@ -230,28 +228,33 @@ const App={
    }
  },
 
- // ===== Alignment (off-screen OK) — laser precision =====
+ // ===== Alignment (off-screen OK) — laser + fast scan =====
  candidates(){
    const list=[]; WPs.markers.forEach((m,name)=>{list.push({name,ll:m.getLatLng()})});
    if(Pins.pin){ const ll=Pins.pin.getLatLng(); list.push({name:(Pins._nm||`Pin ${fix(ll.lat)},${fix(ll.lng)}`), ll}); }
    return list;
  },
+ between(a,b,x){ // is x on the shortest arc from a->b? (why: fast sweep hit)
+   const ab=Δ(a,b), ax=Δ(a,x);
+   return Math.sign(ab)===Math.sign(ax) && Math.abs(ax)<=Math.abs(ab);
+ },
  checkAnyAlignment(){
    const now=performance.now();
    if(!this.last || this.S.heading==null){ this.clearLockAndMaybeFlash(now); return; }
-   if(now - this._tAlign < 40) return; this._tAlign=now;
+   if(now - this._tAlign < 30) return; this._tAlign=now;
 
    const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
    const head=this.S.heading, prevHead=this._lastAlignHead ?? head;
-   const movedLL=!this._lastAlignLL || this.map.distance(this._lastAlignLL,from)>2.0;
-   const movedHead=this._lastAlignHead==null || Math.abs(Δ(this._lastAlignHead,head))>0.08;
+   const movedLL=!this._lastAlignLL || this.map.distance(this._lastAlignLL,from)>1.8;
+   const movedHead=this._lastAlignHead==null || Math.abs(Δ(this._lastAlignHead,head))>0.06;
    if(!movedLL && !movedHead) return;
    this._lastAlignLL=from; this._lastAlignHead=head;
 
    const cand=this.candidates(); if(cand.length===0){ this.clearLockAndMaybeFlash(now); return; }
 
+   const step=Math.abs(Δ(prevHead,head));
    const omega=this.S.omega||0;
-   const dwell=Math.max(0, this.ALIGN.DWELL_BASE - 0.6*omega);
+   const dwell=Math.max(0, this.ALIGN.DWELL_BASE - 0.6*omega); // faster spin => ~0ms dwell
    const enter=this.ALIGN.ENTER, exit=this.ALIGN.EXIT;
 
    // Hold lock if within EXIT
@@ -279,17 +282,18 @@ const App={
      }else this._pending={name:best.name,since:now};
    }else this._pending=null;
 
-   // Ultra-tight scan flash
-   const scanHit=this.SCAN.HIT, crossMargin=this.SCAN.CROSS;
+   // Fast scan flash (arc-crossing OR close pass with dynamic window)
+   const dynHit=Math.max(0.25, 0.55*step); // why: widen only as much as needed at speed
    let flashPick=null, flashErr=999;
-   for(const c of cand){
-     const brg=bearing(from,c.ll);
-     const errNow=Δ(head,brg), errPrev=Δ(prevHead,brg);
-     const closeNow=Math.abs(errNow)<=scanHit;
-     const crossed=(Math.sign(errNow)!==Math.sign(errPrev)) && Math.min(Math.abs(errNow),Math.abs(errPrev))<=crossMargin;
-     if(closeNow||crossed){
-       const a=Math.abs(errNow);
-       if(a<flashErr){ flashErr=a; flashPick=c; }
+   if(step<=35){ // ignore wild swings
+     for(const c of cand){
+       const brg=bearing(from,c.ll);
+       const between=this.between(prevHead,head,brg);
+       const closeNow=Math.abs(Δ(head,brg))<=dynHit || Math.abs(Δ(prevHead,brg))<=dynHit;
+       if(between || closeNow){
+         const e=Math.abs(Δ(head,brg));
+         if(e<flashErr){ flashErr=e; flashPick=c; }
+       }
      }
    }
    if(flashPick){
@@ -339,10 +343,12 @@ const App={
       <div class="metric"><span>Alignment Point</span><b class="value">${align}</b></div>${nav}</div>`;
  },
 
- // ===== Loop =====
+ // ===== Loop (adaptive, snap-deadband to kill flutter) =====
  loop(){
    const tgt=(this.S.rotate??true)?(this.S.heading??0):0;
-   this.S.bearing = blend(this.S.bearing, tgt, 0.35);
+   const err=Math.abs(Δ(this.S.bearing, tgt));
+   const aRot=0.12 + 0.38 * Math.min(1, (this.S.omega||0)/240); // why: more smoothing at rest, agile at speed
+   this.S.bearing = err<0.08 ? this.S.bearing : blend(this.S.bearing, tgt, aRot); // snap-deadband
    this.applyBearing(this.S.bearing);
    this.refreshRay();
    const now=performance.now();
@@ -352,35 +358,35 @@ const App={
    requestAnimationFrame(()=>this.loop());
  },
 
- // ===== Heading updates (keeps raw magnetic to re-apply decl instantly) =====
+ // ===== Heading (dedup absolute vs relative events, compute ω) =====
  _lastHeadTs:null,_prevHead:null,
- _setHeading(raw){
-   if(raw==null||!isFinite(raw)) return;
-   const mag=N(raw);                 // store magnetic (why: decl save should reapply immediately)
+ _setHeadingRaw(magRaw){ // why: keep magnetic separate to reapply decl instantly
+   const mag=N(magRaw);
    const adj=N(mag + (this.S.decl||0));
    const t=performance.now(), p=this.S.heading;
-   if(p==null || Math.abs(Δ(p,adj))>0.02){ // tiny deadband for jitter
+   if(p==null || Math.abs(Δ(p,adj))>0.02){
      if(this._lastHeadTs!=null && this._prevHead!=null){
        const dt=(t-this._lastHeadTs)/1000; if(dt>0){ this.S.omega=Math.min(720, Math.abs(Δ(this._prevHead, adj))/dt); }
      }
      this._prevHead=adj; this._lastHeadTs=t;
-     this.S.mag=mag;                  // keep raw magnetic
-     this.S.heading=adj;
+     this.S.mag=mag; this.S.heading=adj;
      if(this.S.rotate && p==null) this.S.bearing=adj;
    }else{ this.S.mag=mag; }
  },
-
  onOrient(e){
-   const h=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:
-           typeof e.alpha==='number'?e.alpha:null;
-   if(h==null||isNaN(h))return;
-   this._setHeading(h);
+   const now=performance.now();
+   const hasWCH=typeof e.webkitCompassHeading==='number';
+   const hasAlpha=typeof e.alpha==='number';
+   const isAbs = (e.absolute===true) || hasWCH; // prefer absolute/ios
+   if(isAbs){ this._lastAbsTs=now; if(hasWCH) this._setHeadingRaw(e.webkitCompassHeading); else if(hasAlpha) this._setHeadingRaw(e.alpha); return; }
+   if(now - this._lastAbsTs < 120) return; // why: ignore relative samples right after absolute
+   if(hasAlpha) this._setHeadingRaw(e.alpha);
  },
 
  async enableCompass(){
    if(this.S.compass) return true;
    try{
-     if(location.protocol!=='https:' && location.hostname!=='localhost'){ alert('Compass requires HTTPS on most browsers.'); return false; }
+     if(location.protocol!=='https:' && location.hostname!=='localhost'){ alert('Compass requires HTTPS.'); return false; }
      if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
        const g=await DeviceOrientationEvent.requestPermission(); if(g!=='granted'){alert('Compass permission denied.');return false;}
      }
@@ -401,7 +407,7 @@ const App={
      this.last=p; const {latitude,longitude,accuracy:acc,heading}=p.coords, ll=[latitude,longitude];
      this.accCircle.setLatLng(ll).setRadius(Math.max(acc||0,0));
      if(this.S.follow&&!this.S.press)this.map.setView(ll,Math.max(this.map.getZoom(),16),{animate:false});
-     if(Number.isFinite(heading)) this._setHeading(heading);
+     if(Number.isFinite(heading)) this._setHeadingRaw(heading);
    },e=>alert('Unable to get location: '+e.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
  },
 
@@ -422,11 +428,14 @@ const App={
    if(this.S.follow&&this.last){const{latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude],Math.max(this.map.getZoom(),16),{animate:false}); this.applyBearing(this.S.bearing)}
  },
 
- // pointer coord transform
- latLngFromPt(pt){const ang=(this.S.press&&this.S.fAngle!=null)?this.S.fAngle:this.S.bearing,
-   layer=this.map.containerPointToLayerPoint(pt), pivot=(this.S.press&&this.S.fPivot)?this.S.fPivot:this.map.latLngToLayerPoint(this.pivotLL()),
-   th=R(ang),c=Math.cos(th),s=Math.sin(th),dx=layer.x-pivot.x,dy=layer.y-pivot.y,
-   un=L.point(pivot.x+dx*c+dy*s, pivot.y+(-dx*s)+dy*c); return this.map.layerPointToLatLng(un)},
+ latLngFromPt(pt){ // why: keep gestures correct in rotated map
+   const ang=(this.S.press&&this.S.fAngle!=null)?this.S.fAngle:this.S.bearing,
+         layer=this.map.containerPointToLayerPoint(pt),
+         pivot=(this.S.press&&this.S.fPivot)?this.S.fPivot:this.map.latLngToLayerPoint(this.pivotLL()),
+         th=R(ang),c=Math.cos(th),s=Math.sin(th),dx=layer.x-pivot.x,dy=layer.y-pivot.y,
+         un=L.point(pivot.x+dx*c+dy*s, pivot.y+(-dx*s)+dy*c);
+   return this.map.layerPointToLatLng(un)
+ },
 
  bindPopup(m,{name,lat,lng}){
    const html=nm=>`<div class="popup-grid">
@@ -471,14 +480,12 @@ const App={
      else if(t.hasAttribute('data-del')){ WPs.del(i); }
    };
 
-   // Settings + declination (instant apply on save)
    const btnSettings=$('btnSettings'), settings=$('settingsPanel');
    btnSettings.onclick=()=>{const open=!settings.classList.contains('open'); settings.classList.toggle('open',open); settings.setAttribute('aria-hidden',open?'false':'true'); btnSettings.setAttribute('aria-expanded',String(open))};
    const slider=$('declSlider'), val=$('declVal');
    const showVal=()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)) val.textContent=`${v.toFixed(1)}°`; };
    slider.addEventListener('input',()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)) { this.S.decl=v; showVal(); } },{passive:true});
    $('declSave').onclick=()=>{
-     // apply immediately using last magnetic sample; why: user expects Save to "do something" now
      const v=parseFloat(slider.value);
      if(Number.isFinite(v)){ this.S.decl=v; if(this.S.mag!=null){ this.S.heading=N(this.S.mag + this.S.decl); } this.persist(); this.updateHUD(); }
      const btn=$('declSave'); const old=btn.textContent; btn.textContent='Saved ✓'; setTimeout(()=>btn.textContent=old,900);
