@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
-<title>Map App — Lean (Dots + Glow)</title>
+<title>Map App — Lean (Laser Align)</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <style>
@@ -27,6 +27,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .danger{border-color:var(--danger);color:var(--danger)}
 .leaflet-control-attribution,.leaflet-control-zoom{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
 .leaflet-container a{color:var(--dim)}.leaflet-map-pane{will-change:transform}
+/* HUD */
 .info{position:fixed;left:12px;right:12px;bottom:env(safe-area-inset-bottom,12px);background:rgba(18,24,26,.9);padding:10px 12px;border-radius:14px;font:500 13px/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);z-index:900;box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px);pointer-events:none}
 .info .metrics{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:baseline}
 .info .metric{display:flex;gap:6px;align-items:baseline}
@@ -64,6 +65,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 <button id="btnWaypoints" class="btn fab wp" title="Waypoints" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false">📍</button>
 <button id="btnSettings" class="btn fab gear" title="Settings" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false">⚙️</button>
 
+<!-- Waypoints -->
 <div id="wpPanel" class="panel" aria-hidden="true">
   <div class="row">
     <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
@@ -73,6 +75,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   <div class="list" id="wpList" aria-live="polite"></div>
 </div>
 
+<!-- Settings -->
 <div id="settingsPanel" class="panel" aria-hidden="true">
   <div class="settings-group">
     <div class="settings-label">Declination Offset</div>
@@ -87,7 +90,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 <script>
 'use strict';
 document.addEventListener('DOMContentLoaded',()=>{
-// ------- Utils -------
+// ===== Utils =====
 const $=id=>document.getElementById(id),
 R=d=>d*Math.PI/180, Dg=r=>r*180/Math.PI, fix=v=>Number(v).toFixed(6),
 N=d=>(d%360+360)%360, Δ=(a,b)=>{let d=N(b)-N(a);return d>180?d-360:d<-180?d+360:d},
@@ -114,13 +117,14 @@ parseCoords=t=>{
   return null;
 };
 
-// ------- Cross-platform haptics -------
+// ===== Haptics (Android vibrate; iOS WebAudio click) =====
 const AudioHaptics=(()=>{let ctx=null;const ensure=()=>{if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;ctx=new AC()} if(ctx.state==='suspended')ctx.resume();return ctx};const prime=()=>{ensure()};addEventListener('pointerdown',prime,{passive:true});addEventListener('keydown',prime);const click=()=>{const c=ensure();if(!c||c.state!=='running')return;const t=c.currentTime,osc=c.createOscillator(),g=c.createGain();osc.type='square';osc.frequency.setValueAtTime(120,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.25,t+0.001);g.gain.exponentialRampToValueAtTime(0.0001,t+0.03);osc.connect(g).connect(c.destination);osc.start(t);osc.stop(t+0.035)};return{click}})();
-const Haptics=(()=>{let last=0;return{hit(){const n=performance.now();if(n-last<300)return;last=n;try{if('vibrate'in navigator){navigator.vibrate(12);return}}catch{}AudioHaptics.click();}}})();
+const Haptics=(()=>{let last=0;return{hit(){const n=performance.now();if(n-last<280)return;last=n;try{if('vibrate'in navigator){navigator.vibrate(10);return}}catch{}AudioHaptics.click();}}})();
 
-// ------- App Core -------
+// ===== App =====
 const App={
- S:{follow:true,heading:null,bearing:0,rotate:true,press:false,fAngle:null,fPivot:null,dest:null,compass:false,decl:0,omega:0},
+ S:{follow:true,heading:null,bearing:0,rotate:true,press:false,fAngle:null,fPivot:null,
+    dest:null,compass:false,decl:0,omega:0,mag:null},
  DEF:{lat:34.9,lng:-119.17,z:16},
  map:null,last:null,ray:null,originDot:null,navLine:null,accCircle:null,
  _navState:null, _lastOverlayAngle:null, _compassBound:false, watchId:null,
@@ -128,7 +132,8 @@ const App={
  // alignment state & perf
  _tHUD:0,_tNav:0,_tAlign:0,_lastAlignLL:null,_lastAlignHead:null,
  _aligned:null, _pending:null,
- ALIGN:{ENTER:1.5, EXIT:2.5, DWELL:140}, // base; dwell adapts with ω
+ ALIGN:{ENTER:0.35, EXIT:0.60, DWELL_BASE:60}, // degrees / ms base
+ SCAN:{HIT:0.25, CROSS:0.45, FLASH:700, COOLDOWN:600}, // degrees / ms
  _flashName:null,_flashUntil:0,_flashCooldown:new Map(),
 
  init(){
@@ -172,7 +177,7 @@ const App={
 
  uprightOverlays(deg){
    if(this._lastOverlayAngle!=null && Math.abs(Δ(this._lastOverlayAngle,deg))<0.1) return;
-   this._lastOverlayAngle=deg;
+   this._lastOverlayAngle = deg;
    const rot=` rotate(${deg}deg)`, fixEl=el=>{
      const base=(el.style.transform||'').replace(/rotate\([^)]*\)/g,'').trim();
      el.style.transformOrigin=el.classList.contains('leaflet-popup')?'bottom center':'left center';
@@ -225,60 +230,57 @@ const App={
    }
  },
 
- // ------- Alignment (off-screen OK) with dynamic dwell + scan flash -------
+ // ===== Alignment (off-screen OK) — laser precision =====
  candidates(){
    const list=[]; WPs.markers.forEach((m,name)=>{list.push({name,ll:m.getLatLng()})});
    if(Pins.pin){ const ll=Pins.pin.getLatLng(); list.push({name:(Pins._nm||`Pin ${fix(ll.lat)},${fix(ll.lng)}`), ll}); }
    return list;
  },
-
  checkAnyAlignment(){
    const now=performance.now();
    if(!this.last || this.S.heading==null){ this.clearLockAndMaybeFlash(now); return; }
-   if(now - this._tAlign < 50) return; this._tAlign=now;
+   if(now - this._tAlign < 40) return; this._tAlign=now;
 
    const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
    const head=this.S.heading, prevHead=this._lastAlignHead ?? head;
-   const movedLL=!this._lastAlignLL || this.map.distance(this._lastAlignLL,from)>2.5;
-   const movedHead=this._lastAlignHead==null || Math.abs(Δ(this._lastAlignHead,head))>0.12;
+   const movedLL=!this._lastAlignLL || this.map.distance(this._lastAlignLL,from)>2.0;
+   const movedHead=this._lastAlignHead==null || Math.abs(Δ(this._lastAlignHead,head))>0.08;
    if(!movedLL && !movedHead) return;
    this._lastAlignLL=from; this._lastAlignHead=head;
 
    const cand=this.candidates(); if(cand.length===0){ this.clearLockAndMaybeFlash(now); return; }
 
-   // dynamic dwell by spin speed (why: instant lock while scanning)
    const omega=this.S.omega||0;
-   const dwell=Math.max(0, this.ALIGN.DWELL - 0.8*omega);
-   const enter=this.ALIGN.ENTER; const exit=this.ALIGN.EXIT;
+   const dwell=Math.max(0, this.ALIGN.DWELL_BASE - 0.6*omega);
+   const enter=this.ALIGN.ENTER, exit=this.ALIGN.EXIT;
 
-   // Maintain lock if within EXIT
+   // Hold lock if within EXIT
    if(this._aligned){
      const e=Math.abs(Δ(head, bearing(from,this._aligned.ll)));
      if(e<=exit){ this.setRayAligned(true); this.showAlignUI(this._aligned.name); return; }
      this._aligned=null;
    }
 
-   // Find best candidate by heading error (then distance)
+   // Best candidate (min heading error, then distance)
    let best=null, bestErr=999, bestDist=Infinity;
    for(const c of cand){
      const brg=bearing(from,c.ll), err=Math.abs(Δ(head,brg)), dist=haversine(from,c.ll);
      if(err<bestErr-1e-6 || (Math.abs(err-bestErr)<1e-6 && dist<bestDist)){ best={...c,brg}; bestErr=err; bestDist=dist; }
    }
 
-   // Lock path (enter + dwell)
+   // Lock path (tight enter + dynamic dwell)
    if(best && bestErr<=enter){
      if(this._pending && this._pending.name===best.name){
        if(now - this._pending.since >= dwell){
          this._aligned={name:best.name,ll:best.ll,err:bestErr,dist:bestDist};
          this._pending=null; this._flashName=null; this._flashUntil=0;
-         this.setRayAligned(true); this.showAlignUI(this._aligned.name); Haptics.hit();
-         return;
+         this.setRayAligned(true); this.showAlignUI(this._aligned.name); Haptics.hit(); return;
        }
      }else this._pending={name:best.name,since:now};
    }else this._pending=null;
 
-   // Fast scan flash (sign change or close pass)
-   const scanHit=0.9, crossMargin=1.2;
+   // Ultra-tight scan flash
+   const scanHit=this.SCAN.HIT, crossMargin=this.SCAN.CROSS;
    let flashPick=null, flashErr=999;
    for(const c of cand){
      const brg=bearing(from,c.ll);
@@ -292,34 +294,29 @@ const App={
    }
    if(flashPick){
      const lastFire=this._flashCooldown.get(flashPick.name)||0;
-     if(now-lastFire>800){ // per-target cooldown
+     if(now-lastFire>this.SCAN.COOLDOWN){
        this._flashCooldown.set(flashPick.name, now);
-       this._flashName=flashPick.name; this._flashUntil=now+900;
+       this._flashName=flashPick.name; this._flashUntil=now+this.SCAN.FLASH;
        this.setRayAligned(true); this.showAlignUI(this._flashName); Haptics.hit();
      }
    }
 
-   // Expire flash if needed
    if(this._flashName && now>this._flashUntil){
      this._flashName=null; this._flashUntil=0;
      this.setRayAligned(false); this.hideAlignUI();
    }
  },
-
  clearLockAndMaybeFlash(now){
    this._pending=null;
-   if(!(this._flashName && now<(this._flashUntil||0))){ // keep flash until it ends
+   if(!(this._flashName && now<(this._flashUntil||0))){
      this._aligned=null; this._flashName=null; this._flashUntil=0; this.setRayAligned(false); this.hideAlignUI();
    }
  },
-
- showAlignUI(name){
-   const b=$('alignBanner'), n=$('alignName'); if(n) n.textContent=name||'—'; if(b && !b.classList.contains('show')) b.classList.add('show');
- },
+ showAlignUI(name){ const b=$('alignBanner'), n=$('alignName'); if(n) n.textContent=name||'—'; if(b && !b.classList.contains('show')) b.classList.add('show'); },
  hideAlignUI(){ const b=$('alignBanner'); if(b) b.classList.remove('show'); const n=$('alignName'); if(n) n.textContent='—'; },
 
  updateHUD(){
-   const now=performance.now(); if(now - this._tHUD < 140) return; this._tHUD=now;
+   const now=performance.now(); if(now - this._tHUD < 120) return; this._tHUD=now;
    const lat=this.last?.coords?.latitude?.toFixed(6)??'—',
          lng=this.last?.coords?.longitude?.toFixed(6)??'—',
          acc=this.last?.coords?.accuracy?Math.round(this.last.coords.accuracy):'—',
@@ -342,7 +339,7 @@ const App={
       <div class="metric"><span>Alignment Point</span><b class="value">${align}</b></div>${nav}</div>`;
  },
 
- // ------- Loop -------
+ // ===== Loop =====
  loop(){
    const tgt=(this.S.rotate??true)?(this.S.heading??0):0;
    this.S.bearing = blend(this.S.bearing, tgt, 0.35);
@@ -355,20 +352,22 @@ const App={
    requestAnimationFrame(()=>this.loop());
  },
 
- // ------- Heading updates (compute angular velocity ω) -------
+ // ===== Heading updates (keeps raw magnetic to re-apply decl instantly) =====
  _lastHeadTs:null,_prevHead:null,
  _setHeading(raw){
    if(raw==null||!isFinite(raw)) return;
-   const adj=N(raw + (this.S.decl||0));
+   const mag=N(raw);                 // store magnetic (why: decl save should reapply immediately)
+   const adj=N(mag + (this.S.decl||0));
    const t=performance.now(), p=this.S.heading;
-   if(p==null || Math.abs(Δ(p,adj))>0.05){ // small deadband
-     // omega: deg/s (why: adapt dwell for fast scans)
+   if(p==null || Math.abs(Δ(p,adj))>0.02){ // tiny deadband for jitter
      if(this._lastHeadTs!=null && this._prevHead!=null){
        const dt=(t-this._lastHeadTs)/1000; if(dt>0){ this.S.omega=Math.min(720, Math.abs(Δ(this._prevHead, adj))/dt); }
      }
      this._prevHead=adj; this._lastHeadTs=t;
-     this.S.heading=adj; if(this.S.rotate && p==null) this.S.bearing=adj;
-   }
+     this.S.mag=mag;                  // keep raw magnetic
+     this.S.heading=adj;
+     if(this.S.rotate && p==null) this.S.bearing=adj;
+   }else{ this.S.mag=mag; }
  },
 
  onOrient(e){
@@ -472,13 +471,19 @@ const App={
      else if(t.hasAttribute('data-del')){ WPs.del(i); }
    };
 
+   // Settings + declination (instant apply on save)
    const btnSettings=$('btnSettings'), settings=$('settingsPanel');
    btnSettings.onclick=()=>{const open=!settings.classList.contains('open'); settings.classList.toggle('open',open); settings.setAttribute('aria-hidden',open?'false':'true'); btnSettings.setAttribute('aria-expanded',String(open))};
    const slider=$('declSlider'), val=$('declVal');
-   const applyDecl=()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)){ this.S.decl=v; val.textContent=`${v.toFixed(1)}°`; } };
-   slider.addEventListener('input',applyDecl,{passive:true});
-   $('declSave').onclick=()=>{ this.persist(); };
-   applyDecl();
+   const showVal=()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)) val.textContent=`${v.toFixed(1)}°`; };
+   slider.addEventListener('input',()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)) { this.S.decl=v; showVal(); } },{passive:true});
+   $('declSave').onclick=()=>{
+     // apply immediately using last magnetic sample; why: user expects Save to "do something" now
+     const v=parseFloat(slider.value);
+     if(Number.isFinite(v)){ this.S.decl=v; if(this.S.mag!=null){ this.S.heading=N(this.S.mag + this.S.decl); } this.persist(); this.updateHUD(); }
+     const btn=$('declSave'); const old=btn.textContent; btn.textContent='Saved ✓'; setTimeout(()=>btn.textContent=old,900);
+   };
+   showVal();
  },
 
  bindMap(){
@@ -497,7 +502,7 @@ const App={
  }
 };
 
-// ------- Waypoints -------
+// ===== Waypoints =====
 const WPs={
  key:'mapapp.waypoints.v1', markers:new Map(),
  init(){ this.render(); this.syncMarkers(); },
@@ -556,7 +561,7 @@ const WPs={
  }
 };
 
-// ------- Pins -------
+// ===== Pins =====
 const Pins={
  pin:null, _nm:null,
  init(){},
@@ -570,7 +575,7 @@ const Pins={
  }
 };
 
-// ------- Boot -------
+// ===== Boot =====
 App.init();
 });
 </script>
