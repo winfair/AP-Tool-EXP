@@ -40,24 +40,25 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .mini-label{background:rgba(18,24,26,.85);color:var(--text);padding:2px 6px;border:1px solid rgba(255,255,255,.12);border-radius:8px;font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;backdrop-filter:blur(4px);pointer-events:none}
 </style></head><body>
 <div id="map"></div>
-<div class="controls">
+<div class="controls" role="toolbar" aria-label="Map controls">
   <button id="btnLocate" class="btn primary">Enable GPS</button>
-  <button id="btnFollow" class="btn toggled">Follow: <span id="followState" class="badge">on</span></button>
-  <button id="btnCompass" class="btn">Compass <span id="compassState" class="badge">off</span></button>
+  <button id="btnFollow" class="btn toggled" aria-pressed="true">Follow: <span id="followState" class="badge">on</span></button>
+  <button id="btnCompass" class="btn" aria-pressed="false">Rotate <span id="compassState" class="badge">off</span></button>
   <button id="btnReset" class="btn">Reset</button>
 </div>
-<button id="btnWaypoints" class="btn fab" title="Waypoints">📍</button>
+<button id="btnWaypoints" class="btn fab" title="Waypoints" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false">📍</button>
 <div id="wpPanel" class="panel" aria-hidden="true">
   <div class="row">
-    <input id="wpName" placeholder="Name (e.g., Tower SE)"/>
-    <input id="wpCoords" placeholder='34.851939 N, -119.168399 W or 34.851939,-119.168399'/>
+    <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
+    <input id="wpCoords" placeholder='34.851939 N, -119.168399 W or 34.851939,-119.168399' aria-label="Coordinates"/>
     <button id="wpAdd" class="btn primary">Add / Update</button>
   </div>
-  <div class="list" id="wpList"></div>
+  <div class="list" id="wpList" aria-live="polite"></div>
 </div>
 <div class="info" id="readout"><div class="metrics"></div></div>
 
 <script>
+'use strict';
 document.addEventListener('DOMContentLoaded',()=>{
 // ------- Utils -------
 const $=id=>document.getElementById(id),
@@ -91,13 +92,37 @@ const App={
  S:{follow:true,heading:null,bearing:0,rotate:true,press:false,fAngle:null,fPivot:null,dest:null,compass:false},
  DEF:{lat:34.9,lng:-119.17,z:16},
  map:null,last:null,ray:null,originDot:null,navLine:null,accCircle:null,markers:new Map(),
- _navState:null, _lastOverlayAngle:null, // caches
+ _navState:null, _lastOverlayAngle:null, _compassBound:false, watchId:null,
  init(){
+  // restore minimal state
+  try{
+    const saved=JSON.parse(localStorage.getItem('mapapp.state.v1')||'{}');
+    if(typeof saved.follow==='boolean') this.S.follow=saved.follow;
+    if(typeof saved.rotate==='boolean') this.S.rotate=saved.rotate;
+    if(typeof saved.bearing==='number') this.S.bearing=N(saved.bearing);
+  }catch{}
+
   this.map=L.map('map',{zoomControl:true,attributionControl:true});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,minZoom:2,attribution:'© OpenStreetMap'}).addTo(this.map);
   this.map.setView([this.DEF.lat,this.DEF.lng],this.DEF.z);
   this.accCircle=L.circle([this.DEF.lat,this.DEF.lng],{radius:0,color:'#4db6ff',weight:1,opacity:.6,fillOpacity:.08}).addTo(this.map);
+
   this.bindUI(); this.bindMap(); this.loop(); WPs.init(this); Pins.init(this);
+
+  // reflect restored toggles
+  this.applyBearing(this.S.bearing);
+  $('followState').textContent=this.S.follow?'on':'off';
+  $('btnFollow').classList.toggle('toggled',this.S.follow);
+  $('btnFollow').setAttribute('aria-pressed',String(this.S.follow));
+  $('compassState').textContent=this.S.rotate?'on':'off';
+  $('btnCompass').classList.toggle('toggled',this.S.rotate);
+  $('btnCompass').setAttribute('aria-pressed',String(this.S.rotate));
+  addEventListener('beforeunload',()=>this.persist(),{once:true});
+ },
+ persist(){
+  try{
+    localStorage.setItem('mapapp.state.v1',JSON.stringify({follow:this.S.follow,rotate:this.S.rotate,bearing:this.S.bearing}));
+  }catch{}
  },
  // Only re-apply overlay counter-rotation if bearing changed meaningfully
  uprightOverlays(deg){
@@ -166,22 +191,21 @@ const App={
  },
  loop(){
    const tgt=(this.S.rotate??true)?(this.S.heading??0):0;
-   this.S.bearing+=Δ(N(this.S.bearing),tgt);
+   // smooth map rotation (why: avoids jarring snaps/jitter)
+   this.S.bearing = blend(this.S.bearing, tgt, 0.18);
    this.applyBearing(this.S.bearing);
    this.refreshRay(); this.refreshNav(); this.updateHUD();
-   requestAnimationFrame(()=>this.loop())
+   requestAnimationFrame(()=>this.loop());
  },
  // --- Adaptive smoothing for heading (fast near target, smooth otherwise) ---
  _adaptHeading(raw){
-   // micro-deadband to avoid flicker, but allow tiny precise motions
    const eps=0.05;
    const prev=this.S.heading;
-   if(prev!=null && Math.abs(Δ(prev, raw))<eps) return; // ignore <0.05°
-   // if navigating, adapt smoothing by how close we are to the nav bearing
-   let a=0.15; // default smoothing (0..1), higher = faster
+   if(prev!=null && Math.abs(Δ(prev, raw))<eps) return;
+   let a=0.15;
    if(this._navState?.b!=null){
      const err=Math.abs(Δ(raw,this._navState.b));
-     a = err<6 ? 0.35 : err<15 ? 0.25 : 0.15; // faster near the line
+     a = err<6 ? 0.35 : err<15 ? 0.25 : 0.15;
    }
    this.S.heading = blend(prev, raw, a);
  },
@@ -198,14 +222,19 @@ const App={
      if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
        const g=await DeviceOrientationEvent.requestPermission(); if(g!=='granted'){alert('Compass permission denied.');return false;}
      }
-     addEventListener('deviceorientationabsolute',e=>this.onOrient(e),true);
-     addEventListener('deviceorientation',e=>this.onOrient(e),true);
+     if(!this._compassBound){
+       const handler=e=>this.onOrient(e);
+       addEventListener('deviceorientationabsolute',handler,true);
+       addEventListener('deviceorientation',handler,true);
+       this._compassBound=true;
+     }
      this.S.compass=true; return true;
    }catch{alert('Compass access failed.'); return false}
  },
  startGPS(){
    if(!('geolocation'in navigator))return alert('Geolocation not supported.');
-   navigator.geolocation.watchPosition(p=>{
+   if(this.watchId!=null) return;
+   this.watchId = navigator.geolocation.watchPosition(p=>{
      this.last=p; const {latitude,longitude,accuracy:acc,heading}=p.coords, ll=[latitude,longitude];
      this.accCircle.setLatLng(ll).setRadius(Math.max(acc||0,0));
      if(this.S.follow&&!this.S.press)this.map.setView(ll,Math.max(this.map.getZoom(),16),{animate:false});
@@ -213,16 +242,24 @@ const App={
        const h=N(heading);
        if(this.S.heading==null) this.S.heading=h; else this._adaptHeading(h);
      }
-   },e=>alert('Unable to get location: '+e.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000})
+   },e=>alert('Unable to get location: '+e.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
+ },
+ stopGPS(){
+   if(this.watchId!=null && 'geolocation'in navigator){ navigator.geolocation.clearWatch(this.watchId); this.watchId=null; }
  },
  resetView(){
    if(this.S.dest){this.S.dest=null; this.refreshNav(); this.updateHUD(); return}
    if(this.last){const{latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude],Math.max(this.map.getZoom(),16))}
    else this.map.setView([this.DEF.lat,this.DEF.lng],this.DEF.z);
-   this.applyBearing(this.S.bearing)
+   this.applyBearing(this.S.bearing);
  },
- setFollow(v){this.S.follow=!!v; $('followState').textContent=this.S.follow?'on':'off'; $('btnFollow').classList.toggle('toggled',this.S.follow);
-   if(this.S.follow&&this.last){const{latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude],Math.max(this.map.getZoom(),16),{animate:false}); this.applyBearing(this.S.bearing)}},
+ setFollow(v){
+   this.S.follow=!!v;
+   $('followState').textContent=this.S.follow?'on':'off';
+   $('btnFollow').classList.toggle('toggled',this.S.follow);
+   $('btnFollow').setAttribute('aria-pressed',String(this.S.follow));
+   if(this.S.follow&&this.last){const{latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude],Math.max(this.map.getZoom(),16),{animate:false}); this.applyBearing(this.S.bearing)}
+ },
  // --- Map gestures / popups ---
  latLngFromPt(pt){const ang=(this.S.press&&this.S.fAngle!=null)?this.S.fAngle:this.S.bearing,
    layer=this.map.containerPointToLayerPoint(pt), pivot=(this.S.press&&this.S.fPivot)?this.S.fPivot:this.map.latLngToLayerPoint(this.pivotLL()),
@@ -252,10 +289,13 @@ const App={
  },
  bindUI(){
    $('btnLocate').onclick=()=>this.startGPS();
-   $('btnCompass').onclick=async()=>{if(!await this.enableCompass())return; this.S.rotate=!(this.S.rotate??true); $('compassState').textContent=this.S.rotate?'on':'off'; $('btnCompass').classList.toggle('toggled',this.S.rotate); this.applyBearing(this.S.bearing); if(this.S.rotate)this.setFollow(true)};
+   $('btnCompass').onclick=async()=>{if(!await this.enableCompass())return; this.S.rotate=!(this.S.rotate??true);
+     $('compassState').textContent=this.S.rotate?'on':'off'; $('btnCompass').classList.toggle('toggled',this.S.rotate); $('btnCompass').setAttribute('aria-pressed',String(this.S.rotate));
+     this.applyBearing(this.S.bearing); if(this.S.rotate)this.setFollow(true)};
    $('btnReset').onclick=()=>this.resetView();
    $('btnFollow').onclick=()=>this.setFollow(!this.S.follow);
-   const btnWP=$('btnWaypoints'), wpPanel=$('wpPanel'); btnWP.onclick=()=>{wpPanel.classList.toggle('open'); wpPanel.setAttribute('aria-hidden',wpPanel.classList.contains('open')?'false':'true')};
+   const btnWP=$('btnWaypoints'), wpPanel=$('wpPanel');
+   btnWP.onclick=()=>{const open=!wpPanel.classList.contains('open'); wpPanel.classList.toggle('open',open); wpPanel.setAttribute('aria-hidden',open?'false':'true'); btnWP.setAttribute('aria-expanded',String(open))};
    $('wpAdd').onclick=()=>{const p=parseCoords($('wpCoords').value); if(!p)return alert('Could not parse coordinates. Try "34.851939,-119.168399" or "34.851939 N, -119.168399 W".'); WPs.upsert($('wpName').value,p.lat,p.lng); $('wpName').value=''; $('wpCoords').value=''};
    $('wpList').onclick=e=>{const t=e.target,go=t.getAttribute('data-go'),del=t.getAttribute('data-del');
      if(go!=null){const w=WPs.load()[+go]; if(w){this.map.setView([w.lat,w.lng],16); this.markers.get(w.name)?.openPopup()}}
