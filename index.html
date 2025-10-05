@@ -14,13 +14,15 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .btn{appearance:none;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));color:var(--text);padding:8px 10px;border-radius:10px;font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer}
 .btn.primary{border-color:var(--accent)}.btn.toggled{outline:2px solid var(--accent)}
 .badge{padding:0 8px;border-radius:999px;background:rgba(255,255,255,.1);font-size:12px;margin-left:6px}
-.fab{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,14px) + 56px);z-index:1100;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:rgba(18,24,26,.9);border:1px solid rgba(255,255,255,.12)}
+.fab{position:fixed;right:14px;z-index:1100;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:rgba(18,24,26,.9);border:1px solid rgba(255,255,255,.12)}
+.fab.wp{bottom:calc(env(safe-area-inset-bottom,14px) + 60px)}
+.fab.gear{bottom:calc(env(safe-area-inset-bottom,14px) + 8px)}
 .panel{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,12px) + 120px);width:min(92vw,360px);max-height:60vh;overflow:auto;background:rgba(18,24,26,.95);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:12px;z-index:1050;box-shadow:0 12px 32px rgba(0,0,0,.45);display:none}
 .panel.open{display:block}
 .row{display:grid;gap:8px;margin:10px 0}
 .row input,.row button{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:var(--text);font:500 14px/1.2 system-ui,sans-serif}
 .list{display:grid;gap:8px}
-.item{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:10px}
+.item{display:grid;grid-template-columns:1fr auto auto auto auto;gap:6px;align-items:center;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:10px}
 .item small{color:var(--dim);display:block}.item button{padding:6px 10px}
 .danger{border-color:var(--danger);color:var(--danger)}
 .leaflet-control-attribution,.leaflet-control-zoom{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
@@ -38,6 +40,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .popup-actions .btn{padding:6px 10px;font-size:13px}
 .popup-input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);font:500 13px/1}
 .mini-label{background:rgba(18,24,26,.85);color:var(--text);padding:2px 6px;border:1px solid rgba(255,255,255,.12);border-radius:8px;font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;backdrop-filter:blur(4px);pointer-events:none}
+.settings-group{display:grid;gap:8px;margin:8px 0}
+.settings-label{font:600 13px/1 system-ui}
+.settings-note{color:var(--dim);font-size:12px}
 </style></head><body>
 <div id="map"></div>
 <div class="controls" role="toolbar" aria-label="Map controls">
@@ -46,7 +51,12 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   <button id="btnCompass" class="btn" aria-pressed="false">Rotate <span id="compassState" class="badge">off</span></button>
   <button id="btnReset" class="btn">Reset</button>
 </div>
-<button id="btnWaypoints" class="btn fab" title="Waypoints" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false">📍</button>
+
+<!-- FABs -->
+<button id="btnWaypoints" class="btn fab wp" title="Waypoints" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false">📍</button>
+<button id="btnSettings" class="btn fab gear" title="Settings" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false">⚙️</button>
+
+<!-- Waypoints Panel -->
 <div id="wpPanel" class="panel" aria-hidden="true">
   <div class="row">
     <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
@@ -55,6 +65,17 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
   </div>
   <div class="list" id="wpList" aria-live="polite"></div>
 </div>
+
+<!-- Settings Panel -->
+<div id="settingsPanel" class="panel" aria-hidden="true">
+  <div class="settings-group">
+    <div class="settings-label">Declination Offset (°)</div>
+    <input id="declInput" type="number" inputmode="decimal" step="0.1" min="-60" max="60" placeholder="0.0" aria-label="Declination degrees"/>
+    <div class="settings-note">Applied to compass/GPS heading: True = Magnetic + Declination.</div>
+    <button id="declSave" class="btn primary">Save</button>
+  </div>
+</div>
+
 <div class="info" id="readout"><div class="metrics"></div></div>
 
 <script>
@@ -87,12 +108,24 @@ parseCoords=t=>{
   return null;
 };
 
+// Haptics (why: tactile confirmation when aligned)
+const Haptics=(()=>{
+  let last=0;
+  return{
+    hit(){ // short buzz, throttled
+      const now=performance.now();
+      if(now-last<400) return; last=now;
+      if(navigator.vibrate) navigator.vibrate(15);
+    }
+  };
+})();
+
 // ------- App Core -------
 const App={
- S:{follow:true,heading:null,bearing:0,rotate:true,press:false,fAngle:null,fPivot:null,dest:null,compass:false},
+ S:{follow:true,heading:null,bearing:0,rotate:true,press:false,fAngle:null,fPivot:null,dest:null,compass:false,decl:0},
  DEF:{lat:34.9,lng:-119.17,z:16},
  map:null,last:null,ray:null,originDot:null,navLine:null,accCircle:null,markers:new Map(),
- _navState:null, _lastOverlayAngle:null, _compassBound:false, watchId:null,
+ _navState:null, _lastOverlayAngle:null, _compassBound:false, watchId:null, _guideHit:false,
  init(){
   // restore minimal state
   try{
@@ -100,6 +133,7 @@ const App={
     if(typeof saved.follow==='boolean') this.S.follow=saved.follow;
     if(typeof saved.rotate==='boolean') this.S.rotate=saved.rotate;
     if(typeof saved.bearing==='number') this.S.bearing=N(saved.bearing);
+    if(typeof saved.decl==='number') this.S.decl=+saved.decl||0;
   }catch{}
 
   this.map=L.map('map',{zoomControl:true,attributionControl:true});
@@ -117,14 +151,16 @@ const App={
   $('compassState').textContent=this.S.rotate?'on':'off';
   $('btnCompass').classList.toggle('toggled',this.S.rotate);
   $('btnCompass').setAttribute('aria-pressed',String(this.S.rotate));
-  addEventListener('beforeunload',()=>this.persist(),{once:true});
+  // settings initial
+  $('declInput').value=String(this.S.decl);
+
+  addEventListener('beforeunload',()=>{this.persist(); this.stopGPS();},{once:true});
  },
  persist(){
   try{
-    localStorage.setItem('mapapp.state.v1',JSON.stringify({follow:this.S.follow,rotate:this.S.rotate,bearing:this.S.bearing}));
+    localStorage.setItem('mapapp.state.v1',JSON.stringify({follow:this.S.follow,rotate:this.S.rotate,bearing:this.S.bearing,decl:this.S.decl}));
   }catch{}
  },
- // Only re-apply overlay counter-rotation if bearing changed meaningfully
  uprightOverlays(deg){
    if(this._lastOverlayAngle!=null && Math.abs(Δ(this._lastOverlayAngle,deg))<0.1) return;
    this._lastOverlayAngle = deg;
@@ -156,7 +192,7 @@ const App={
    this.ray.setLatLngs([o,dest(o,this.S.heading,this.rayLen())]).bringToFront();
  },
  refreshNav(){
-   if(!this.S.dest||!this.last){this.navLine?.setLatLngs([]);$('btnReset').textContent='Reset';this._navState=null;return}
+   if(!this.S.dest||!this.last){this.navLine?.setLatLngs([]);$('btnReset').textContent='Reset';this._navState=null;this._guideHit=false;return}
    $('btnReset').textContent='Clear Nav';
    const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude),to=L.latLng(this.S.dest.lat,this.S.dest.lng);
    if(!this.navLine)this.navLine=L.polyline([], {color:'#29a36a',weight:3,opacity:.9,interactive:false,dashArray:'6 6'}).addTo(this.map);
@@ -165,8 +201,11 @@ const App={
    this._navState={b,d,err};
    if(this.S.heading!=null){
      const delta=Math.abs(err);
-     if(delta<.5){this.navLine.setStyle({color:'#ff4444',weight:4,opacity:1});this.navLine.getElement?.().classList.add('guide-hit')}
+     const was=this._guideHit, now=delta<.5;
+     if(now){this.navLine.setStyle({color:'#ff4444',weight:4,opacity:1});this.navLine.getElement?.().classList.add('guide-hit')}
      else{this.navLine.setStyle({color:'#29a36a',weight:3,opacity:.9});this.navLine.getElement?.().classList.remove('guide-hit')}
+     if(!was && now){ Haptics.hit(); } // haptic on transition into hit
+     this._guideHit=now;
    }
  },
  updateHUD(){
@@ -191,13 +230,11 @@ const App={
  },
  loop(){
    const tgt=(this.S.rotate??true)?(this.S.heading??0):0;
-   // smooth map rotation (why: avoids jarring snaps/jitter)
    this.S.bearing = blend(this.S.bearing, tgt, 0.18);
    this.applyBearing(this.S.bearing);
    this.refreshRay(); this.refreshNav(); this.updateHUD();
    requestAnimationFrame(()=>this.loop());
  },
- // --- Adaptive smoothing for heading (fast near target, smooth otherwise) ---
  _adaptHeading(raw){
    const eps=0.05;
    const prev=this.S.heading;
@@ -212,13 +249,14 @@ const App={
  onOrient(e){
    let h=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:typeof e.alpha==='number'?e.alpha:null;
    if(h==null||isNaN(h))return;
-   h=N(h);
+   h=N(h + (this.S.decl||0)); // apply declination
    if(this.S.heading==null){ this.S.heading=h; if(this.S.rotate) this.S.bearing=h; }
    else{ this._adaptHeading(h); }
  },
  async enableCompass(){
    if(this.S.compass) return true;
    try{
+     if(location.protocol!=='https:' && location.hostname!=='localhost'){ alert('Compass requires HTTPS on most browsers.'); return false; }
      if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
        const g=await DeviceOrientationEvent.requestPermission(); if(g!=='granted'){alert('Compass permission denied.');return false;}
      }
@@ -239,7 +277,7 @@ const App={
      this.accCircle.setLatLng(ll).setRadius(Math.max(acc||0,0));
      if(this.S.follow&&!this.S.press)this.map.setView(ll,Math.max(this.map.getZoom(),16),{animate:false});
      if(Number.isFinite(heading)){
-       const h=N(heading);
+       const h=N(heading + (this.S.decl||0)); // apply declination to course if provided
        if(this.S.heading==null) this.S.heading=h; else this._adaptHeading(h);
      }
    },e=>alert('Unable to get location: '+e.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
@@ -260,7 +298,6 @@ const App={
    $('btnFollow').setAttribute('aria-pressed',String(this.S.follow));
    if(this.S.follow&&this.last){const{latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude],Math.max(this.map.getZoom(),16),{animate:false}); this.applyBearing(this.S.bearing)}
  },
- // --- Map gestures / popups ---
  latLngFromPt(pt){const ang=(this.S.press&&this.S.fAngle!=null)?this.S.fAngle:this.S.bearing,
    layer=this.map.containerPointToLayerPoint(pt), pivot=(this.S.press&&this.S.fPivot)?this.S.fPivot:this.map.latLngToLayerPoint(this.pivotLL()),
    th=R(ang),c=Math.cos(th),s=Math.sin(th),dx=layer.x-pivot.x,dy=layer.y-pivot.y,
@@ -294,13 +331,30 @@ const App={
      this.applyBearing(this.S.bearing); if(this.S.rotate)this.setFollow(true)};
    $('btnReset').onclick=()=>this.resetView();
    $('btnFollow').onclick=()=>this.setFollow(!this.S.follow);
+
+   // Waypoints
    const btnWP=$('btnWaypoints'), wpPanel=$('wpPanel');
    btnWP.onclick=()=>{const open=!wpPanel.classList.contains('open'); wpPanel.classList.toggle('open',open); wpPanel.setAttribute('aria-hidden',open?'false':'true'); btnWP.setAttribute('aria-expanded',String(open))};
    $('wpAdd').onclick=()=>{const p=parseCoords($('wpCoords').value); if(!p)return alert('Could not parse coordinates. Try "34.851939,-119.168399" or "34.851939 N, -119.168399 W".'); WPs.upsert($('wpName').value,p.lat,p.lng); $('wpName').value=''; $('wpCoords').value=''};
-   $('wpList').onclick=e=>{const t=e.target,go=t.getAttribute('data-go'),del=t.getAttribute('data-del');
-     if(go!=null){const w=WPs.load()[+go]; if(w){this.map.setView([w.lat,w.lng],16); this.markers.get(w.name)?.openPopup()}}
-     if(del!=null)WPs.del(+del);
+
+   // Waypoint list actions (Go, Guide, Edit, Save, Cancel, Del)
+   $('wpList').onclick=e=>{
+     const t=e.target;
+     const idx = t.getAttribute('data-idx');
+     if(idx==null) return;
+     const i=+idx;
+     if(t.hasAttribute('data-go')){ const w=WPs.load()[i]; if(w){ this.setFollow(false); this.map.setView([w.lat,w.lng],16); WPs.ensureMarker(w.name)?.openPopup(); } }
+     else if(t.hasAttribute('data-guide')){ const w=WPs.load()[i]; if(w){ this.S.dest={lat:w.lat,lng:w.lng,name:w.name}; this.refreshNav(); this.updateHUD(); } }
+     else if(t.hasAttribute('data-edit')){ WPs.edit(i); }
+     else if(t.hasAttribute('data-save-edit')){ WPs.saveEdit(i); }
+     else if(t.hasAttribute('data-cancel')){ WPs.render(); }
+     else if(t.hasAttribute('data-del')){ WPs.del(i); }
    };
+
+   // Settings
+   const btnSettings=$('btnSettings'), settings=$('settingsPanel');
+   btnSettings.onclick=()=>{const open=!settings.classList.contains('open'); settings.classList.toggle('open',open); settings.setAttribute('aria-hidden',open?'false':'true'); btnSettings.setAttribute('aria-expanded',String(open))};
+   $('declSave').onclick=()=>{ const v=parseFloat(($('declInput').value||'0').trim()); if(Number.isFinite(v)){ this.S.decl=Math.max(-60,Math.min(60,v)); this.persist(); } };
  },
  bindMap(){
    const container=this.map.getContainer(); let timer=null,start=null,last=null; const LONG=420, MOVE=6;
@@ -324,12 +378,52 @@ const WPs={
  init(app){this.app=app; this.render(); this.syncMarkers();},
  load(){try{return JSON.parse(localStorage.getItem(this.key)||'[]')}catch{return[]}},
  save(a){localStorage.setItem(this.key,JSON.stringify(a))},
- render(){const list=$('wpList'); list.innerHTML=''; this.load().forEach((w,i)=>{const d=document.createElement('div'); d.className='item';
-   d.innerHTML=`<div><strong>${w.name}</strong><small>${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}</small></div>
-                <button class="btn" data-go="${i}">Go</button><button class="btn danger" data-del="${i}">Del</button>`;
-   list.appendChild(d)})},
- upsert(name,lat,lng){const a=this.load(),nm=(name?.trim())||`WP ${Date.now().toString().slice(-5)}`,i=a.findIndex(w=>w.name.toLowerCase()===nm.toLowerCase()),e={name:nm,lat,lng}; if(i>=0)a[i]=e; else a.push(e); this.save(a); this.render(); this.syncMarkers()},
- del(i){const a=this.load(); const[rm]=a.splice(i,1); this.save(a); this.render();
+ ensureMarker(name){return this.markers.get(name)||null},
+ render(){
+   const list=$('wpList'); list.innerHTML='';
+   const a=this.load();
+   a.forEach((w,i)=>{
+     const d=document.createElement('div'); d.className='item';
+     d.innerHTML=`
+      <div><strong>${w.name}</strong><small>${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}</small></div>
+      <button class="btn" data-idx="${i}" data-go>Go</button>
+      <button class="btn" data-idx="${i}" data-guide>Guide</button>
+      <button class="btn" data-idx="${i}" data-edit>Edit</button>
+      <button class="btn danger" data-idx="${i}" data-del>Del</button>`;
+     list.appendChild(d);
+   });
+ },
+ edit(i){
+   const list=$('wpList'); const a=this.load(); const w=a[i]; if(!w) return;
+   const d=list.children[i]; if(!d) return;
+   d.className='item'; d.style.gridTemplateColumns='1fr auto auto';
+   d.innerHTML=`
+     <div style="display:grid;gap:6px">
+       <input data-e-name placeholder="Name" value="${w.name}"/>
+       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+         <input data-e-lat placeholder="Lat" value="${w.lat.toFixed(6)}"/>
+         <input data-e-lng placeholder="Lng" value="${w.lng.toFixed(6)}"/>
+       </div>
+     </div>
+     <button class="btn primary" data-idx="${i}" data-save-edit>Save</button>
+     <button class="btn" data-idx="${i}" data-cancel>Cancel</button>`;
+ },
+ saveEdit(i){
+   const a=this.load(); const w=a[i]; if(!w) return;
+   const list=$('wpList'); const d=list.children[i]; if(!d) return;
+   const nm=(d.querySelector('[data-e-name]')?.value||'').trim()||w.name;
+   const lat=parseFloat((d.querySelector('[data-e-lat]')?.value||'').trim());
+   const lng=parseFloat((d.querySelector('[data-e-lng]')?.value||'').trim());
+   if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180){ alert('Invalid coordinates.'); return; }
+   a[i]={name:nm,lat,lng};
+   this.save(a); this.render(); this.syncMarkers();
+ },
+ upsert(name,lat,lng){
+   const a=this.load(),nm=(name?.trim())||`WP ${Date.now().toString().slice(-5)}`,i=a.findIndex(w=>w.name.toLowerCase()===nm.toLowerCase()),e={name:nm,lat,lng};
+   if(i>=0)a[i]=e; else a.push(e); this.save(a); this.render(); this.syncMarkers()
+ },
+ del(i){
+   const a=this.load(); const[rm]=a.splice(i,1); this.save(a); this.render();
    if(rm&&this.markers.has(rm.name)){App.map.removeLayer(this.markers.get(rm.name)); this.markers.delete(rm.name)}
  },
  syncMarkers(){
@@ -340,7 +434,7 @@ const WPs={
  }
 };
 
-// ------- Ad-hoc Pins (long-press/right-click) -------
+// ------- Ad-hoc Pins -------
 const Pins={
  app:null, pin:null,
  init(app){this.app=app},
