@@ -43,6 +43,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .settings-group{display:grid;gap:8px;margin:8px 0}
 .settings-label{font:600 13px/1 system-ui}
 .settings-note{color:var(--dim);font-size:12px}
+.settings-value{font:600 12px/1 ui-monospace}
 </style></head><body>
 <div id="map"></div>
 <div class="controls" role="toolbar" aria-label="Map controls">
@@ -66,9 +67,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 
 <div id="settingsPanel" class="panel" aria-hidden="true">
   <div class="settings-group">
-    <div class="settings-label">Declination Offset (°)</div>
-    <input id="declInput" type="number" inputmode="decimal" step="0.1" min="-60" max="60" placeholder="0.0" aria-label="Declination degrees"/>
-    <div class="settings-note">Applied to compass/GPS heading: True = Magnetic + Declination.</div>
+    <div class="settings-label">Declination Offset</div>
+    <input id="declSlider" type="range" min="-30" max="30" step="0.1" aria-label="Declination slider"/>
+    <div class="settings-note">True heading = Magnetic + <span id="declVal" class="settings-value">0.0°</span></div>
     <button id="declSave" class="btn primary">Save</button>
   </div>
 </div>
@@ -105,7 +106,7 @@ parseCoords=t=>{
   return null;
 };
 
-// ------- Cross-platform haptics (Android: Vibration API; iOS: WebAudio click fallback) -------
+// ------- Haptics (Android vibrate; iOS WebAudio click) -------
 const AudioHaptics=(()=>{
   let ctx=null;
   const ensure=()=>{ if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; ctx=new AC(); } if(ctx.state==='suspended') ctx.resume(); return ctx; };
@@ -129,11 +130,8 @@ const Haptics=(()=>{
   let last=0;
   return{
     hit(){
-      const now=performance.now(); if(now-last<350) return; last=now; // throttle
-      try{
-        if('vibrate' in navigator){ navigator.vibrate(12); return; } // Android
-      }catch{}
-      // iOS/web fallback: subtle audio click (why: iOS Safari lacks Vibration API)
+      const now=performance.now(); if(now-last<350) return; last=now;
+      try{ if('vibrate' in navigator){ navigator.vibrate(12); return; } }catch{}
       AudioHaptics.click();
     }
   };
@@ -145,6 +143,7 @@ const App={
  DEF:{lat:34.9,lng:-119.17,z:16},
  map:null,last:null,ray:null,originDot:null,navLine:null,accCircle:null,markers:new Map(),
  _navState:null, _lastOverlayAngle:null, _compassBound:false, watchId:null, _guideHit:false,
+ _aligned:null, alignPopup:null, // alignment with any marker/pin
  init(){
   try{
     const saved=JSON.parse(localStorage.getItem('mapapp.state.v1')||'{}');
@@ -168,7 +167,10 @@ const App={
   $('compassState').textContent=this.S.rotate?'on':'off';
   $('btnCompass').classList.toggle('toggled',this.S.rotate);
   $('btnCompass').setAttribute('aria-pressed',String(this.S.rotate));
-  $('declInput').value=String(this.S.decl);
+
+  // declination slider init
+  $('declSlider').value=String(this.S.decl);
+  $('declVal').textContent=`${(+this.S.decl).toFixed(1)}°`;
 
   addEventListener('beforeunload',()=>{this.persist(); this.stopGPS();},{once:true});
  },
@@ -177,7 +179,6 @@ const App={
     localStorage.setItem('mapapp.state.v1',JSON.stringify({follow:this.S.follow,rotate:this.S.rotate,bearing:this.S.bearing,decl:this.S.decl}));
   }catch{}
  },
- // rotate UI/state centralized (why: single source of truth)
  setRotate(v){
    this.S.rotate=!!v;
    $('compassState').textContent=this.S.rotate?'on':'off';
@@ -217,6 +218,64 @@ const App={
    if(!this.ray)this.ray=L.polyline([],{color:'#2aff2a',weight:3,opacity:1,interactive:false}).addTo(this.map);
    this.ray.setLatLngs([o,dest(o,this.S.heading,this.rayLen())]).bringToFront();
  },
+ setRayAligned(v){
+   if(!this.ray) return;
+   if(v){ this.ray.setStyle({color:'#ff4444',weight:4,opacity:1}); this.ray.getElement?.().classList.add('guide-hit'); }
+   else { this.ray.setStyle({color:'#2aff2a',weight:3,opacity:1}); this.ray.getElement?.().classList.remove('guide-hit'); }
+ },
+ // --- Alignment with ANY saved waypoint/pin ---
+ checkAnyAlignment(){
+   if(!this.last || this.S.heading==null) { this._aligned=null; this.setRayAligned(false); this.hideAlignPopup(); return; }
+   const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
+   const cand=[];
+   // saved waypoints (use marker latlngs if present)
+   WPs.markers.forEach((m,name)=>{ const ll=m.getLatLng(); cand.push({name, ll}); });
+   // ad-hoc pin
+   if(Pins.pin){ const ll=Pins.pin.getLatLng(); cand.push({name:(Pins.pin._nm||`Pin ${fix(ll.lat)},${fix(ll.lng)}`), ll}); }
+   if(cand.length===0){ this._aligned=null; this.setRayAligned(false); this.hideAlignPopup(); return; }
+
+   const th=0.75; // degrees
+   let best=null, bestErr=999, bestDist=Infinity;
+   for(const c of cand){
+     const b=bearing(from,c.ll);
+     const err=Math.abs(Δ(this.S.heading,b));
+     if(err<=th){
+       const d=haversine(from,c.ll);
+       if(err<bestErr-1e-6 || (Math.abs(err-bestErr)<1e-6 && d<bestDist)){
+         best={name:c.name, ll:c.ll, brg:b, err, dist:d}; bestErr=err; bestDist=d;
+       }
+     }
+   }
+
+   const prevName=this._aligned?.name||null;
+   if(best){
+     this._aligned=best;
+     this.setRayAligned(true);
+     if(prevName!==best.name){ Haptics.hit(); }
+     this.showAlignPopup(best);
+   }else{
+     this._aligned=null;
+     this.setRayAligned(false);
+     this.hideAlignPopup();
+   }
+ },
+ showAlignPopup(t){
+   const html=`<div style="display:grid;gap:6px">
+     <div style="font:600 13px system-ui;color:var(--dim)">Aligned with</div>
+     <div style="font:700 14px system-ui">${t.name}</div>
+   </div>`;
+   if(!this.alignPopup){
+     this.alignPopup=L.popup({className:'floating-popup',autoClose:false,closeButton:false,closeOnClick:false,offset:[0,-10]})
+       .setLatLng(t.ll).setContent(html).openOn(this.map);
+   }else{
+     this.alignPopup.setLatLng(t.ll).setContent(html);
+     if(!this.alignPopup._map){ this.alignPopup.openOn(this.map); }
+   }
+   this.uprightOverlays(this.S.bearing);
+ },
+ hideAlignPopup(){
+   if(this.alignPopup && this.alignPopup._map){ this.map.closePopup(this.alignPopup); }
+ },
  refreshNav(){
    if(!this.S.dest||!this.last){this.navLine?.setLatLngs([]);$('btnReset').textContent='Reset';this._navState=null;this._guideHit=false;return}
    $('btnReset').textContent='Clear Nav';
@@ -230,7 +289,7 @@ const App={
      const was=this._guideHit, now=delta<.5;
      if(now){this.navLine.setStyle({color:'#ff4444',weight:4,opacity:1});this.navLine.getElement?.().classList.add('guide-hit')}
      else{this.navLine.setStyle({color:'#29a36a',weight:3,opacity:.9});this.navLine.getElement?.().classList.remove('guide-hit')}
-     if(!was && now){ Haptics.hit(); } // tactile feedback on lock-in
+     if(!was && now){ Haptics.hit(); }
      this._guideHit=now;
    }
  },
@@ -258,7 +317,10 @@ const App={
    const tgt=(this.S.rotate??true)?(this.S.heading??0):0;
    this.S.bearing = blend(this.S.bearing, tgt, 0.18);
    this.applyBearing(this.S.bearing);
-   this.refreshRay(); this.refreshNav(); this.updateHUD();
+   this.refreshRay();
+   this.refreshNav();
+   this.checkAnyAlignment(); // new
+   this.updateHUD();
    requestAnimationFrame(()=>this.loop());
  },
  _adaptHeading(raw){
@@ -275,7 +337,7 @@ const App={
  onOrient(e){
    let h=typeof e.webkitCompassHeading==='number'?e.webkitCompassHeading:typeof e.alpha==='number'?e.alpha:null;
    if(h==null||isNaN(h))return;
-   h=N(h + (this.S.decl||0));
+   h=N(h + (this.S.decl||0)); // apply declination
    if(this.S.heading==null){ this.S.heading=h; if(this.S.rotate) this.S.bearing=h; }
    else{ this._adaptHeading(h); }
  },
@@ -355,7 +417,7 @@ const App={
 
    $('btnCompass').onclick=async()=>{
      if(!this.S.rotate){
-       if(!await this.enableCompass()) return; // only required when enabling
+       if(!await this.enableCompass()) return;
        this.setRotate(true);
      }else{
        this.setRotate(false);
@@ -369,7 +431,6 @@ const App={
    btnWP.onclick=()=>{const open=!wpPanel.classList.contains('open'); wpPanel.classList.toggle('open',open); wpPanel.setAttribute('aria-hidden',open?'false':'true'); btnWP.setAttribute('aria-expanded',String(open))};
    $('wpAdd').onclick=()=>{const p=parseCoords($('wpCoords').value); if(!p)return alert('Could not parse coordinates. Try "34.851939,-119.168399" or "34.851939 N, -119.168399 W".'); WPs.upsert($('wpName').value,p.lat,p.lng); $('wpName').value=''; $('wpCoords').value=''};
 
-   // Waypoint list actions
    $('wpList').onclick=e=>{
      const t=e.target; const idx=t.getAttribute('data-idx'); if(idx==null) return; const i=+idx;
      if(t.hasAttribute('data-go')){ const w=WPs.load()[i]; if(w){ this.setFollow(false); this.setRotate(false); this.map.setView([w.lat,w.lng],16); WPs.ensureMarker(w.name)?.openPopup(); } }
@@ -382,7 +443,12 @@ const App={
 
    const btnSettings=$('btnSettings'), settings=$('settingsPanel');
    btnSettings.onclick=()=>{const open=!settings.classList.contains('open'); settings.classList.toggle('open',open); settings.setAttribute('aria-hidden',open?'false':'true'); btnSettings.setAttribute('aria-expanded',String(open))};
-   $('declSave').onclick=()=>{ const v=parseFloat(($('declInput').value||'0').trim()); if(Number.isFinite(v)){ this.S.decl=Math.max(-60,Math.min(60,v)); this.persist(); } };
+   // declination slider live update; Save persists
+   const slider=$('declSlider'), val=$('declVal');
+   const applyDecl=()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)){ this.S.decl=v; val.textContent=`${v.toFixed(1)}°`; } };
+   slider.addEventListener('input',applyDecl,{passive:true});
+   $('declSave').onclick=()=>{ this.persist(); };
+   applyDecl();
  },
  bindMap(){
    const container=this.map.getContainer(); let timer=null,start=null,last=null; const LONG=420, MOVE=6;
@@ -395,8 +461,8 @@ const App={
    container.addEventListener('pointermove',e=>{if(!timer)return;e.preventDefault(); last=pt(e); if(Math.hypot(last.x-start.x,last.y-start.y)>MOVE){clearTimeout(timer); freezeE()}},{passive:false});
    ['pointerup','pointercancel','pointerleave'].forEach(ev=>container.addEventListener(ev,()=>{clearTimeout(timer); freezeE()},{passive:true}));
    this.map.on('contextmenu',e=>{e.originalEvent?.preventDefault(); freezeS(); const p=e.containerPoint??pt(e.originalEvent); dropAt(this.latLngFromPt(p)); freezeE()});
-   this.map.on('move moveend zoom zoomend zoomanim',()=>{this.applyBearing(this.S.bearing); this.refreshRay(); this.refreshNav()});
-   addEventListener('resize',()=>{this.map.invalidateSize(); this.applyBearing(this.S.bearing); this.refreshRay(); this.refreshNav()},{passive:true});
+   this.map.on('move moveend zoom zoomend zoomanim',()=>{this.applyBearing(this.S.bearing); this.refreshRay(); this.refreshNav(); this.checkAnyAlignment();});
+   addEventListener('resize',()=>{this.map.invalidateSize(); this.applyBearing(this.S.bearing); this.refreshRay(); this.refreshNav(); this.checkAnyAlignment();},{passive:true});
  }
 };
 
@@ -464,12 +530,13 @@ const WPs={
 
 // ------- Pins -------
 const Pins={
- app:null, pin:null,
+ app:null, pin:null, _nm:null,
  init(app){this.app=app},
  drop(lat,lng){
    if(this.pin)App.map.removeLayer(this.pin);
    this.pin=makeDot(lat,lng,14).addTo(App.map);
-   App.bindPopup(this.pin,{name:`Pin ${fix(lat)},${fix(lng)}`,lat,lng});
+   this._nm=`Pin ${fix(lat)},${fix(lng)}`;
+   App.bindPopup(this.pin,{name:this._nm,lat,lng});
    this.pin.openPopup();
    App.uprightOverlays(App.S.bearing);
  }
