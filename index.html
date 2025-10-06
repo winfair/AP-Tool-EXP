@@ -136,9 +136,9 @@ const App={
  _aligned:null, _pending:null,
  ALIGN:{ENTER:0.35, EXIT:0.60, DWELL_BASE:60},
  SCAN:{FLASH:500, COOLDOWN:600},
- RAY:{ACTIVE:0.30}, // red ray only when instantaneous error ≤ ACTIVE
+ RAY:{ACTIVE:0.15}, // tighter: red only at center
 
- _flashName:null,_flashUntil:0,_flashCooldown:new Map(),
+ _flashName:null,_flashUntil:0,_flashCooldown:new Map(), _flashTarget:null,
 
  init(){
   try{const s=JSON.parse(localStorage.getItem('mapapp.state.v1')||'{}');
@@ -234,7 +234,7 @@ const App={
    }
  },
 
- // ===== Alignment (off-screen OK) — laser + fast scan, ray color is INSTANT =====
+ // ===== Alignment (off-screen OK) — synced ray target =====
  candidates(){
    const list=[]; WPs.markers.forEach((m,name)=>{list.push({name,ll:m.getLatLng()})});
    if(Pins.pin){ const ll=Pins.pin.getLatLng(); list.push({name:(Pins._nm||`Pin ${fix(ll.lat)},${fix(ll.lng)}`), ll}); }
@@ -246,7 +246,7 @@ const App={
    const now=performance.now();
    if(!this.last || this.S.heading==null){
      this._pending=null;
-     if(!(this._flashName && now<(this._flashUntil||0))){ this._aligned=null; this._flashName=null; this._flashUntil=0; this._setRay(false); this.hideAlignUI(); }
+     if(!(this._flashName && now<(this._flashUntil||0))){ this._aligned=null; this._flashName=null; this._flashUntil=0; this._flashTarget=null; this._setRay(false); this.hideAlignUI(); }
      return;
    }
    if(now - this._tAlign < 30) return; this._tAlign=now;
@@ -260,13 +260,17 @@ const App={
 
    const cand=this.candidates(); if(cand.length===0){ this._setRay(false); this.hideAlignUI(); return; }
 
-   // --- Instantaneous ray color (no persistence)
-   let instBestErr=999, instBest=null;
+   // Best instantaneous by angular error
+   let instBest=null, instBestErr=999, instBestDist=Infinity;
    for(const c of cand){
-     const brg=bearing(from,c.ll), err=Math.abs(Δ(head,brg));
-     if(err<instBestErr){ instBestErr=err; instBest=c; }
+     const brg=bearing(from,c.ll), err=Math.abs(Δ(head,brg)), dist=haversine(from,c.ll);
+     if(err<instBestErr-1e-6 || (Math.abs(err-instBestErr)<1e-6 && dist<instBestDist)){ instBest={...c,brg}; instBestErr=err; instBestDist=dist; }
    }
-   this._setRay(instBestErr<=this.RAY.ACTIVE);
+
+   // Target priority for the ray: locked → flashing → instantaneous best
+   const rayTarget = this._aligned || this._flashTarget || instBest;
+   const rayErr = rayTarget ? Math.abs(Δ(head, bearing(from, rayTarget.ll))) : 999;
+   this._setRay(rayErr<=this.RAY.ACTIVE);
 
    // --- Lock path (banner/haptics only)
    const step=Math.abs(Δ(prevHead,head));
@@ -281,20 +285,14 @@ const App={
    }
 
    // Best for lock
-   let best=null, bestErr=999, bestDist=Infinity;
-   for(const c of cand){
-     const brg=bearing(from,c.ll), err=Math.abs(Δ(head,brg)), dist=haversine(from,c.ll);
-     if(err<bestErr-1e-6 || (Math.abs(err-bestErr)<1e-6 && dist<bestDist)){ best={...c,brg}; bestErr=err; bestDist=dist; }
-   }
-
-   if(best && bestErr<=enter){
-     if(this._pending && this._pending.name===best.name){
+   if(instBest && instBestErr<=enter){
+     if(this._pending && this._pending.name===instBest.name){
        if(now - this._pending.since >= dwell){
-         this._aligned={name:best.name,ll:best.ll,err:bestErr,dist:bestDist};
-         this._pending=null; this._flashName=null; this._flashUntil=0;
+         this._aligned={name:instBest.name,ll:instBest.ll,err:instBestErr,dist:instBestDist};
+         this._pending=null; this._flashName=null; this._flashUntil=0; this._flashTarget=null;
          this.showAlignUI(this._aligned.name); Haptics.hit(); return;
        }
-     }else this._pending={name:best.name,since:now};
+     }else this._pending={name:instBest.name,since:now};
    }else this._pending=null;
 
    // Fast scan flash (arc-crossing)
@@ -314,10 +312,11 @@ const App={
      if(now-lastFire>this.SCAN.COOLDOWN){
        this._flashCooldown.set(flashPick.name, now);
        this._flashName=flashPick.name; this._flashUntil=now+this.SCAN.FLASH;
+       this._flashTarget={name:flashPick.name,ll:flashPick.ll}; // keep exact target for ray
        this.showAlignUI(this._flashName); Haptics.hit();
      }
    }
-   if(this._flashName && now>this._flashUntil){ this._flashName=null; this._flashUntil=0; this.hideAlignUI(); }
+   if(this._flashName && now>this._flashUntil){ this._flashName=null; this._flashUntil=0; this._flashTarget=null; this.hideAlignUI(); }
  },
 
  showAlignUI(name){ const b=$('alignBanner'), n=$('alignName'); if(n) n.textContent=name||'—'; if(b && !b.classList.contains('show')) b.classList.add('show'); },
