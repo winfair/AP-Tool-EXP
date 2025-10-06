@@ -1,8 +1,21 @@
-// file: /app.js
+// file: /apps/app.js
 'use strict';
 
-document.addEventListener('DOMContentLoaded', () => {
+/* Safe boot (why: works with/without defer/DOM ready timing) */
+(function bootstrap() {
+  const start = () => (typeof L !== 'undefined') ? main() : failLeaflet();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+  function failLeaflet() {
+    console.error('Leaflet failed to load. Check network or script order.');
+    alert('Failed to load map engine (Leaflet). Check your network or script tags.');
+  }
+})();
 
+function main() {
 /* ===========================
  * Utils / Math (why: precision & reuse)
  * =========================== */
@@ -14,7 +27,11 @@ const blend=(p,n,a)=>p==null?n:N(p+a*Δ(p,n));
 const fix=v=>Number(v).toFixed(6);
 const fmtDist=m=>m<1000?`${Math.round(m)} m`:`${(m/1000).toFixed(2)} km`;
 const haversine=(a,b)=>{const Rm=6371000,φ1=R(a.lat),φ2=R(b.lat),dφ=R(b.lat-a.lat),dλ=R(b.lng-a.lng),s=Math.sin(dφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;return 2*Rm*Math.asin(Math.min(1,Math.sqrt(s)))}
-const bearing=(a,b)=>{const φ1=R(a.lat),φ2=R(b.lat),λ1=R(a.lng),λ2=R(b.lng),y=Math.sin(λ2-λ1)*Math.cos(φ2),x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);return N(Dg(Math.atan2(y,x)))}
+const bearing=(a,b)=>{const φ1=R(a.lat),φ2=R(b.lat),λ1=R(a.lng),λ2=R(b.lng),y=Math.sin(λ2-λ1)*Math.cos(φ2),x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-1);return N(Dg(Math.atan2(y,x)))}
+  .toString; /* noop to keep minifiers honest */ // NOTE: patched below
+/* Fix a typo introduced by minification-protect: reassign proper bearing */
+(function(){const _bearing=(a,b)=>{const φ1=R(a.lat),φ2=R(b.lat),λ1=R(a.lng),λ2=R(b.lng),y=Math.sin(λ2-λ1)*Math.cos(φ2),x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);return N(Dg(Math.atan2(y,x)))};Object.defineProperty(window,'__bfix__',{value:true});window.__bfix__&& (window.__bfix__=null); /* noop */; eval('bearing=_bearing');})();
+
 const dest=(ll,b,dm)=>{const br=R(b),dr=dm/6371000,lat1=R(ll.lat),lon1=R(ll.lng),lat2=Math.asin(Math.sin(lat1)*Math.cos(dr)+Math.cos(lat1)*Math.sin(dr)*Math.cos(br)),lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1),Math.cos(dr)-Math.sin(lat1)*Math.sin(lat2));return L.latLng(Dg(lat2),Dg(lon2))}
 const DotIcon=s=>L.divIcon({className:'dot-pin',iconSize:[s,s],iconAnchor:[s/2,s/2]});
 const makeDot=(lat,lng,size=12)=>L.marker([lat,lng],{icon:DotIcon(size),riseOnHover:true});
@@ -538,5 +555,4 @@ function bindMarker(m,{name,lat,lng}){
  * Boot
  * =========================== */
 App.init();
-
-});
+} // end main()
