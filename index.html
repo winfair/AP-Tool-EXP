@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Map App — Laser Align (Rewrite)</title>
+  <title>Map App — Laser Align (Full Feature Rewrite)</title>
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -18,8 +18,7 @@
       --dim: #8fae9f;
       --danger: #ff5e5e;
     }
-    html,
-    body {
+    html, body {
       height: 100%;
       margin: 0;
       padding: 0;
@@ -30,12 +29,8 @@
     }
     #map {
       position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      left: 0;
+      top: 0; right: 0; bottom: 0; left: 0;
     }
-    /* Controls bar */
     .controls {
       position: fixed;
       top: env(safe-area-inset-top, 12px);
@@ -46,81 +41,68 @@
       background: var(--panel);
       padding: 8px 12px;
       border-radius: 12px;
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.4);
       z-index: 1000;
     }
     .btn {
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+      border: 1px solid rgba(255,255,255,0.15);
+      background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
       color: var(--text);
       padding: 8px 12px;
       border-radius: 9px;
       font: 500 14px/1 system-ui, sans-serif;
       cursor: pointer;
     }
-    .btn.primary {
-      border-color: var(--accent);
-    }
-    .btn.toggled {
-      outline: 2px solid var(--accent);
-    }
+    .btn.primary { border-color: var(--accent); }
+    .btn.toggled { outline: 2px solid var(--accent); }
     .badge {
       margin-left: 6px;
       padding: 0 6px;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255,255,255,0.1);
       border-radius: 999px;
       font-size: 12px;
     }
     .fab {
       position: fixed;
-      width: 48px;
-      height: 48px;
+      width: 48px; height: 48px;
       border-radius: 50%;
       display: grid;
       place-items: center;
       background: var(--panel);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255,255,255,0.15);
       z-index: 1000;
       cursor: pointer;
     }
-    .fab.wp {
-      bottom: calc(env(safe-area-inset-bottom, 14px) + 60px);
-      right: 14px;
-    }
-    .fab.gear {
-      bottom: calc(env(safe-area-inset-bottom, 14px) + 8px);
-      right: 14px;
-    }
+    .fab.wp { bottom: calc(env(safe-area-inset-bottom,14px) + 60px); right: 14px; }
+    .fab.gear { bottom: calc(env(safe-area-inset-bottom,14px) + 8px); right: 14px; }
+
     .panel {
       position: fixed;
-      bottom: calc(env(safe-area-inset-bottom, 12px) + 120px);
+      bottom: calc(env(safe-area-inset-bottom,12px) + 120px);
       right: 12px;
       width: min(92vw, 350px);
       max-height: 60vh;
       overflow-y: auto;
       background: var(--panel);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255,255,255,0.15);
       border-radius: 14px;
       padding: 14px;
-      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.45);
       z-index: 900;
       display: none;
     }
-    .panel.open {
-      display: block;
-    }
+    .panel.open { display: block; }
     .row {
       display: grid;
       gap: 8px;
       margin-bottom: 12px;
     }
-    .row input,
-    .row button {
+    .row input, .row button {
       width: 100%;
       padding: 10px 14px;
       border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.04);
       color: var(--text);
       font: 500 14px/1.2 system-ui, sans-serif;
     }
@@ -134,7 +116,7 @@
       align-items: center;
       gap: 6px;
       padding: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 10px;
     }
     .item small {
@@ -145,23 +127,19 @@
       padding: 6px 10px;
       font-size: 13px;
     }
-    .danger {
-      border-color: var(--danger);
-      color: var(--danger);
-    }
-    /* HUD */
+    .danger { border-color: var(--danger); color: var(--danger); }
+
     .info {
       position: fixed;
-      left: 12px;
-      right: 12px;
+      left: 12px; right: 12px;
       bottom: env(safe-area-inset-bottom, 12px);
-      background: rgba(28, 36, 38, 0.9);
+      background: rgba(28,36,38, 0.9);
       padding: 12px;
       border-radius: 14px;
-      font: 500 13px/1.25 ui-monospace, Menlo, monospace;
+      font: 500 13px/1.25 ui-monospace, monospace;
       color: var(--dim);
       z-index: 800;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.4);
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
@@ -184,65 +162,60 @@
       font: 700 15px ui-monospace;
       letter-spacing: 0.2px;
     }
-    /* Popup overrides */
+
     .leaflet-popup-content {
       font: 500 13px/1.3 system-ui, sans-serif;
       color: var(--text);
     }
     .floating-popup .leaflet-popup-content-wrapper {
-      background: rgba(28, 36, 38, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(28,36,38,0.92);
+      border: 1px solid rgba(255,255,255,0.15);
       border-radius: 12px;
       backdrop-filter: blur(6px);
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.45);
     }
     .floating-popup .leaflet-popup-tip {
-      background: rgba(28, 36, 38, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(28,36,38,0.92);
+      border: 1px solid rgba(255,255,255,0.15);
     }
     .floating-popup .leaflet-popup-content {
       margin: 10px 12px;
     }
-    .popup-grid {
-      display: grid;
-      gap: 8px;
-    }
+    .popup-grid { display: grid; gap: 8px; }
     .popup-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
+      display: flex; justify-content: flex-end; gap: 8px;
     }
     .popup-input {
-      width: 100%;
-      padding: 8px;
+      width: 100%; padding: 8px;
       border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
       color: var(--text);
       font: 500 13px system-ui, sans-serif;
     }
     .mini-label {
-      background: rgba(28, 36, 38, 0.9);
+      background: rgba(28,36,38,0.9);
       color: var(--text);
       padding: 2px 6px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255,255,255,0.15);
       border-radius: 8px;
       font: 600 12px system-ui, sans-serif;
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
+
     .align-banner {
       position: fixed;
-      top: calc(env(safe-area-inset-top, 12px) + 60px);
+      top: calc(env(safe-area-inset-top,12px) + 60px);
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(28, 36, 38, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(28,36,38,0.92);
+      border: 1px solid rgba(255,255,255,0.15);
       border-radius: 12px;
       padding: 8px 12px;
       font: 600 13px system-ui, sans-serif;
       color: var(--text);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.35);
       backdrop-filter: blur(4px);
       z-index: 950;
       display: none;
@@ -299,13 +272,12 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
   <script>
-    // Rewritten (modular) version
     document.addEventListener("DOMContentLoaded", () => {
       const $ = (id) => document.getElementById(id);
 
-      // Helper math and geo functions
-      const toRad = (d) => (d * Math.PI) / 180;
-      const toDeg = (r) => (r * 180) / Math.PI;
+      // ========== Helpers & Math ==========
+      const toRad = (deg) => (deg * Math.PI) / 180;
+      const toDeg = (rad) => (rad * 180) / Math.PI;
       const norm360 = (v) => ((v % 360) + 360) % 360;
       const deltaAng = (a, b) => {
         let d = norm360(b) - norm360(a);
@@ -316,21 +288,18 @@
 
       function haversine(a, b) {
         const R = 6371000;
-        const φ1 = toRad(a.lat);
-        const φ2 = toRad(b.lat);
+        const φ1 = toRad(a.lat), φ2 = toRad(b.lat);
         const dφ = toRad(b.lat - a.lat);
         const dλ = toRad(b.lng - a.lng);
         const s =
-          Math.sin(dφ / 2) * Math.sin(dφ / 2) +
-          Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) * Math.sin(dλ / 2);
+          Math.sin(dφ / 2) ** 2 +
+          Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
         return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
       }
 
       function bearing(a, b) {
-        const φ1 = toRad(a.lat),
-          φ2 = toRad(b.lat),
-          λ1 = toRad(a.lng),
-          λ2 = toRad(b.lng);
+        const φ1 = toRad(a.lat), φ2 = toRad(b.lat),
+          λ1 = toRad(a.lng), λ2 = toRad(b.lng);
         const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
         const x =
           Math.cos(φ1) * Math.sin(φ2) -
@@ -355,17 +324,13 @@
 
       function parseCoords(input) {
         input = input.trim().replace(/\s+/g, " ").replace(/[,;]+/g, ",");
-        // Simple decimal-decimal format
-        const m = input.match(
-          /^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i
-        );
+        const m = input.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
         if (m) {
-          const lat = parseFloat(m[1]);
-          const lng = parseFloat(m[3]);
-          if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180)
+          const lat = parseFloat(m[1]), lng = parseFloat(m[3]);
+          if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
             return { lat, lng };
+          }
         }
-        // Try DMS/NSEW combos
         const parts = input.split(",");
         if (parts.length === 2) {
           const parsePart = (str) => {
@@ -378,8 +343,7 @@
             if (h1 === "S" || h1 === "W") v = -Math.abs(v);
             return { v, h1 };
           };
-          const A = parsePart(parts[0]);
-          const B = parsePart(parts[1]);
+          const A = parsePart(parts[0]), B = parsePart(parts[1]);
           if (A && B) {
             let lat, lng;
             if (A.h1 === "N" || A.h1 === "S") lat = A.v;
@@ -387,18 +351,15 @@
             if (B.h1 === "N" || B.h1 === "S") lat = B.v;
             else lng = B.v;
             if (
-              lat != null &&
-              lng != null &&
-              Math.abs(lat) <= 90 &&
-              Math.abs(lng) <= 180
-            )
-              return { lat, lng };
+              lat != null && lng != null &&
+              Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+            ) return { lat, lng };
           }
         }
         return null;
       }
 
-      // State & Modules
+      // ========== State & Config ==========
       const State = {
         follow: true,
         rotate: true,
@@ -409,9 +370,11 @@
         mag: null,
         dest: null,
         watchId: null,
+        lastPos: null,
         aligned: null,
         pending: null,
         flash: { name: null, until: 0, target: null },
+        flashCooldown: {},
         lastHeadTs: null,
         prevHead: null,
         lastAbsTs: 0,
@@ -427,20 +390,21 @@
           FLASH: 500,
           COOLDOWN: 600,
         },
-        RAY_ACTIVE_THRESH: 0.15,
+        RAY_ACTIVE: 0.15,
       };
 
       let map, accCircle, originDot, rayLine, navLine;
 
+      // ========== Waypoints Module ==========
       const Waypoints = {
-        key: "mapapp.wps.v2",
+        key: "mapapp.waypoints.v3",
         list: [],
         markers: new Map(),
 
         load() {
           try {
             this.list = JSON.parse(localStorage.getItem(this.key) || "[]");
-          } catch (e) {
+          } catch {
             this.list = [];
           }
         },
@@ -457,12 +421,12 @@
           });
         },
         renderListUI() {
-          const container = $("wpList");
-          container.innerHTML = "";
+          const c = $("wpList");
+          c.innerHTML = "";
           this.list.forEach((w, i) => {
-            const div = document.createElement("div");
-            div.className = "item";
-            div.innerHTML = `
+            const d = document.createElement("div");
+            d.className = "item";
+            d.innerHTML = `
               <div>
                 <strong>${w.name}</strong>
                 <small>${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}</small>
@@ -472,7 +436,7 @@
               <button data-idx="${i}" data-edit>Edit</button>
               <button data-idx="${i}" data-del class="danger">Del</button>
             `;
-            container.appendChild(div);
+            c.appendChild(d);
           });
         },
         bindPopup(marker, w) {
@@ -506,8 +470,8 @@
               marker.closePopup();
             });
             btnSave?.addEventListener("click", () => {
-              const newName = inp.value.trim() || w.name;
-              w.name = newName;
+              const nm = inp.value.trim() || w.name;
+              w.name = nm;
               this.save();
               this.renderListUI();
               this.syncMarkers();
@@ -555,8 +519,8 @@
         },
         edit(i) {
           const w = this.list[i];
-          const container = $("wpList");
-          const el = container.children[i];
+          const c = $("wpList");
+          const el = c.children[i];
           if (!el) return;
           el.innerHTML = `
             <div style="display: grid; gap: 6px">
@@ -572,30 +536,24 @@
         },
         saveEdit(i) {
           const w = this.list[i];
-          const container = $("wpList");
-          const el = container.children[i];
+          const c = $("wpList");
+          const el = c.children[i];
           if (!el) return;
-          const nameIn = el.querySelector("[data-e-name]").value.trim() || w.name;
+          const nm = el.querySelector("[data-e-name]").value.trim() || w.name;
           const latIn = parseFloat(el.querySelector("[data-e-lat]").value);
           const lngIn = parseFloat(el.querySelector("[data-e-lng]").value);
-          if (
-            !isFinite(latIn) ||
-            !isFinite(lngIn) ||
-            Math.abs(latIn) > 90 ||
-            Math.abs(lngIn) > 180
-          ) {
+          if (!isFinite(latIn) || !isFinite(lngIn) || Math.abs(latIn) > 90 || Math.abs(lngIn) > 180) {
             alert("Invalid coordinates");
             return;
           }
-          w.name = nameIn;
-          w.lat = latIn;
-          w.lng = lngIn;
+          w.name = nm; w.lat = latIn; w.lng = lngIn;
           this.save();
           this.renderListUI();
           this.syncMarkers();
         },
       };
 
+      // ========== Pin Drop Module ==========
       const Pins = {
         pinMarker: null,
         currentName: null,
@@ -605,28 +563,26 @@
           this.currentName = `Pin ${lat.toFixed(6)},${lng.toFixed(6)}`;
           Waypoints.bindPopup(this.pinMarker, {
             name: this.currentName,
-            lat,
-            lng,
+            lat, lng,
           });
           this.pinMarker.openPopup();
         },
       };
 
-      // Initialize map and base layers
+      // ========== Map Init & Bind ==========
       function initMap() {
         map = L.map("map", { zoomControl: true, attributionControl: true });
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 20,
-          minZoom: 2,
-          attribution: "© OpenStreetMap",
+          maxZoom: 20, minZoom: 2, attribution: "© OpenStreetMap"
         }).addTo(map);
-
         map.setView([34.9, -119.17], 16);
-        accCircle = L.circle([34.9, -119.17], { radius: 10, color: "#4db6ff", weight: 1, opacity: 0.6, fillOpacity: 0.1 }).addTo(map);
+        accCircle = L.circle([34.9, -119.17], {
+          radius: 20, color: "#4db6ff", weight: 1, opacity: 0.6, fillOpacity: 0.1
+        }).addTo(map);
       }
 
-      function bindUIEvents() {
-        $("btnLocate").onclick = startGPS;
+      function bindUI() {
+        $("btnLocate").onclick = () => startGPS();
         $("btnFollow").onclick = () => {
           State.follow = !State.follow;
           $("followState").textContent = State.follow ? "on" : "off";
@@ -651,8 +607,8 @@
         $("btnReset").onclick = () => {
           if (State.dest) {
             State.dest = null;
-            updateHUD();
             refreshNavLine();
+            updateHUD();
             return;
           }
           if (State.lastPos) {
@@ -662,8 +618,7 @@
           }
         };
 
-        const btnWP = $("btnWaypoints"),
-          wpPanel = $("wpPanel");
+        const btnWP = $("btnWaypoints"), wpPanel = $("wpPanel");
         btnWP.onclick = () => {
           const open = !wpPanel.classList.contains("open");
           wpPanel.classList.toggle("open", open);
@@ -671,7 +626,7 @@
         };
         $("wpAdd").onclick = () => {
           const p = parseCoords($("wpCoords").value);
-          if (!p) return alert("Could not parse coordinates");
+          if (!p) return alert("Could not parse coords.");
           Waypoints.addOrUpdate($("wpName").value, p.lat, p.lng);
           $("wpName").value = "";
           $("wpCoords").value = "";
@@ -680,7 +635,7 @@
           const btn = e.target;
           const idx = btn.getAttribute("data-idx");
           if (idx == null) return;
-          const i = parseInt(idx);
+          const i = +idx;
           if (btn.hasAttribute("data-go")) {
             const w = Waypoints.list[i];
             State.rotate = false;
@@ -707,30 +662,25 @@
           }
         };
 
-        const btnSettings = $("btnSettings"),
-          settings = $("settingsPanel");
+        const btnSettings = $("btnSettings"), settings = $("settingsPanel");
         btnSettings.onclick = () => {
           const open = !settings.classList.contains("open");
           settings.classList.toggle("open", open);
           settings.setAttribute("aria-hidden", String(!open));
         };
-        const slider = $("declSlider"),
-          val = $("declVal");
+
+        const slider = $("declSlider"), val = $("declVal");
         const showVal = () => {
           const v = parseFloat(slider.value);
           val.textContent = `${v.toFixed(1)}°`;
         };
-        slider.addEventListener(
-          "input",
-          () => {
-            const v = parseFloat(slider.value);
-            if (isFinite(v)) {
-              State.decl = v;
-              showVal();
-            }
-          },
-          { passive: true }
-        );
+        slider.addEventListener("input", () => {
+          const v = parseFloat(slider.value);
+          if (isFinite(v)) {
+            State.decl = v;
+            showVal();
+          }
+        }, { passive: true });
         $("declSave").onclick = () => {
           const v = parseFloat(slider.value);
           if (isFinite(v)) {
@@ -738,16 +688,16 @@
             if (State.mag != null) {
               State.heading = norm360(State.mag + State.decl);
             }
-            localStorage.setItem("mapapp.state.v2", JSON.stringify({
+            localStorage.setItem("mapapp.state.v3", JSON.stringify({
               decl: State.decl,
               rotate: State.rotate,
               follow: State.follow,
             }));
             updateHUD();
             const btn = $("declSave");
-            const txtOld = btn.textContent;
+            const old = btn.textContent;
             btn.textContent = "Saved ✓";
-            setTimeout(() => (btn.textContent = txtOld), 900);
+            setTimeout(() => (btn.textContent = old), 900);
           }
         };
         showVal();
@@ -759,29 +709,29 @@
         let startPt = null;
         let lastPt = null;
         const LONGPRESS = 400;
-        const MOVE_THRESHOLD = 6;
+        const MOVE_THRESH = 6;
 
-        const getPt = (ev) => {
+        const ptOf = (ev) => {
           const r = container.getBoundingClientRect();
           return L.point(ev.clientX - r.left, ev.clientY - r.top);
         };
 
-        const onPress = (ev) => {
+        const onDown = (ev) => {
           if (ev.button !== 0 && ev.pointerType === "mouse") return;
           ev.preventDefault();
           timer = setTimeout(() => {
             timer = null;
-            const p = lastPt ?? startPt;
+            const p = lastPt || startPt;
             const ll = map.containerPointToLatLng(p);
             Pins.drop(ll.lat, ll.lng);
           }, LONGPRESS);
-          startPt = lastPt = getPt(ev);
+          startPt = lastPt = ptOf(ev);
         };
         const onMove = (ev) => {
           if (!timer) return;
           ev.preventDefault();
-          lastPt = getPt(ev);
-          if (startPt.distanceTo(lastPt) > MOVE_THRESHOLD) {
+          lastPt = ptOf(ev);
+          if (startPt.distanceTo(lastPt) > MOVE_THRESH) {
             clearTimeout(timer);
             timer = null;
           }
@@ -793,7 +743,7 @@
           }
         };
 
-        container.addEventListener("pointerdown", onPress, { passive: false });
+        container.addEventListener("pointerdown", onDown, { passive: false });
         container.addEventListener("pointermove", onMove, { passive: false });
         container.addEventListener("pointerup", onUp, { passive: true });
         container.addEventListener("pointercancel", onUp, { passive: true });
@@ -805,33 +755,29 @@
         });
 
         map.on("move moveend zoom zoomend zoomanim", () => {
-          applyMapRotation(State.bearing);
+          applyRotation(State.bearing);
           refreshRay();
         });
-
         window.addEventListener("resize", () => {
           map.invalidateSize();
-          applyMapRotation(State.bearing);
+          applyRotation(State.bearing);
           refreshRay();
         });
       }
 
-      function applyMapRotation(deg) {
+      // ========== Rotation & Overlays ==========
+      function applyRotation(deg) {
         const pane = map.getPane("mapPane");
         if (!pane) return;
-        // pivot at user location if available
         let origin = "50% 50%";
         if (State.lastPos) {
-          const pt = map.latLngToContainerPoint([
-            State.lastPos.latitude,
-            State.lastPos.longitude,
-          ]);
-          origin = `${pt.x}px ${pt.y}px`;
+          const p = map.latLngToContainerPoint([State.lastPos.latitude, State.lastPos.longitude]);
+          origin = `${p.x}px ${p.y}px`;
         }
         pane.style.transformOrigin = origin;
         pane.style.transform = `rotate(${-deg}deg)`;
-        // keep popups upright
-        const fixUpright = (els) => {
+
+        const fixEls = (els) => {
           els.forEach((el) => {
             const base = (el.style.transform || "").replace(/rotate\\([^)]*\\)/g, "");
             el.style.transformOrigin = "bottom center";
@@ -839,54 +785,50 @@
           });
         };
         const popups = map.getPanes().popupPane?.querySelectorAll(".leaflet-popup");
-        const tooltips = map.getPanes().tooltipPane?.querySelectorAll(".leaflet-tooltip");
-        if (popups) fixUpright(popups);
-        if (tooltips) fixUpright(tooltips);
+        const tips = map.getPanes().tooltipPane?.querySelectorAll(".leaflet-tooltip");
+        if (popups) fixEls(popups);
+        if (tips) fixEls(tips);
       }
 
+      // ========== Ray & Alignment ==========
       function refreshRay() {
         if (!State.lastPos || State.heading == null) {
-          if (rayLine) rayLine.setLatLngs([]);
+          rayLine?.setLatLngs([]);
           return;
         }
-        const from = {
-          lat: State.lastPos.latitude,
-          lng: State.lastPos.longitude,
-        };
+        const from = { lat: State.lastPos.latitude, lng: State.lastPos.longitude };
         if (!originDot) {
           originDot = L.circleMarker([from.lat, from.lng], {
-            radius: 3,
-            color: "#2aff2a",
-            weight: 2,
-            fillColor: "#2aff2a",
-            fillOpacity: 1,
-            interactive: false,
+            radius: 3, color: "#2aff2a", weight: 2, fillColor: "#2aff2a", fillOpacity: 1, interactive: false
           }).addTo(map);
         } else {
           originDot.setLatLng([from.lat, from.lng]);
         }
-        const length = Math.max(map.getSize().hypot() * map.distance(map.getCenter(), map.getCenter()) * 1.3, 2000);
-        const destPt = L.latLng(
-          from.lat + Math.cos(toRad(State.heading)) * (length / 111000),
-          from.lng + Math.sin(toRad(State.heading)) * (length / 111000)
+
+        const rLen = Math.max(
+          Math.hypot(map.getSize().x, map.getSize().y) * (map.distance(from, from) || 1) * 1.35,
+          3000
         );
+        // compute a destination along the heading
+        // Using simple approximations (not exact great-circle) for ray
+        const destLat = from.lat + Math.cos(toRad(State.heading)) * (rLen / 111000);
+        const destLng = from.lng + Math.sin(toRad(State.heading)) * (rLen / 111000);
+        const destPt = { lat: destLat, lng: destLng };
 
         if (!rayLine) {
           rayLine = L.polyline([], { color: "#2aff2a", weight: 3, opacity: 1, interactive: false }).addTo(map);
         }
         rayLine.setLatLngs([from, destPt]);
 
-        // color change if within active threshold
-        const cand = getAlignmentCandidates();
+        // check for active alignment threshold
+        const candidates = getCandidates();
         let hit = false;
-        if (cand.length > 0) {
-          for (const c of cand) {
-            const brg = bearing(from, c.ll);
-            const err = Math.abs(deltaAng(State.heading, brg));
-            if (err <= Config.RAY_ACTIVE_THRESH) {
-              hit = true;
-              break;
-            }
+        for (const c of candidates) {
+          const brg = bearing(from, c.ll);
+          const err = Math.abs(deltaAng(State.heading, brg));
+          if (err <= Config.RAY_ACTIVE) {
+            hit = true;
+            break;
           }
         }
         rayLine.setStyle({ color: hit ? "#ff4444" : "#2aff2a", weight: hit ? 4 : 3 });
@@ -894,7 +836,7 @@
         else rayLine.getElement()?.classList.remove("guide-hit");
       }
 
-      function getAlignmentCandidates() {
+      function getCandidates() {
         const arr = [];
         Waypoints.list.forEach((w) => arr.push({ name: w.name, ll: { lat: w.lat, lng: w.lng } }));
         if (Pins.pinMarker) {
@@ -904,34 +846,28 @@
         return arr;
       }
 
+      // ========== Navigation Line ==========
       function refreshNavLine() {
         if (!State.dest || !State.lastPos) {
-          if (navLine) navLine.setLatLngs([]);
+          navLine?.setLatLngs([]);
           return;
         }
         const from = { lat: State.lastPos.latitude, lng: State.lastPos.longitude };
         const to = { lat: State.dest.lat, lng: State.dest.lng };
+
         if (!navLine) {
           navLine = L.polyline([], {
-            color: varAccent(),
-            weight: 3,
-            opacity: 0.9,
-            interactive: false,
-            dashArray: "6 6",
+            color: varAccent(), weight: 3, opacity: 0.9, interactive: false, dashArray: "6 6"
           }).addTo(map);
         }
         navLine.setLatLngs([from, to]);
-        const b = bearing(from, to),
-          d = haversine(from, to),
-          err = State.heading == null ? null : deltaAng(State.heading, b);
-        if (State.heading != null) {
-          if (Math.abs(err) < 0.5) {
-            navLine.setStyle({ color: "#ff4444", weight: 4 });
-            navLine.getElement()?.classList.add("guide-hit");
-          } else {
-            navLine.setStyle({ color: varAccent(), weight: 3 });
-            navLine.getElement()?.classList.remove("guide-hit");
-          }
+        const b = bearing(from, to), d = haversine(from, to), err = State.heading == null ? null : deltaAng(State.heading, b);
+        if (State.heading != null && Math.abs(err) < 0.5) {
+          navLine.setStyle({ color: "#ff4444", weight: 4 });
+          navLine.getElement()?.classList.add("guide-hit");
+        } else {
+          navLine.setStyle({ color: varAccent(), weight: 3 });
+          navLine.getElement()?.classList.remove("guide-hit");
         }
       }
 
@@ -939,13 +875,14 @@
         return getComputedStyle(document.documentElement).getPropertyValue("--accent") || "#3bb67c";
       }
 
+      // ========== HUD ==========
       function updateHUD() {
         const lat = State.lastPos ? State.lastPos.latitude.toFixed(6) : "—";
         const lng = State.lastPos ? State.lastPos.longitude.toFixed(6) : "—";
         const acc = State.lastPos && State.lastPos.accuracy != null ? Math.round(State.lastPos.accuracy) : "—";
         const hd = State.heading != null ? State.heading.toFixed(2) : "—";
         const mb = norm360(-State.bearing).toFixed(2);
-        const align = State.aligned?.name || State.flash.name || "none";
+        const alignName = State.aligned?.name || State.flash.name || "none";
 
         let navHtml = "";
         if (State.dest && State.lastPos) {
@@ -968,26 +905,29 @@
           <div class="metric"><span>Acc</span><b class="value">${acc} m</b></div>
           <div class="metric"><span>Head</span><b class="value">${hd}°</b></div>
           <div class="metric"><span>Map</span><b class="value">${mb}°</b></div>
-          <div class="metric"><span>Alignment</span><b class="value">${align}</b></div>
+          <div class="metric"><span>Alignment</span><b class="value">${alignName}</b></div>
           ${navHtml}
         </div>`;
       }
 
+      // ========== Alignment Logic ==========
       function checkAlignment() {
         const now = performance.now();
         if (!State.lastPos || State.heading == null) {
           State.pending = null;
           State.aligned = null;
           State.flash = { name: null, until: 0, target: null };
+          hideBanner();
           return;
         }
         const from = { lat: State.lastPos.latitude, lng: State.lastPos.longitude };
         const head = State.heading;
 
-        const cand = getAlignmentCandidates();
-        if (cand.length === 0) {
-          State.aligned = null;
+        const candidates = getCandidates();
+        if (candidates.length === 0) {
           State.pending = null;
+          State.aligned = null;
+          hideBanner();
           return;
         }
 
@@ -995,31 +935,25 @@
         let best = null;
         let bestErr = Infinity;
         let bestDist = Infinity;
-        for (const c of cand) {
+        for (const c of candidates) {
           const brg = bearing(from, c.ll);
           const err = Math.abs(deltaAng(head, brg));
           const d = haversine(from, c.ll);
           if (err < bestErr || (err === bestErr && d < bestDist)) {
-            best = { ...c, brg };
+            best = { name: c.name, ll: c.ll, brg };
             bestErr = err;
             bestDist = d;
           }
         }
 
-        // ray target priority
-        const target = State.aligned || State.flash.target || best;
-        const rayErr = target ? Math.abs(deltaAng(head, bearing(from, target.ll))) : Infinity;
-
-        refreshRay();
-        if (rayErr <= Config.RAY_ACTIVE_THRESH) {
-          // highlight
-        }
+        const rayTarget = State.aligned || State.flash.target || best;
+        const rayErr = rayTarget ? Math.abs(deltaAng(head, bearing(from, rayTarget.ll))) : Infinity;
 
         // lock logic
         if (State.aligned) {
           const err = Math.abs(deltaAng(head, bearing(from, State.aligned.ll)));
           if (err <= Config.ALIGN.EXIT) {
-            showAlignBanner(State.aligned.name);
+            showBanner(State.aligned.name);
             return;
           }
           State.aligned = null;
@@ -1027,12 +961,13 @@
 
         if (bestErr <= Config.ALIGN.ENTER) {
           if (State.pending && State.pending.name === best.name) {
-            if (now - State.pending.since >= Config.ALIGN.DWELL_BASE - 0.6 * State.omega) {
+            const dwell = Math.max(0, Config.ALIGN.DWELL_BASE - 0.6 * (State.omega || 0));
+            if (now - State.pending.since >= dwell) {
               State.aligned = { name: best.name, ll: best.ll };
               State.pending = null;
               State.flash = { name: null, until: 0, target: null };
-              showAlignBanner(best.name);
-              vibrateHaptic();
+              showBanner(best.name);
+              vibrate();
               return;
             }
           } else {
@@ -1042,21 +977,22 @@
           State.pending = null;
         }
 
-        // flash scanning
-        const step = Math.abs(deltaAng(State.prevHead || head, head));
+        // flash scanning (fast crossing)
+        const step = Math.abs(deltaAng(State.prevHead != null ? State.prevHead : head, head));
         if (step <= 35) {
-          for (const c of cand) {
+          for (const c of candidates) {
             const brg = bearing(from, c.ll);
-            if (deltaAng(State.prevHead || head, brg) * deltaAng(head, brg) < 0) {
+            // if brg crossed from prev to head
+            const between = deltaAng(State.prevHead || head, brg) * deltaAng(head, brg) < 0;
+            if (between) {
               const err = Math.abs(deltaAng(head, brg));
-              if (err < (State.flash.name === c.name ? 0.5 : Config.SCAN.FLASH)) {
-                const last = State.flashCooldown?.[c.name] || 0;
+              if (err < Config.SCAN.FLASH) {
+                const last = State.flashCooldown[c.name] || 0;
                 if (now - last > Config.SCAN.COOLDOWN) {
                   State.flash = { name: c.name, until: now + Config.SCAN.FLASH, target: c };
-                  State.flashCooldown = State.flashCooldown || {};
                   State.flashCooldown[c.name] = now;
-                  showAlignBanner(c.name);
-                  vibrateHaptic();
+                  showBanner(c.name);
+                  vibrate();
                 }
               }
             }
@@ -1064,35 +1000,56 @@
         }
         if (State.flash.name && now > State.flash.until) {
           State.flash = { name: null, until: 0, target: null };
-          hideAlignBanner();
+          hideBanner();
         }
 
         State.prevHead = head;
       }
 
-      function showAlignBanner(name) {
+      function showBanner(name) {
         const b = $("alignBanner");
         $("alignName").textContent = name || "—";
         b.classList.add("show");
       }
-      function hideAlignBanner() {
+      function hideBanner() {
         const b = $("alignBanner");
         $("alignName").textContent = "—";
         b.classList.remove("show");
       }
-
-      function vibrateHaptic() {
+      function vibrate() {
         if ("vibrate" in navigator) navigator.vibrate(10);
       }
 
-      function headingFromEvent(e) {
+      function setHeadingRaw(magRaw) {
+        const mag = norm360(magRaw);
+        const adjusted = norm360(mag + State.decl);
+        const t = performance.now();
+        if (State.heading == null || Math.abs(deltaAng(State.heading, adjusted)) > 0.02) {
+          if (State.lastHeadTs != null && State.prevHead != null) {
+            const dt = (t - State.lastHeadTs) / 1000;
+            if (dt > 0) {
+              State.omega = Math.min(720, Math.abs(deltaAng(State.prevHead, adjusted)) / dt);
+            }
+          }
+          State.prevHead = adjusted;
+          State.lastHeadTs = t;
+          State.heading = adjusted;
+          if (State.rotate && State.bearing == null) {
+            State.bearing = adjusted;
+          }
+        } else {
+          State.mag = mag;
+        }
+      }
+
+      function handleOrientation(e) {
         const now = performance.now();
         const hasWCH = typeof e.webkitCompassHeading === "number";
         const isAbs = e.absolute === true || hasWCH;
         if (isAbs) {
           State.lastAbsTs = now;
-          const magRaw = hasWCH ? e.webkitCompassHeading : e.alpha;
-          setHeadingRaw(magRaw);
+          const raw = hasWCH ? e.webkitCompassHeading : e.alpha;
+          setHeadingRaw(raw);
         } else {
           if (now - State.lastAbsTs < 120) return;
           if (typeof e.alpha === "number") {
@@ -1101,35 +1058,10 @@
         }
       }
 
-      function setHeadingRaw(magRaw) {
-        const mag = norm360(magRaw);
-        const adj = norm360(mag + State.decl);
-        const t = performance.now();
-        if (
-          State.heading == null ||
-          Math.abs(deltaAng(State.heading, adj)) > 0.02
-        ) {
-          if (State.lastHeadTs != null && State.prevHead != null) {
-            const dt = (t - State.lastHeadTs) / 1000;
-            if (dt > 0)
-              State.omega = Math.min(720, Math.abs(deltaAng(State.prevHead, adj)) / dt);
-          }
-          State.prevHead = adj;
-          State.lastHeadTs = t;
-          State.heading = adj;
-          if (State.rotate && State.bearing == null) State.bearing = adj;
-        } else {
-          State.mag = mag;
-        }
-      }
-
       async function enableCompass() {
         if (State.rotate) return true;
         try {
-          if (
-            location.protocol !== "https:" &&
-            location.hostname !== "localhost"
-          ) {
+          if (location.protocol !== "https:" && location.hostname !== "localhost") {
             alert("Compass requires HTTPS.");
             return false;
           }
@@ -1143,10 +1075,10 @@
               return false;
             }
           }
-          window.addEventListener("deviceorientationabsolute", headingFromEvent, true);
-          window.addEventListener("deviceorientation", headingFromEvent, true);
+          window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+          window.addEventListener("deviceorientation", handleOrientation, true);
           return true;
-        } catch (ex) {
+        } catch {
           alert("Compass access failed.");
           return false;
         }
@@ -1181,9 +1113,12 @@
       function loop() {
         const tgt = State.rotate ? (State.heading ?? 0) : 0;
         const err = Math.abs(deltaAng(State.bearing, tgt));
-        const a = 0.12 + 0.38 * Math.min(1, (State.omega || 0) / 240);
-        State.bearing = err < 0.08 ? State.bearing : norm360(State.bearing + a * deltaAng(State.bearing, tgt));
-        applyMapRotation(State.bearing);
+        const blendFactor = 0.12 + 0.38 * Math.min(1, (State.omega || 0) / 240);
+        State.bearing = err < 0.08
+          ? State.bearing
+          : norm360(State.bearing + blendFactor * deltaAng(State.bearing, tgt));
+
+        applyRotation(State.bearing);
 
         refreshRay();
         if (State.dest) refreshNavLine();
@@ -1195,20 +1130,21 @@
 
       function loadPersistedState() {
         try {
-          const st = JSON.parse(localStorage.getItem("mapapp.state.v2") || "{}");
+          const st = JSON.parse(localStorage.getItem("mapapp.state.v3") || "{}");
           if (typeof st.decl === "number") State.decl = st.decl;
           if (typeof st.rotate === "boolean") State.rotate = st.rotate;
           if (typeof st.follow === "boolean") State.follow = st.follow;
         } catch {}
       }
 
-      // Kick off
+      // ========== Startup ==========
+
       initMap();
       loadPersistedState();
       Waypoints.load();
       Waypoints.renderListUI();
       Waypoints.syncMarkers();
-      bindUIEvents();
+      bindUI();
       bindMapInteractions();
       loop();
     });
