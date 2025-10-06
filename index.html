@@ -1,4 +1,7 @@
-<!DOCTYPE html><html lang="en"><head>
+<!-- file: map-app.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
 <title>Map App — Lean (Laser Align)</title>
@@ -42,25 +45,36 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-ta
 .popup-actions .btn{padding:6px 10px;font-size:13px}
 .popup-input{width:100%;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);font:500 13px/1}
 .mini-label{background:rgba(18,24,26,.85);color:var(--text);padding:2px 6px;border:1px solid rgba(255,255,255,.12);border-radius:8px;font:600 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;backdrop-filter:blur(4px);pointer-events:none}
-/* Always-on alignment banner */
-.align-banner{position:fixed;top:calc(env(safe-area-inset-top,12px) + 58px);left:50%;transform:translateX(-50%);z-index:1150;
-  background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:8px 12px;
-  font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px);display:none}
-.align-banner.show{display:block}
+/* Alignment banner (ALWAYS ON) */
+.align-banner{
+  position:fixed;top:calc(env(safe-area-inset-top,12px) + 58px);left:50%;transform:translateX(-50%);
+  z-index:1150;background:rgba(18,24,26,.92);border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;padding:8px 12px;font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);
+  box-shadow:0 6px 18px rgba(0,0,0,.35);backdrop-filter:blur(6px);
+  display:block;opacity:.85;transition:opacity .2s ease, outline-color .2s ease, box-shadow .2s ease
+}
+.align-banner .name-unstable{color:var(--dim)}
+.align-banner.pulse{outline:2px solid var(--accent);box-shadow:0 6px 20px rgba(41,163,106,.45)}
 .settings-group{display:grid;gap:8px;margin:8px 0}
 .settings-label{font:600 13px/1 system-ui}
 .settings-note{color:var(--dim);font-size:12px}
 .settings-value{font:600 12px/1 ui-monospace}
-</style></head><body>
+</style>
+</head>
+<body>
 <div id="map"></div>
+
 <div class="controls" role="toolbar" aria-label="Map controls">
-  <button id="btnLocate" class="btn primary">Enable GPS</button>
-  <button id="btnFollow" class="btn toggled" aria-pressed="true">Follow: <span id="followState" class="badge">on</span></button>
-  <button id="btnCompass" class="btn" aria-pressed="false">Rotate <span id="compassState" class="badge">off</span></button>
-  <button id="btnReset" class="btn">Reset</button>
+  <button id="btnLocate" class="btn primary" aria-label="Enable GPS (L)">Enable GPS</button>
+  <button id="btnFollow" class="btn toggled" aria-pressed="true" aria-label="Toggle Follow (F)">Follow: <span id="followState" class="badge">on</span></button>
+  <button id="btnCompass" class="btn" aria-pressed="false" aria-label="Toggle Rotate/Compass (R)">Rotate <span id="compassState" class="badge">off</span></button>
+  <button id="btnReset" class="btn" aria-label="Reset / Clear Nav (C)">Reset</button>
 </div>
 
-<div id="alignBanner" class="align-banner" aria-live="polite">Aligned: <b id="alignName">—</b></div>
+<!-- Always-on alignment banner -->
+<div id="alignBanner" class="align-banner" aria-live="polite">
+  Aligned: <b id="alignName" class="name-unstable">—</b>
+</div>
 
 <button id="btnWaypoints" class="btn fab wp" title="Waypoints" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false">📍</button>
 <button id="btnSettings" class="btn fab gear" title="Settings" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false">⚙️</button>
@@ -136,7 +150,7 @@ const App={
  _aligned:null, _pending:null,
  ALIGN:{ENTER:0.35, EXIT:0.60, DWELL_BASE:60},
  SCAN:{FLASH:500, COOLDOWN:600},
- RAY:{ACTIVE:0.15}, // tighter: red only at center
+ RAY:{ACTIVE:0.15},
 
  _flashName:null,_flashUntil:0,_flashCooldown:new Map(), _flashTarget:null,
 
@@ -153,7 +167,8 @@ const App={
   this.map.setView([this.DEF.lat,this.DEF.lng],this.DEF.z);
   this.accCircle=L.circle([this.DEF.lat,this.DEF.lng],{radius:0,color:'#4db6ff',weight:1,opacity:.6,fillOpacity:.08}).addTo(this.map);
 
-  this.bindUI(); this.bindMap(); this.loop(); WPs.init(this); Pins.init(this);
+  this.bindUI(); this.bindMap(); this.bindKeys();
+  this.loop(); WPs.init(this); Pins.init(this);
 
   this.applyBearing(this.S.bearing);
   $('followState').textContent=this.S.follow?'on':'off';
@@ -164,7 +179,7 @@ const App={
   $('btnCompass').setAttribute('aria-pressed',String(this.S.rotate));
   $('declSlider').value=String(this.S.decl); $('declVal').textContent=`${(+this.S.decl).toFixed(1)}°`;
 
-  this.hideAlignUI();
+  this.hideAlignUI(); // now only resets text, not visibility
   addEventListener('beforeunload',()=>{this.persist(); this.stopGPS();},{once:true});
  },
  persist(){try{localStorage.setItem('mapapp.state.v1',JSON.stringify({follow:this.S.follow,rotate:this.S.rotate,bearing:this.S.bearing,decl:this.S.decl}))}catch{}},
@@ -280,7 +295,7 @@ const App={
 
    if(this._aligned){
      const e=Math.abs(Δ(head, bearing(from,this._aligned.ll)));
-     if(e<=exit){ this.showAlignUI(this._aligned.name); return; }
+     if(e<=exit){ this.showAlignUI(this._aligned.name,false); return; }
      this._aligned=null;
    }
 
@@ -290,7 +305,7 @@ const App={
        if(now - this._pending.since >= dwell){
          this._aligned={name:instBest.name,ll:instBest.ll,err:instBestErr,dist:instBestDist};
          this._pending=null; this._flashName=null; this._flashUntil=0; this._flashTarget=null;
-         this.showAlignUI(this._aligned.name); Haptics.hit(); return;
+         this.showAlignUI(this._aligned.name,true); Haptics.hit(); return;
        }
      }else this._pending={name:instBest.name,since:now};
    }else this._pending=null;
@@ -312,15 +327,22 @@ const App={
      if(now-lastFire>this.SCAN.COOLDOWN){
        this._flashCooldown.set(flashPick.name, now);
        this._flashName=flashPick.name; this._flashUntil=now+this.SCAN.FLASH;
-       this._flashTarget={name:flashPick.name,ll:flashPick.ll}; // keep exact target for ray
-       this.showAlignUI(this._flashName); Haptics.hit();
+       this._flashTarget={name:flashPick.name,ll:flashPick.ll};
+       this.showAlignUI(this._flashName,true); Haptics.hit();
      }
    }
    if(this._flashName && now>this._flashUntil){ this._flashName=null; this._flashUntil=0; this._flashTarget=null; this.hideAlignUI(); }
  },
 
- showAlignUI(name){ const b=$('alignBanner'), n=$('alignName'); if(n) n.textContent=name||'—'; if(b && !b.classList.contains('show')) b.classList.add('show'); },
- hideAlignUI(){ const b=$('alignBanner'); if(b) b.classList.remove('show'); const n=$('alignName'); if(n) n.textContent='—'; },
+ // Always-on banner: pulse class toggles only; never hide
+ showAlignUI(name,pulse){
+   const b=$('alignBanner'), n=$('alignName');
+   if(n) { n.textContent=name||'—'; n.classList.toggle('name-unstable', !this._aligned); }
+   if(pulse && b){ b.classList.add('pulse'); setTimeout(()=>b.classList.remove('pulse'), 600); }
+ },
+ hideAlignUI(){
+   const n=$('alignName'); if(n){ n.textContent='—'; n.classList.add('name-unstable'); }
+ },
 
  updateHUD(){
    const now=performance.now(); if(now - this._tHUD < 120) return; this._tHUD=now;
@@ -506,6 +528,19 @@ const App={
    this.map.on('contextmenu',e=>{e.originalEvent?.preventDefault(); freezeS(); const p=e.containerPoint??pt(e.originalEvent); dropAt(this.latLngFromPt(p)); freezeE()});
    this.map.on('move moveend zoom zoomend zoomanim',()=>{this.applyBearing(this.S.bearing); this.refreshRay();});
    addEventListener('resize',()=>{this.map.invalidateSize(); this.applyBearing(this.S.bearing); this.refreshRay();},{passive:true});
+ },
+
+ // ===== Keyboard shortcuts (L/F/R/C) =====
+ bindKeys(){
+   addEventListener('keydown',(e)=>{
+     const tag=(e.target&&e.target.tagName)||'';
+     if(tag==='INPUT'||tag==='TEXTAREA'||e.metaKey||e.ctrlKey||e.altKey) return;
+     const k=(e.key||'').toLowerCase();
+     if(k==='l'){ e.preventDefault(); this.startGPS(); }
+     else if(k==='f'){ e.preventDefault(); this.setFollow(!this.S.follow); }
+     else if(k==='r'){ e.preventDefault(); (async()=>{ if(!this.S.rotate){ if(!await this.enableCompass()) return; this.setRotate(true);} else this.setRotate(false); })(); }
+     else if(k==='c'){ e.preventDefault(); this.resetView(); }
+   });
  }
 };
 
@@ -586,4 +621,5 @@ const Pins={
 App.init();
 });
 </script>
-</body></html>
+</body>
+</html>
