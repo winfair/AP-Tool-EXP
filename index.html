@@ -1,4 +1,4 @@
-<!-- file: /index.html -->
+<!-- file: /apps/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,10 +7,11 @@
   <meta name="theme-color" content="#0b0f10"/>
   <title>Laser Align — Map Tool</title>
 
+  <!-- Load Leaflet first (why: exposes global L for app.js) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
 
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="./style.css"/>
 </head>
 <body>
   <div id="map" role="application" aria-label="Laser Align Map"></div>
@@ -57,6 +58,7 @@
   <!-- HUD -->
   <div class="info" id="readout"><div class="metrics"></div></div>
 
-  <script src="app.js" defer></script>
+  <!-- Load app last -->
+  <script src="./app.js" defer></script>
 </body>
 </html>
