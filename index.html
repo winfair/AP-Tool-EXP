@@ -146,9 +146,14 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);-webkit-tap
 <script>
 'use strict';
 (function(){
-  if(!window.L){return showError('Leaflet failed to load.');}
-  function showError(m){const e=document.getElementById('error');const s=document.getElementById('errMsg');if(!e||!s)return; s.textContent = m || 'Error'; e.style.display='block'; console.error(m)}
+  function showError(m){const e=document.getElementById('error');const s=document.getElementById('errMsg');if(!e||!s){alert(m);return;} s.textContent = m || 'Error'; e.style.display='block'; console.error(m)}
   function hideError(){const e=document.getElementById('error');const s=document.getElementById('errMsg');if(!e||!s)return; s.textContent=''; e.style.display='none'}
+
+  if(!window.L){
+    showError('Leaflet failed to load. (CDN blocked?)');
+    return;
+  }
+
   const $=id=>document.getElementById(id);
   const R=d=>d*Math.PI/180, Dg=r=>r*180/Math.PI, N=d=>((d%360)+360)%360, Δ=(a,b)=>{let d=N(b)-N(a);return d>180?d-360:d<-180?d+360:d};
   const blend=(p,n,a)=>p==null?n:N(p+a*Δ(p,n)); const fix=v=>Number(v).toFixed(6); const fmtDist=m=>m<1000?`${Math.round(m)} m`:`${(m/1000).toFixed(2)} km`;
@@ -201,7 +206,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);-webkit-tap
     applyBearing(d){
       const pane=this.map.getPane && this.map.getPane('mapPane'); if(!pane) return;
       let o='50% 50%'; if(this.last){const p=this.map.latLngToContainerPoint([this.last.coords.latitude,this.last.coords.longitude]);o=`${p.x}px ${p.y}px`;}
-      const base=(pane.style.transform||'').replace(/rotate\([^)]*\)/g,'');
+      const base=(pane.style.transform||'').replace(/rotate\([^)]*\)/g,''); 
       pane.style.transformOrigin=o; pane.style.transform=base+` rotate(${-d}deg)`; this.uprightOverlays(d);
     },
     mpp(){const s=this.map.getSize(),a=this.map.containerPointToLatLng(L.point(s.x/2,s.y/2)),b=this.map.containerPointToLatLng(L.point(s.x/2+1,s.y/2));return this.map.distance(a,b)||1},
@@ -250,7 +255,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);-webkit-tap
       if(this._aligned){ const e=Math.abs(Δ(head,brg(from,this._aligned.ll))); if(e<=exit){ UI.bannerLock(this._aligned.name,false); return; } this._aligned=null; }
       if(instBest && instErr<=enter){ if(this._pending && this._pending.name===instBest.name){ if(now-this._pending.since>=dwell){ this._aligned={name:instBest.name,ll:instBest.ll,err:instErr,dist:instDist}; this._pending=null; this._flashName=null; this._flashUntil=0; this._flashTarget=null; UI.bannerLock(this._aligned.name,true); Haptics.hit(); return; } } else this._pending={name:instBest.name,since:now}; } else this._pending=null;
 
-      let flashPick=null,flashErr=999; if(step<=35){ for(const c of cand){ const b=brg(from,c.ll); if(this.between(prevHead,head,b)){ const e=Math.abs(Δ(head,b)); if(e<flashErr){flashErr=e; flashPick=c;} } } }
+      let flashPick=null,flashErr=999; if(step<=35){ for(const c of cand){ const b=brg(from,c.ll); if(this.between(prevHead,head,b)){ const e=Math.abs(Δ(head,b)); if(e<flashErr){flashErr=e; flashPick=c;} } }
+      }
       if(flashPick){ const lastFire=this._flashCooldown.get(flashPick.name)||0; if(now-lastFire>this.SCAN.COOLDOWN){ this._flashCooldown.set(flashPick.name,now); this._flashName=flashPick.name; this._flashUntil=now+this.SCAN.FLASH; this._flashTarget={name:flashPick.name,ll:flashPick.ll}; UI.bannerFlash(this._flashName,true); Haptics.hit(); } }
       if(this._flashName && now>this._flashUntil){ this._flashName=null; this._flashUntil=0; this._flashTarget=null; UI.bannerUnset(); }
     },
@@ -326,6 +332,8 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);-webkit-tap
   const Pins={ pin:null,_nm:null, init(){}, drop(lat,lng){ if(this.pin)App.map.removeLayer(this.pin); this.pin=makeDot(lat,lng,14).addTo(App.map); this._nm=`Pin ${fix(lat)},${fix(lng)}`; bindMarker(this.pin,{name:this._nm,lat,lng}); this.pin.openPopup(); App.uprightOverlays(App.S.bearing); } };
 
   function bindMarker(m,{name,lat,lng}){ const html=nm=>`<div class="popup-grid"><input class="popup-input" type="text" placeholder="Name" value="${nm||`Pin ${fix(lat)},${fix(lng)}`}" data-name/><div style="color:var(--muted);font-size:12px">${fix(lat)}, ${fix(lng)}</div><div class="popup-actions"><button class="btn" data-copy>Copy</button><button class="btn" data-min>Minimize</button><button class="btn" data-guide>Guide</button><button class="btn primary" data-save>Save</button></div></div>`; m.unbindPopup(); m.bindPopup(html(name),{className:'floating-popup',autoClose:true,closeButton:true,offset:[0,-10]}).off('popupopen').on('popupopen',()=>{ const el=m.getPopup().getElement(),I=el.querySelector('[data-name]'),C=el.querySelector('[data-copy]'),SAV=el.querySelector('[data-save]'),MIN=el.querySelector('[data-min]'),G=el.querySelector('[data-guide]'); C?.addEventListener('click',async()=>{const txt=`${fix(lat)}, ${fix(lng)}`;try{await navigator.clipboard.writeText(txt);C.textContent='Copied';setTimeout(()=>C.textContent='Copy',900)}catch{prompt('Copy to clipboard:',txt)}}); SAV?.addEventListener('click',()=>{const nm=(I?.value||'').trim()||`WP ${Date.now().toString().slice(-5)}`; Waypoints.upsert(nm,lat,lng); m.closePopup(); m._nm=nm; if(Pins && Pins.pin===m) Pins._nm=nm;}); MIN?.addEventListener('click',()=>{const nm=(I?.value||m._nm||'Pin')||'Pin'; m.bindTooltip(nm,{permanent:true,direction:'right',offset:[8,0],className:'mini-label'}).openTooltip(); m.closePopup(); m._nm=nm; if(Pins && Pins.pin===m) Pins._nm=nm; App.uprightOverlays(App.S.bearing);}); G?.addEventListener('click',()=>{App.S.dest={lat,lng,name:(I?.value||m._nm||'Dest')}; App.refreshNav(); App.updateHUD(); m.closePopup();}); App.uprightOverlays(App.S.bearing); }); m.on('tooltipopen',()=>App.uprightOverlays(App.S.bearing)); }
+
+  function parseCoords(t){ const s=t.trim().replace(/\s+/g,' ').replace(/[,;]+/g,','); const m=s.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i); if(m){const lat=+m[1],lng=+m[3];if(isFinite(lat)&&isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180)return{lat,lng}} const parts=s.split(',');if(parts.length===2){ const one=q=>{const x=q.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);if(!x)return null; const h=(x[1]||x[4]||'').toUpperCase();let v=parseFloat(x[2]); if(h==='S'||h==='W')v=-Math.abs(v); if(h==='N'||h==='E')v=Math.abs(v); return{v,h}}; const a=one(parts[0]),b=one(parts[1]); if(a&&b){ const lat=(a.h==='N'||a.h==='S')?a.v:b.v, lng=(a.h==='E'||a.h==='W')?a.v:b.v; if(Math.abs(lat)<=90&&Math.abs(lng)<=180)return{lat,lng} } } return null; }
 
   document.addEventListener('DOMContentLoaded',()=>{ try{ App.init(); hideError(); const c=document.getElementById('errClose'); if(c) c.onclick=hideError; }catch(e){ const msg=(e&&e.stack)||String(e); console.error(msg); const el=document.getElementById('errMsg'); const box=document.getElementById('error'); if(el&&box){ el.textContent=msg; box.style.display='block'; } } });
 })();
