@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
   <meta name="theme-color" content="#0c1012"/>
-  <title>AP ALignment Tool — v2 (Ray & Rotation Restored)</title>
+  <title>AP Alignment Tool — v2 (Ray & Rotation Restored)</title>
 
   <link
     rel="stylesheet"
@@ -19,7 +19,6 @@
   ></script>
 
   <style>
-    /* (Keep the same CSS as before for map, UI, etc) */
     :root {
       --bg: #0c1012;
       --elev-2: #10181c;
@@ -49,7 +48,6 @@
       min-height: 100%;
       touch-action: none;
     }
-
     .appbar {
       position: fixed;
       top: 0;
@@ -83,7 +81,6 @@
       border-radius: 50%;
       background: var(--brand);
     }
-
     .dock {
       position: fixed;
       right: 12px;
@@ -103,7 +100,6 @@
       cursor: pointer;
     }
     .fab.toggled { outline: 2px solid var(--brand); }
-
     .panel {
       position: fixed;
       right: 12px;
@@ -154,7 +150,6 @@
     }
     .btn.primary { border-color: var(--brand); }
     .btn.danger { border-color: var(--brand); color: var(--brand); }
-
     .hud {
       position: fixed;
       left: 12px; right: 12px;
@@ -183,7 +178,6 @@
       font: 700 15px/1 ui-monospace;
       letter-spacing: .2px;
     }
-
     .align {
       position: fixed;
       top: 64px;
@@ -210,7 +204,6 @@
         box-shadow: 0 0 0 22px rgba(42,193,138, 0);
       }
     }
-
     .dot-pin {
       border-radius: 50%;
       background: var(--elev-2);
@@ -223,7 +216,6 @@
     }
     .leaflet-container a { color: var(--muted); }
     .leaflet-map-pane { will-change: transform; }
-
     .leaflet-popup-content {
       font: 500 13px/1.35 system-ui;
       color: var(--ink);
@@ -267,7 +259,6 @@
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
-
     #error {
       position: fixed;
       left: 12px; right: 12px;
@@ -553,16 +544,13 @@
       _flashTarget: null,
 
       init() {
-        console.log("App.init start");
         const s = Store.loadState();
-        console.log("Loaded state:", s);
         if (typeof s.follow === 'boolean') this.S.follow = s.follow;
         if (typeof s.rotate === 'boolean') this.S.rotate = s.rotate;
         if (typeof s.bearing === 'number') this.S.bearing = N(s.bearing);
         if (typeof s.decl === 'number') this.S.decl = +s.decl || 0;
 
         this.map = L.map('map', { zoomControl: true, attributionControl: true });
-        console.log("Map created:", this.map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 20, minZoom: 2, attribution: '© OpenStreetMap'
         }).addTo(this.map);
@@ -572,12 +560,10 @@
         }).addTo(this.map);
 
         UI.bind();
-        console.log("UI bound");
         this.bindMap();
         this.bindKeys();
         Waypoints.init();
         Pins.init();
-        console.log("Waypoints & Pins init");
 
         this.applyBearing(this.S.bearing);
         UI.sync(this.S);
@@ -935,7 +921,6 @@
       },
 
       onOrient(e) {
-        console.log("Orient event:", e.alpha, e.webkitCompassHeading, e.absolute);
         const now = performance.now();
         const hasWCH = typeof e.webkitCompassHeading === 'number';
         const hasAlpha = typeof e.alpha === 'number';
@@ -987,7 +972,6 @@
         }
         if (this.watchId != null) return;
         this.watchId = navigator.geolocation.watchPosition(p => {
-          console.log("GPS pos:", p);
           this.last = p;
           const { latitude, longitude, accuracy } = p.coords;
           this.accCircle.setLatLng([latitude, longitude]).setRadius(Math.max(accuracy || 0, 0));
@@ -998,8 +982,8 @@
             this._setHeadingRaw(p.coords.heading);
           }
         }, e => {
-          console.error("GPS error:", e);
           alert('Unable to get location: ' + e.message);
+          console.error("GPS error:", e);
         }, {
           enableHighAccuracy: true,
           maximumAge: 2000,
@@ -1175,7 +1159,6 @@
         setTimeout(() => b.classList.remove('pulse'), 600);
       },
       bind() {
-        console.log("UI.bind called");
         $('btnLocate')?.addEventListener('click', () => App.startGPS());
         $('btnReset')?.addEventListener('click', () => App.resetView());
         $('chipFollow')?.addEventListener('click', () => App.setFollow(!App.S.follow));
@@ -1194,6 +1177,31 @@
           wpPanel.classList.toggle('open', open);
           wpPanel.setAttribute('aria-hidden', open ? 'false' : 'true');
           btnWP.setAttribute('aria-expanded', String(open));
+        });
+
+        const btnSettings = $('btnSettings'), settings = $('settingsPanel');
+        btnSettings?.addEventListener('click', () => {
+          const open = !settings.classList.contains('open');
+          settings.classList.toggle('open', open);
+          settings.setAttribute('aria-hidden', open ? 'false' : 'true');
+          btnSettings.setAttribute('aria-expanded', String(open));
+        });
+
+        // ** Added: Close Waypoints or Settings when clicking on map **
+        App.map.getContainer().addEventListener('click', e => {
+          const wpOpen = wpPanel?.classList.contains('open');
+          const settingsOpen = settings?.classList.contains('open');
+
+          if (wpOpen) {
+            wpPanel.classList.remove('open');
+            wpPanel.setAttribute('aria-hidden', 'true');
+            btnWP.setAttribute('aria-expanded', 'false');
+          }
+          if (settingsOpen) {
+            settings.classList.remove('open');
+            settings.setAttribute('aria-hidden', 'true');
+            btnSettings.setAttribute('aria-expanded', 'false');
+          }
         });
 
         $('wpAdd')?.addEventListener('click', () => {
@@ -1237,14 +1245,6 @@
           } else if (t.hasAttribute('data-del')) {
             Waypoints.del(i);
           }
-        });
-
-        const btnSettings = $('btnSettings'), settings = $('settingsPanel');
-        btnSettings?.addEventListener('click', () => {
-          const open = !settings.classList.contains('open');
-          settings.classList.toggle('open', open);
-          settings.setAttribute('aria-hidden', open ? 'false' : 'true');
-          btnSettings.setAttribute('aria-expanded', String(open));
         });
 
         const slider = $('declSlider'), val = $('declVal');
