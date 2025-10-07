@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
   <meta name="theme-color" content="#0c1012"/>
-  <title>Laser Align — v2 (Merged)</title>
+  <title>Laser Align — v2 (Ray & Rotation Restored)</title>
 
   <link
     rel="stylesheet"
@@ -19,24 +19,20 @@
   ></script>
 
   <style>
+    /* (Keep the same CSS as before for map, UI, etc) */
     :root {
       --bg: #0c1012;
-      --elev: #0f1518;
       --elev-2: #10181c;
       --ink: #e9f7f0;
       --muted: #a7d3bd;
       --brand: #2ac18a;
-      --brand-2: #36e0a5;
-      --bad: #ff6b6b;
       --line: rgba(255,255,255, .10);
       --line-2: rgba(255,255,255, .16);
       --glass: rgba(16,23,26, .76);
       --glass-2: rgba(16,23,26, .9);
       --shadow: 0 10px 32px rgba(0,0,0, .5);
     }
-    *, *::before, *::after {
-      box-sizing: border-box;
-    }
+    *, *::before, *::after { box-sizing: border-box; }
     html, body {
       height: 100%;
       margin: 0;
@@ -48,18 +44,16 @@
       position: fixed;
       inset: 0;
       width: 100vw;
-      height: 100svh;   /* primary */
-      height: 100vh;    /* fallback */
+      height: 100svh;
+      height: 100vh;
       min-height: 100%;
       touch-action: none;
     }
 
-    /* App bar (top) */
     .appbar {
       position: fixed;
       top: 0;
-      left: 0;
-      right: 0;
+      left: 0; right: 0;
       height: 56px;
       display: flex;
       align-items: center;
@@ -71,10 +65,7 @@
       z-index: 1200;
       box-shadow: var(--shadow);
     }
-    .brand {
-      font: 700 16px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      letter-spacing: .3px;
-    }
+    .brand { font: 700 16px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; letter-spacing: .3px; }
     .appbar .spacer { flex: 1; }
     .chip {
       display: inline-flex;
@@ -93,7 +84,6 @@
       background: var(--brand);
     }
 
-    /* Side dock (FABs) */
     .dock {
       position: fixed;
       right: 12px;
@@ -103,8 +93,7 @@
       z-index: 1150;
     }
     .fab {
-      width: 52px;
-      height: 52px;
+      width: 52px; height: 52px;
       border-radius: 16px;
       border: 1px solid var(--line);
       background: var(--glass-2);
@@ -113,11 +102,8 @@
       box-shadow: var(--shadow);
       cursor: pointer;
     }
-    .fab.toggled {
-      outline: 2px solid var(--brand);
-    }
+    .fab.toggled { outline: 2px solid var(--brand); }
 
-    /* Panels */
     .panel {
       position: fixed;
       right: 12px;
@@ -133,14 +119,8 @@
       box-shadow: var(--shadow);
       display: none;
     }
-    .panel.open {
-      display: block;
-    }
-    .row {
-      display: grid;
-      gap: 8px;
-      margin: 10px 0;
-    }
+    .panel.open { display: block; }
+    .row { display: grid; gap: 8px; margin: 10px 0; }
     .row input, .row button {
       width: 100%;
       padding: 12px;
@@ -150,10 +130,7 @@
       color: var(--ink);
       font: 500 14px/1.2 system-ui;
     }
-    .list {
-      display: grid;
-      gap: 8px;
-    }
+    .list { display: grid; gap: 8px; }
     .item {
       display: grid;
       grid-template-columns: 1fr auto auto auto auto;
@@ -163,13 +140,8 @@
       border: 1px solid var(--line);
       border-radius: 12px;
     }
-    .item small {
-      color: var(--muted);
-      display: block;
-    }
-    .item button {
-      padding: 8px 10px;
-    }
+    .item small { color: var(--muted); display: block; }
+    .item button { padding: 8px 10px; }
     .btn {
       appearance: none;
       border: 1px solid var(--line);
@@ -180,19 +152,12 @@
       font: 600 14px/1 system-ui;
       cursor: pointer;
     }
-    .btn.primary {
-      border-color: var(--brand);
-    }
-    .btn.danger {
-      border-color: var(--bad);
-      color: var(--bad);
-    }
+    .btn.primary { border-color: var(--brand); }
+    .btn.danger { border-color: var(--brand); color: var(--brand); }
 
-    /* Bottom HUD / Readout */
     .hud {
       position: fixed;
-      left: 12px;
-      right: 12px;
+      left: 12px; right: 12px;
       bottom: env(safe-area-inset-bottom, 12px);
       background: var(--glass);
       border: 1px solid var(--line);
@@ -212,17 +177,13 @@
       gap: 6px;
       align-items: baseline;
     }
-    .metric span {
-      color: var(--muted);
-      font: 600 12px/1 system-ui;
-    }
+    .metric span { color: var(--muted); font: 600 12px/1 system-ui; }
     .metric .value {
       color: var(--ink);
       font: 700 15px/1 ui-monospace;
       letter-spacing: .2px;
     }
 
-    /* Alignment banner */
     .align {
       position: fixed;
       top: 64px;
@@ -237,9 +198,7 @@
       box-shadow: var(--shadow);
       z-index: 1200;
     }
-    .align .name.unstable {
-      color: var(--muted);
-    }
+    .align .name.unstable { color: var(--muted); }
     .align.pulse {
       outline: 2px solid var(--brand);
       box-shadow: 0 0 0 0 rgba(42,193,138, .55);
@@ -252,27 +211,19 @@
       }
     }
 
-    /* Map accents & popups */
     .dot-pin {
       border-radius: 50%;
       background: var(--elev-2);
       border: 2px solid var(--brand);
       box-shadow: 0 4px 14px rgba(0,0,0, .5);
     }
-    .guide-hit {
-      filter: drop-shadow(0 0 7px #ff4444);
-    }
+    .guide-hit { filter: drop-shadow(0 0 7px #ff4444); }
     .leaflet-control-attribution, .leaflet-control-zoom {
       filter: drop-shadow(0 6px 12px rgba(0,0,0, .35));
     }
-    .leaflet-container a {
-      color: var(--muted);
-    }
-    .leaflet-map-pane {
-      will-change: transform;
-    }
+    .leaflet-container a { color: var(--muted); }
+    .leaflet-map-pane { will-change: transform; }
 
-    /* Popups */
     .leaflet-popup-content {
       font: 500 13px/1.35 system-ui;
       color: var(--ink);
@@ -291,10 +242,7 @@
     .floating-popup .leaflet-popup-content {
       margin: 10px 12px;
     }
-    .popup-grid {
-      display: grid;
-      gap: 8px;
-    }
+    .popup-grid { display: grid; gap: 8px; }
     .popup-input {
       width: 100%;
       padding: 8px;
@@ -320,11 +268,9 @@
       pointer-events: none;
     }
 
-    /* Error box (optional) */
     #error {
       position: fixed;
-      left: 12px;
-      right: 12px;
+      left: 12px; right: 12px;
       top: 12px;
       z-index: 2000;
       background: #2a1d1d;
@@ -380,7 +326,11 @@
   <div id="wpPanel" class="panel" aria-hidden="true">
     <div class="row">
       <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
-      <input id="wpCoords" placeholder="34.851939 N, -119.168399 W or 34.851939,-119.168399" aria-label="Coordinates"/>
+      <input
+        id="wpCoords"
+        placeholder="34.851939 N, -119.168399 W or 34.851939,-119.168399"
+        aria-label="Coordinates"
+      />
       <button id="wpAdd" class="btn primary">Add / Update</button>
     </div>
     <div class="list" id="wpList" aria-live="polite"></div>
@@ -403,7 +353,7 @@
 
   <script>
   'use strict';
-  (function(){
+  (function() {
     function showError(m) {
       const e = document.getElementById('error'), s = document.getElementById('errMsg');
       if (!e || !s) { alert(m); return; }
@@ -411,7 +361,7 @@
       e.style.display = 'block';
       console.error(m);
     }
-    function hideError(){
+    function hideError() {
       const e = document.getElementById('error'), s = document.getElementById('errMsg');
       if (!e || !s) return;
       s.textContent = '';
@@ -433,7 +383,7 @@
     };
     const blend = (p,n,a) => p == null ? n : N(p + a * Δ(p,n));
     const fix = v => Number(v).toFixed(6);
-    const fmtDist = m => m < 1000 ? `${Math.round(m)} m` : `${(m/1000).toFixed(2)} km`;
+    const fmtDist = m => (m < 1000) ? `${Math.round(m)} m` : `${(m/1000).toFixed(2)} km`;
     const haversine = (a,b) => {
       const Rm = 6371000;
       const φ1 = R(a.lat), φ2 = R(b.lat);
@@ -451,11 +401,13 @@
       const br = R(b), dr = dm / 6371000;
       const lat1 = R(ll.lat), lon1 = R(ll.lng);
       const lat2 = Math.asin(Math.sin(lat1)*Math.cos(dr) + Math.cos(lat1)*Math.sin(dr)*Math.cos(br));
-      const lon2 = lon1 + Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1), Math.cos(dr) - Math.sin(lat1)*Math.sin(lat2));
+      const lon2 = lon1 + Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1),
+                                     Math.cos(dr) - Math.sin(lat1)*Math.sin(lat2));
       return L.latLng(Dg(lat2), Dg(lon2));
     };
     const DotIcon = s => L.divIcon({ className: 'dot-pin', iconSize: [s, s], iconAnchor: [s/2, s/2] });
-    const makeDot = (lat, lng, size = 12) => L.marker([lat, lng], { icon: DotIcon(size), riseOnHover: true });
+    const makeDot = (lat, lng, size = 12) =>
+      L.marker([lat, lng], { icon: DotIcon(size), riseOnHover: true });
 
     function parseCoords(t) {
       const s = t.trim().replace(/\s+/g, ' ').replace(/[,;]+/g, ',');
@@ -574,14 +526,31 @@
         mag: null
       },
       DEF: { lat: 34.9, lng: -119.17, z: 16 },
-      map: null, last: null, ray: null, originDot: null, navLine: null, accCircle: null,
-      _navState: null, _lastOverlayAngle: null, _compassBound: false, watchId: null, _lastAbsTs: 0,
-      _tHUD: 0, _tNav: 0, _tAlign: 0, _lastAlignLL: null, _lastAlignHead: null,
-      _aligned: null, _pending: null,
+      map: null,
+      last: null,
+      ray: null,
+      originDot: null,
+      navLine: null,
+      accCircle: null,
+      _navState: null,
+      _lastOverlayAngle: null,
+      _compassBound: false,
+      watchId: null,
+      _lastAbsTs: 0,
+      _tHUD: 0,
+      _tNav: 0,
+      _tAlign: 0,
+      _lastAlignLL: null,
+      _lastAlignHead: null,
+      _aligned: null,
+      _pending: null,
       ALIGN: { ENTER: 0.35, EXIT: 0.60, DWELL_BASE: 60 },
       SCAN: { FLASH: 500, COOLDOWN: 600 },
       RAY: { ACTIVE: 0.15 },
-      _flashName: null, _flashUntil: 0, _flashCooldown: new Map(), _flashTarget: null,
+      _flashName: null,
+      _flashUntil: 0,
+      _flashCooldown: new Map(),
+      _flashTarget: null,
 
       init() {
         console.log("App.init start");
@@ -622,7 +591,12 @@
       },
 
       persist() {
-        Store.saveState({ follow: this.S.follow, rotate: this.S.rotate, bearing: this.S.bearing, decl: this.S.decl });
+        Store.saveState({
+          follow: this.S.follow,
+          rotate: this.S.rotate,
+          bearing: this.S.bearing,
+          decl: this.S.decl
+        });
       },
 
       setFollow(v) {
@@ -651,9 +625,8 @@
         const fixEl = el => {
           if (!el || !el.style) return;
           const base = (el.style.transform || '').replace(/rotate\([^)]*\)/g, '').trim();
-          el.style.transformOrigin = el.classList && el.classList.contains('leaflet-popup')
-            ? 'bottom center'
-            : 'left center';
+          el.style.transformOrigin = el.classList && el.classList.contains('leaflet-popup') ?
+            'bottom center' : 'left center';
           el.style.transform = base + rot;
         };
         this.map.getPanes().popupPane?.querySelectorAll('.leaflet-popup').forEach(fixEl);
@@ -697,6 +670,18 @@
           }).addTo(this.map);
         }
         this.ray.setLatLngs([o, dest(o, this.S.heading, this.rayLen())]).bringToFront();
+      },
+
+      rayLen() {
+        const s = this.map.getSize();
+        return Math.max(Math.hypot(s.x, s.y) * this.mpp() * 1.35 + 200, 3000);
+      },
+
+      mpp() {
+        const s = this.map.getSize();
+        const a = this.map.containerPointToLatLng(L.point(s.x/2, s.y/2));
+        const b = this.map.containerPointToLatLng(L.point(s.x/2 + 1, s.y/2));
+        return this.map.distance(a, b) || 1;
       },
 
       _setRay(red) {
@@ -757,7 +742,7 @@
         return list;
       },
 
-      between(a,b,x) {
+      between(a, b, x) {
         const ab = Δ(a, b), ax = Δ(a, x);
         return Math.sign(ab) === Math.sign(ax) && Math.abs(ax) <= Math.abs(ab);
       },
@@ -1051,10 +1036,7 @@
         const pivot = (this.S.press && this.S.fPivot) ? this.S.fPivot : this.map.latLngToLayerPoint(this.pivotLL());
         const th = R(ang), c = Math.cos(th), s = Math.sin(th);
         const dx = layer.x - pivot.x, dy = layer.y - pivot.y;
-        const un = L.point(
-          pivot.x + dx*c + dy*s,
-          pivot.y + (-dx*s) + dy*c
-        );
+        const un = L.point(pivot.x + dx*c + dy*s, pivot.y + (-dx*s) + dy*c);
         return this.map.layerPointToLatLng(un);
       },
 
@@ -1149,62 +1131,55 @@
             this.resetView();
           }
         });
+      },
+
+      pivotLL() {
+        return this.last ? L.latLng(this.last.coords.latitude, this.last.coords.longitude) : this.map.getCenter();
       }
     };
 
     const UI = {
       sync(S) {
-        $( 'chipFollow' )?.setAttribute('aria-pressed', String(S.follow));
-        $( 'btnLocate' )?.classList.toggle('toggled', !!App.last);
-        $( 'chipRotate' )?.setAttribute('aria-pressed', String(S.rotate));
+        $('chipFollow')?.setAttribute('aria-pressed', String(S.follow));
+        $('btnLocate')?.classList.toggle('toggled', !!App.last);
+        $('chipRotate')?.setAttribute('aria-pressed', String(S.rotate));
         const brand = getComputedStyle(document.documentElement).getPropertyValue('--brand') || '#2ac18a';
-        $( 'dotFollow' ) && ( $( 'dotFollow' ).style.background = S.follow ? brand : '#888' );
-        $( 'dotRotate' ) && ( $( 'dotRotate' ).style.background = S.rotate ? brand : '#888' );
+        $('dotFollow') && ( $('dotFollow').style.background = S.follow ? brand : '#888' );
+        $('dotRotate') && ( $('dotRotate').style.background = S.rotate ? brand : '#888' );
       },
       setReset(t) {
-        $( 'btnReset' ) && ( $( 'btnReset' ).textContent = '↺', $( 'btnReset' ).title = t );
+        $('btnReset') && ( $('btnReset').textContent = '↺', $('btnReset').title = t );
       },
       declInit(v) {
-        $( 'declSlider' ) && ( $( 'declSlider' ).value = String(v) );
-        $( 'declVal' ) && ( $( 'declVal' ).textContent = `${(+v).toFixed(1)}°` );
+        $('declSlider') && ( $('declSlider').value = String(v) );
+        $('declVal') && ( $('declVal').textContent = `${(+v).toFixed(1)}°` );
       },
       bannerLock(name, pulse) {
-        $( 'alignName' ).textContent = name || '—';
-        $( 'alignName' ).classList.remove('unstable');
+        $('alignName').textContent = name || '—';
+        $('alignName').classList.remove('unstable');
         if (pulse) this._pulse();
       },
       bannerFlash(name, pulse) {
-        $( 'alignName' ).textContent = name || '—';
-        $( 'alignName' ).classList.add('unstable');
+        $('alignName').textContent = name || '—';
+        $('alignName').classList.add('unstable');
         if (pulse) this._pulse();
       },
       bannerUnset() {
-        $( 'alignName' ).textContent = '—';
-        $( 'alignName' ).classList.add('unstable');
+        $('alignName').textContent = '—';
+        $('alignName').classList.add('unstable');
       },
       _pulse() {
-        const b = $( 'alignBanner' );
+        const b = $('alignBanner');
         if (!b) return;
         b.classList.add('pulse');
         setTimeout(() => b.classList.remove('pulse'), 600);
       },
       bind() {
         console.log("UI.bind called");
-        const btnLocate = $( 'btnLocate' );
-        if (!btnLocate) console.warn("btnLocate not found");
-        btnLocate && ( btnLocate.onclick = () => App.startGPS() );
-
-        const btnReset = $( 'btnReset' );
-        if (!btnReset) console.warn("btnReset not found");
-        btnReset && ( btnReset.onclick = () => App.resetView() );
-
-        const chipFollow = $( 'chipFollow' );
-        if (!chipFollow) console.warn("chipFollow not found");
-        chipFollow && ( chipFollow.onclick = () => App.setFollow(!App.S.follow) );
-
-        const chipRotate = $( 'chipRotate' );
-        if (!chipRotate) console.warn("chipRotate not found");
-        chipRotate && ( chipRotate.onclick = async () => {
+        $('btnLocate')?.addEventListener('click', () => App.startGPS());
+        $('btnReset')?.addEventListener('click', () => App.resetView());
+        $('chipFollow')?.addEventListener('click', () => App.setFollow(!App.S.follow));
+        $('chipRotate')?.addEventListener('click', async () => {
           if (!App.S.rotate) {
             if (!await App.enableCompass()) return;
             App.setRotate(true);
@@ -1213,27 +1188,26 @@
           }
         });
 
-        const btnWP = $( 'btnWaypoints' ), wpPanel = $( 'wpPanel' );
-        if (!btnWP || !wpPanel) console.warn("Waypoints button or panel missing");
-        btnWP && ( btnWP.onclick = () => {
+        const btnWP = $('btnWaypoints'), wpPanel = $('wpPanel');
+        btnWP?.addEventListener('click', () => {
           const open = !wpPanel.classList.contains('open');
           wpPanel.classList.toggle('open', open);
           wpPanel.setAttribute('aria-hidden', open ? 'false' : 'true');
           btnWP.setAttribute('aria-expanded', String(open));
         });
 
-        $( 'wpAdd' )?.addEventListener('click', () => {
-          const p = parseCoords($( 'wpCoords' ).value);
+        $('wpAdd')?.addEventListener('click', () => {
+          const p = parseCoords($('wpCoords').value);
           if (!p) {
             alert('Could not parse coordinates.');
             return;
           }
-          Waypoints.upsert($( 'wpName' ).value.trim(), p.lat, p.lng);
-          $( 'wpName' ).value = '';
-          $( 'wpCoords' ).value = '';
+          Waypoints.upsert($('wpName').value.trim(), p.lat, p.lng);
+          $('wpName').value = '';
+          $('wpCoords').value = '';
         });
 
-        $( 'wpList' )?.addEventListener('click', e => {
+        $('wpList')?.addEventListener('click', e => {
           const t = e.target;
           const idx = t.getAttribute('data-idx');
           if (idx == null) return;
@@ -1265,16 +1239,15 @@
           }
         });
 
-        const btnSettings = $( 'btnSettings' ), settings = $( 'settingsPanel' );
-        if (!btnSettings || !settings) console.warn("Settings button or panel missing");
-        btnSettings && ( btnSettings.onclick = () => {
+        const btnSettings = $('btnSettings'), settings = $('settingsPanel');
+        btnSettings?.addEventListener('click', () => {
           const open = !settings.classList.contains('open');
           settings.classList.toggle('open', open);
           settings.setAttribute('aria-hidden', open ? 'false' : 'true');
           btnSettings.setAttribute('aria-expanded', String(open));
         });
 
-        const slider = $( 'declSlider' ), val = $( 'declVal' );
+        const slider = $('declSlider'), val = $('declVal');
         slider?.addEventListener('input', () => {
           const v = parseFloat(slider.value);
           if (Number.isFinite(v)) {
@@ -1283,7 +1256,7 @@
           }
         }, { passive: true });
 
-        $( 'declSave' )?.addEventListener('click', () => {
+        $('declSave')?.addEventListener('click', () => {
           const v = parseFloat(slider.value);
           if (Number.isFinite(v)) {
             App.S.decl = v;
@@ -1293,7 +1266,7 @@
             App.persist();
             App.updateHUD();
           }
-          const btn = $( 'declSave' );
+          const btn = $('declSave');
           if (btn) {
             const old = btn.textContent;
             btn.textContent = 'Saved ✓';
@@ -1305,21 +1278,12 @@
 
     const Waypoints = {
       markers: new Map(),
-      init() {
-        this.render();
-        this.syncMarkers();
-      },
-      load() {
-        return Store.loadWPs();
-      },
-      save(a) {
-        Store.saveWPs(a);
-      },
-      ensureMarker(name) {
-        return this.markers.get(name) || null;
-      },
+      init() { this.render(); this.syncMarkers(); },
+      load() { return Store.loadWPs(); },
+      save(a) { Store.saveWPs(a); },
+      ensureMarker(name) { return this.markers.get(name) || null; },
       render() {
-        const list = $( 'wpList' );
+        const list = $('wpList');
         if (!list) return;
         list.innerHTML = '';
         const a = this.load();
@@ -1335,7 +1299,7 @@
         });
       },
       edit(i) {
-        const list = $( 'wpList' );
+        const list = $('wpList');
         const a = this.load();
         const w = a[i];
         if (!w || !list) return;
@@ -1356,7 +1320,7 @@
         const a = this.load();
         const w = a[i];
         if (!w) return;
-        const list = $( 'wpList' );
+        const list = $('wpList');
         if (!list) return;
         const d = list.children[i];
         if (!d) return;
@@ -1407,7 +1371,7 @@
           }
         });
         Array.from(this.markers.keys()).forEach(n => {
-          if (!a.some(w => w.name === n)) {
+          if (!this.load().some(w => w.name === n)) {
             App.map.removeLayer(this.markers.get(n));
             this.markers.delete(n);
           }
@@ -1430,7 +1394,7 @@
 
     function bindMarker(m, { name, lat, lng }) {
       m.unbindPopup();
-      m.bindPopup(html => {
+      m.bindPopup(() => {
         return `<div class="popup-grid">
           <input class="popup-input" type="text" placeholder="Name" value="${name || `Pin ${fix(lat)},${fix(lng)}`}" data-name/>
           <div style="color: var(--muted); font-size:12px">${fix(lat)}, ${fix(lng)}</div>
@@ -1475,7 +1439,7 @@
           m.bindTooltip(nm, {
             permanent: true,
             direction: 'right',
-            offset: [8,0],
+            offset: [8, 0],
             className: 'mini-label'
           }).openTooltip();
           m.closePopup();
