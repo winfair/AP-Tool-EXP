@@ -5,8 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
 <meta name="theme-color" content="#0c1012"/>
 <title>Laser Align — v2</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+
+<!-- Leaflet via jsDelivr (reliable + integrity) -->
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin="anonymous"
+/>
+<script
+  src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin="anonymous"
+></script>
+
 <style>
 :root{
   --bg:#0c1012;--elev:#0f1518;--elev-2:#10181c;--ink:#e9f7f0;--muted:#a7d3bd;--brand:#2ac18a;--brand-2:#36e0a5;--bad:#ff6b6b;--line:rgba(255,255,255,.10);--line-2:rgba(255,255,255,.16);
@@ -14,7 +26,13 @@
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);-webkit-tap-highlight-color:transparent}
-#map{position:fixed;inset:0;height:100svh;width:100vw}
+#map{
+  position:fixed;inset:0;width:100vw;
+  height:100svh;        /* primary */
+  height:100vh;         /* fallback */
+  min-height:100%;      /* extra safety */
+  touch-action:none;    /* prevent scroll interference with long-press */
+}
 
 /* App bar */
 .appbar{position:fixed;inset:auto 0 auto 0;top:0;height:56px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--glass-2);border-bottom:1px solid var(--line-2);backdrop-filter:blur(8px);z-index:1200;box-shadow:var(--shadow)}
@@ -263,7 +281,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);-webkit-tap
 
     latLngFromPt(pt){ const ang=(this.S.press&&this.S.fAngle!=null)?this.S.fAngle:this.S.bearing; const layer=this.map.containerPointToLayerPoint(pt), pivot=(this.S.press&&this.S.fPivot)?this.S.fPivot:this.map.latLngToLayerPoint(this.pivotLL()); const th=R(ang),c=Math.cos(th),s=Math.sin(th),dx=layer.x-pivot.x,dy=layer.y-pivot.y; const un=L.point(pivot.x+dx*c+dy*s, pivot.y+(-dx*s)+dy*c); return this.map.layerPointToLatLng(un); },
 
-    bindMap(){ const container=this.map.getContainer(); let timer=null,start=null,last=null; const LONG=420,MOVE=6; const pt=e=>{const r=container.getBoundingClientRect(); return L.point(e.clientX-r.left, e.clientY-r.top)}; const freezeS=()=>{this.S.press=true; this.S.fAngle=this.S.bearing; this.S.fPivot=this.map.latLngToLayerPoint(this.pivotLL())}; const freezeE=()=>{this.S.press=false; this.S.fAngle=null; this.S.fPivot=null}; const dropAt=ll=>Pins.drop(ll.lat,ll.lng);
+    bindMap(){ const container=this.map.getContainer(); let timer=null,start=null,last=null; const LONG=380,MOVE=5; const pt=e=>{const r=container.getBoundingClientRect(); return L.point(e.clientX-r.left, e.clientY-r.top)}; const freezeS=()=>{this.S.press=true; this.S.fAngle=this.S.bearing; this.S.fPivot=this.map.latLngToLayerPoint(this.pivotLL())}; const freezeE=()=>{this.S.press=false; this.S.fAngle=null; this.S.fPivot=null}; const dropAt=ll=>Pins.drop(ll.lat,ll.lng);
       container.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;e.preventDefault(); freezeS(); start=last=pt(e); clearTimeout(timer); timer=setTimeout(()=>{timer=null; dropAt(this.latLngFromPt(last)); freezeE()},LONG)},{passive:false});
       container.addEventListener('pointermove',e=>{if(!timer)return;e.preventDefault(); last=pt(e); if(Math.hypot(last.x-start.x,last.y-start.y)>MOVE){clearTimeout(timer); freezeE()}},{passive:false});
       ['pointerup','pointercancel','pointerleave'].forEach(ev=>container.addEventListener(ev,()=>{clearTimeout(timer); freezeE()},{passive:true}));
@@ -280,7 +298,11 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);-webkit-tap
     declInit(v){ $('declSlider').value=String(v); $('declVal').textContent=`${(+v).toFixed(1)}°`; },
     bannerLock(name,pulse){ $('alignName').textContent=name||'—'; $('alignName').classList.remove('unstable'); if(pulse) pulseBox(); },
     bannerFlash(name,pulse){ $('alignName').textContent=name||'—'; $('alignName').classList.add('unstable'); if(pulse) pulseBox(); },
-    bannerUnset(){ $('alignName').textContent='—'; $('alignName').classList.add('unstable'); }
+    bannerUnset(){ $('alignName').textContent='—'; $('alignName').classList.add('unstable'); },
+    bind(){ $('btnLocate').onclick=()=>App.startGPS(); $('btnReset').onclick=()=>App.resetView(); $('chipFollow').onclick=()=>App.setFollow(!App.S.follow); $('chipRotate').onclick=async()=>{ if(!App.S.rotate){ if(!App.enableCompass || !await App.enableCompass()) return; App.S.rotate=true; } else App.S.rotate=false; UI.sync(App.S); };
+      const btnWP=$('btnWaypoints'), wpPanel=$('wpPanel'); btnWP.onclick=()=>{const open=!wpPanel.classList.contains('open'); wpPanel.classList.toggle('open',open); wpPanel.setAttribute('aria-hidden',open?'false':'true'); btnWP.setAttribute('aria-expanded',String(open))}; $('wpAdd').onclick=()=>{const p=parseCoords($('wpCoords').value); if(!p)return alert('Could not parse coordinates.'); Waypoints.upsert(($('wpName').value||'').trim(),p.lat,p.lng); $('wpName').value=''; $('wpCoords').value=''};
+      $('wpList').onclick=e=>{ const t=e.target; const idx=t.getAttribute('data-idx'); if(idx==null) return; const i=+idx; if(t.hasAttribute('data-go')){ const w=Waypoints.load()[i]; if(w){ App.setFollow(false); App.S.rotate=false; UI.sync(App.S); App.map.setView([w.lat,w.lng],16); Waypoints.ensureMarker(w.name)?.openPopup(); } } else if(t.hasAttribute('data-guide')){ const w=Waypoints.load()[i]; if(w){ App.S.dest={lat:w.lat,lng:w.lng,name:w.name}; App.refreshNav(); App.updateHUD(); } } else if(t.hasAttribute('data-edit')){ Waypoints.edit(i); } else if(t.hasAttribute('data-save-edit')){ Waypoints.saveEdit(i); } else if(t.hasAttribute('data-cancel')){ Waypoints.render(); } else if(t.hasAttribute('data-del')){ Waypoints.del(i); } };
+      const btnSettings=$('btnSettings'), settings=$('settingsPanel'); btnSettings.onclick=()=>{const open=!settings.classList.contains('open'); settings.classList.toggle('open',open); settings.setAttribute('aria-hidden',open?'false':'true'); btnSettings.setAttribute('aria-expanded',String(open))}; const slider=$('declSlider'), val=$('declVal'); const showVal=()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)) val.textContent=`${v.toFixed(1)}°`; }; slider.addEventListener('input',()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)) { App.S.decl=v; showVal(); } },{passive:true}); $('declSave').onclick=()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)){ App.S.decl=v; if(App.S.mag!=null){ App.S.heading=N(App.S.mag + App.S.decl); } App.persist(); App.updateHUD(); } const btn=$('declSave'); const old=btn.textContent; btn.textContent='Saved ✓'; setTimeout(()=>btn.textContent=old,900); }; showVal(); }
   };
   function pulseBox(){ const b=$('alignBanner'); b.classList.add('pulse'); setTimeout(()=>b.classList.remove('pulse'),600); }
 
@@ -305,14 +327,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);-webkit-tap
 
   function bindMarker(m,{name,lat,lng}){ const html=nm=>`<div class="popup-grid"><input class="popup-input" type="text" placeholder="Name" value="${nm||`Pin ${fix(lat)},${fix(lng)}`}" data-name/><div style="color:var(--muted);font-size:12px">${fix(lat)}, ${fix(lng)}</div><div class="popup-actions"><button class="btn" data-copy>Copy</button><button class="btn" data-min>Minimize</button><button class="btn" data-guide>Guide</button><button class="btn primary" data-save>Save</button></div></div>`; m.unbindPopup(); m.bindPopup(html(name),{className:'floating-popup',autoClose:true,closeButton:true,offset:[0,-10]}).off('popupopen').on('popupopen',()=>{ const el=m.getPopup().getElement(),I=el.querySelector('[data-name]'),C=el.querySelector('[data-copy]'),SAV=el.querySelector('[data-save]'),MIN=el.querySelector('[data-min]'),G=el.querySelector('[data-guide]'); C?.addEventListener('click',async()=>{const txt=`${fix(lat)}, ${fix(lng)}`;try{await navigator.clipboard.writeText(txt);C.textContent='Copied';setTimeout(()=>C.textContent='Copy',900)}catch{prompt('Copy to clipboard:',txt)}}); SAV?.addEventListener('click',()=>{const nm=(I?.value||'').trim()||`WP ${Date.now().toString().slice(-5)}`; Waypoints.upsert(nm,lat,lng); m.closePopup(); m._nm=nm; if(Pins && Pins.pin===m) Pins._nm=nm;}); MIN?.addEventListener('click',()=>{const nm=(I?.value||m._nm||'Pin')||'Pin'; m.bindTooltip(nm,{permanent:true,direction:'right',offset:[8,0],className:'mini-label'}).openTooltip(); m.closePopup(); m._nm=nm; if(Pins && Pins.pin===m) Pins._nm=nm; App.uprightOverlays(App.S.bearing);}); G?.addEventListener('click',()=>{App.S.dest={lat,lng,name:(I?.value||m._nm||'Dest')}; App.refreshNav(); App.updateHUD(); m.closePopup();}); App.uprightOverlays(App.S.bearing); }); m.on('tooltipopen',()=>App.uprightOverlays(App.S.bearing)); }
 
-  const UIwire=(()=>{ $('btnLocate').onclick=()=>App.startGPS(); $('btnReset').onclick=()=>App.resetView(); $('chipFollow').onclick=()=>App.setFollow(!App.S.follow); $('chipRotate').onclick=async()=>{ if(!App.S.rotate){ if(!App.enableCompass || !await App.enableCompass()) return; App.S.rotate=true; } else App.S.rotate=false; UI.sync(App.S); };
-    const btnWP=$('btnWaypoints'), wpPanel=$('wpPanel'); btnWP.onclick=()=>{const open=!wpPanel.classList.contains('open'); wpPanel.classList.toggle('open',open); wpPanel.setAttribute('aria-hidden',open?'false':'true'); btnWP.setAttribute('aria-expanded',String(open))}; $('wpAdd').onclick=()=>{const p=parseCoords($('wpCoords').value); if(!p)return alert('Could not parse coordinates.'); Waypoints.upsert(($('wpName').value||'').trim(),p.lat,p.lng); $('wpName').value=''; $('wpCoords').value=''};
-    $('wpList').onclick=e=>{ const t=e.target; const idx=t.getAttribute('data-idx'); if(idx==null) return; const i=+idx; if(t.hasAttribute('data-go')){ const w=Waypoints.load()[i]; if(w){ App.setFollow(false); App.S.rotate=false; UI.sync(App.S); App.map.setView([w.lat,w.lng],16); Waypoints.ensureMarker(w.name)?.openPopup(); } } else if(t.hasAttribute('data-guide')){ const w=Waypoints.load()[i]; if(w){ App.S.dest={lat:w.lat,lng:w.lng,name:w.name}; App.refreshNav(); App.updateHUD(); } } else if(t.hasAttribute('data-edit')){ Waypoints.edit(i); } else if(t.hasAttribute('data-save-edit')){ Waypoints.saveEdit(i); } else if(t.hasAttribute('data-cancel')){ Waypoints.render(); } else if(t.hasAttribute('data-del')){ Waypoints.del(i); } };
-    const btnSettings=$('btnSettings'), settings=$('settingsPanel'); btnSettings.onclick=()=>{const open=!settings.classList.contains('open'); settings.classList.toggle('open',open); settings.setAttribute('aria-hidden',open?'false':'true'); btnSettings.setAttribute('aria-expanded',String(open))}; const slider=$('declSlider'), val=$('declVal'); const showVal=()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)) val.textContent=`${v.toFixed(1)}°`; }; slider.addEventListener('input',()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)) { App.S.decl=v; showVal(); } },{passive:true}); $('declSave').onclick=()=>{ const v=parseFloat(slider.value); if(Number.isFinite(v)){ App.S.decl=v; if(App.S.mag!=null){ App.S.heading=N(App.S.mag + App.S.decl); } App.persist(); App.updateHUD(); } const btn=$('declSave'); const old=btn.textContent; btn.textContent='Saved ✓'; setTimeout(()=>btn.textContent=old,900); }; showVal(); })();
-
-  function parseCoords(t){ const s=t.trim().replace(/\s+/g,' ').replace(/[,;]+/g,','); const m=s.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i); if(m){const lat=+m[1],lng=+m[3];if(isFinite(lat)&&isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180)return{lat,lng}} const parts=s.split(',');if(parts.length===2){ const one=q=>{const x=q.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);if(!x)return null; const h=(x[1]||x[4]||'').toUpperCase();let v=parseFloat(x[2]); if(h==='S'||h==='W')v=-Math.abs(v); if(h==='N'||h==='E')v=Math.abs(v); return{v,h}}; const a=one(parts[0]),b=one(parts[1]); if(a&&b){ const lat=(a.h==='N'||a.h==='S')?a.v:b.v, lng=(a.h==='E'||a.h==='W')?a.v:b.v; if(Math.abs(lat)<=90&&Math.abs(lng)<=180)return{lat,lng} } } return null; }
-
-  document.addEventListener('DOMContentLoaded',()=>{ try{ App.init(); hideError(); const c=document.getElementById('errClose'); if(c) c.onclick=hideError; }catch(e){ showError(e&&e.stack||String(e)); } });
+  document.addEventListener('DOMContentLoaded',()=>{ try{ App.init(); hideError(); const c=document.getElementById('errClose'); if(c) c.onclick=hideError; }catch(e){ const msg=(e&&e.stack)||String(e); console.error(msg); const el=document.getElementById('errMsg'); const box=document.getElementById('error'); if(el&&box){ el.textContent=msg; box.style.display='block'; } } });
 })();
 </script>
 </body>
