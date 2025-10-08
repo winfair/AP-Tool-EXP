@@ -72,7 +72,7 @@
       padding: 8px 10px;
       border-radius: 12px;
       border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,white,.02));
       font: 600 13px/1 system-ui;
       cursor: pointer;
     }
@@ -311,7 +311,7 @@
     <button id="btnLocate" class="fab" title="Enable GPS (L)">📡</button>
     <button id="btnWaypoints" class="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
     <button id="btnSettings" class="fab" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️</button>
-    <button id="btnReset" class="fab" title="Reset / Clear Nav (C)">↺</button>
+    <button id="btnReset" class "fab" title="Reset / Clear Nav (C)">↺</button>
   </div>
 
   <div id="wpPanel" class="panel" aria-hidden="true">
@@ -925,14 +925,26 @@
         const hasWCH = typeof e.webkitCompassHeading === 'number';
         const hasAlpha = typeof e.alpha === 'number';
         const isAbs = (e.absolute === true) || hasWCH;
+
         if (isAbs) {
           this._lastAbsTs = now;
-          if (hasWCH) this._setHeadingRaw(e.webkitCompassHeading);
-          else if (hasAlpha) this._setHeadingRaw(e.alpha);
+          if (hasWCH) {
+            this._setHeadingRaw(e.webkitCompassHeading);
+          } else if (hasAlpha) {
+            this._setHeadingRaw(e.alpha);
+          }
           return;
         }
+
         if (now - this._lastAbsTs < 120) return;
-        if (hasAlpha) this._setHeadingRaw(e.alpha);
+
+        if (hasAlpha) {
+          let heading = e.alpha;
+          // Correct for screen rotation on Android
+          const orientationAngle = screen.orientation?.angle ?? window.orientation ?? 0;
+          const corrected = N(heading - orientationAngle);
+          this._setHeadingRaw(corrected);
+        }
       },
 
       async enableCompass() {
@@ -1187,7 +1199,7 @@
           btnSettings.setAttribute('aria-expanded', String(open));
         });
 
-        // ** Added: Close Waypoints or Settings when clicking on map **
+        // Close Waypoints or Settings when clicking on map
         App.map.getContainer().addEventListener('click', e => {
           const wpOpen = wpPanel?.classList.contains('open');
           const settingsOpen = settings?.classList.contains('open');
