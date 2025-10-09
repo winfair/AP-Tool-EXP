@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
   <meta name="theme-color" content="#0c1012"/>
-  <title>AP Alignment Tool — v2 (Warm-up Delay for Alignment)</title>
+  <title>AP Alignment Tool — Dual‑Platform Compass Fix</title>
 
   <link
     rel="stylesheet"
@@ -309,7 +309,7 @@
 
   <div class="dock">
     <button id="btnLocate" class="fab" title="Enable GPS (L)">📡</button>
-    <button id="btnWaypoints" class="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
+    <button id="btnWaypoints" class a="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
     <button id="btnSettings" class="fab" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️</button>
     <button id="btnReset" class="fab" title="Reset / Clear Nav (C)">↺</button>
   </div>
@@ -336,6 +336,9 @@
           True heading = Magnetic + <span id="declVal" style="font:600 12px/1 ui-monospace">0.0°</span>
         </div>
         <button id="declSave" class="btn primary">Save</button>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="invertAndroid"/> Invert Android Heading</label>
       </div>
     </div>
   </div>
@@ -368,21 +371,23 @@
     const R = d => d * Math.PI/180;
     const Dg = r => r * 180/Math.PI;
     const N = d => ((d % 360) + 360) % 360;
-    const Δ = (a,b) => {
+    const Δ = (a, b) => {
       let d = N(b) - N(a);
-      return d > 180 ? d - 360 : d < -180 ? d + 360 : d;
+      if (d > 180) d -= 360;
+      else if (d < -180) d += 360;
+      return d;
     };
-    const blend = (p,n,a) => p == null ? n : N(p + a * Δ(p,n));
+    const blend = (p, n, a) => p == null ? n : N(p + a * Δ(p, n));
     const fix = v => Number(v).toFixed(6);
     const fmtDist = m => (m < 1000) ? `${Math.round(m)} m` : `${(m/1000).toFixed(2)} km`;
-    const haversine = (a,b) => {
+    const haversine = (a, b) => {
       const Rm = 6371000;
       const φ1 = R(a.lat), φ2 = R(b.lat);
       const dφ = R(b.lat - a.lat), dλ = R(b.lng - a.lng);
       const s = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
       return 2 * Rm * Math.asin(Math.min(1, Math.sqrt(s)));
     };
-    const bearing = (a,b) => {
+    const bearing = (a, b) => {
       const φ1 = R(a.lat), φ2 = R(b.lat), λ1 = R(a.lng), λ2 = R(b.lng);
       const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
       const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2 - λ1);
@@ -392,8 +397,10 @@
       const br = R(b), dr = dm / 6371000;
       const lat1 = R(ll.lat), lon1 = R(ll.lng);
       const lat2 = Math.asin(Math.sin(lat1)*Math.cos(dr) + Math.cos(lat1)*Math.sin(dr)*Math.cos(br));
-      const lon2 = lon1 + Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1),
-                                     Math.cos(dr) - Math.sin(lat1)*Math.sin(lat2));
+      const lon2 = lon1 + Math.atan2(
+        Math.sin(br)*Math.sin(dr)*Math.cos(lat1),
+        Math.cos(dr) - Math.sin(lat1)*Math.sin(lat2)
+      );
       return L.latLng(Dg(lat2), Dg(lon2));
     };
     const DotIcon = s => L.divIcon({ className: 'dot-pin', iconSize: [s, s], iconAnchor: [s/2, s/2] });
@@ -543,14 +550,17 @@
       _flashCooldown: new Map(),
       _flashTarget: null,
 
-      // smoothing settings
-      SMOOTH: {
-        alpha: 0.15  // tweak this for more / less smoothing
-      },
-
-      // warm-up logic
+      // warm-up & smoothing
       _compassStartTs: null,
-      WARMUP_MS: 2000,  // milliseconds to delay alignment logic
+      WARMUP_MS: 2000,
+
+      // settings for smoothing
+      SMOOTH_ALPHA: 0.15,
+      DEAD_ZONE: 0.5,  // degrees
+      MAX_STEP: 5,    // max change per update
+
+      // store last orientation event
+      _lastOrientEvent: null,
 
       init() {
         const s = Store.loadState();
@@ -634,13 +644,13 @@
           console.warn("mapPane not found");
           return;
         }
-        let o = '50% 50%';
+        let origin = '50% 50%';
         if (this.last) {
           const p = this.map.latLngToContainerPoint([this.last.coords.latitude, this.last.coords.longitude]);
-          o = `${p.x}px ${p.y}px`;
+          origin = `${p.x}px ${p.y}px`;
         }
         const base = (pane.style.transform || '').replace(/rotate\([^)]*\)/g, '');
-        pane.style.transformOrigin = o;
+        pane.style.transformOrigin = origin;
         pane.style.transform = base + ` rotate(${-d}deg)`;
         this.uprightOverlays(d);
       },
@@ -650,13 +660,13 @@
           this.ray?.setLatLngs([]);
           return;
         }
-        const o = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+        const originLL = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
         if (!this.originDot) {
-          this.originDot = L.circleMarker(o, {
+          this.originDot = L.circleMarker(originLL, {
             radius: 3, color: '#2aff2a', weight: 2, fillColor: '#2aff2a', fillOpacity: 1, interactive: false
           }).addTo(this.map);
         } else {
-          this.originDot.setLatLng(o).bringToFront();
+          this.originDot.setLatLng(originLL).bringToFront();
         }
         if (this.S.heading == null) return;
         if (!this.ray) {
@@ -664,7 +674,7 @@
             color: '#2aff2a', weight: 3, opacity: 1, interactive: false
           }).addTo(this.map);
         }
-        this.ray.setLatLngs([o, dest(o, this.S.heading, this.rayLen())]).bringToFront();
+        this.ray.setLatLngs([originLL, dest(originLL, this.S.heading, this.rayLen())]).bringToFront();
       },
 
       rayLen() {
@@ -686,7 +696,7 @@
           this.ray.getElement?.().classList.add('guide-hit');
         } else {
           this.ray.setStyle({ color: '#2aff2a', weight: 3, opacity: 1 });
-          this.ray.getElement?.().classList.remove('guide-hit');
+          this.ray.getElement?.().classList.remove('guide‑hit');
         }
       },
 
@@ -757,7 +767,6 @@
           return;
         }
 
-        // Warm-up delay: skip alignment logic for first WARMUP_MS ms
         if (this._compassStartTs != null && (now - this._compassStartTs) < this.WARMUP_MS) {
           return;
         }
@@ -914,76 +923,46 @@
         requestAnimationFrame(() => this.loop());
       },
 
-      _lastHeadTs: null, _prevHead: null,
-      _setHeadingRaw(magRaw) {
-        const mag = N(magRaw);
-        const adj = N(mag + (this.S.decl || 0));
-        const t = performance.now();
-        const p = this.S.heading;
+      _setHeadingFromOrient() {
+        const e = this._lastOrientEvent;
+        if (!e) return;
+        // Detect iOS via webkitCompassHeading
+        let heading;
+        if (typeof e.webkitCompassHeading === 'number') {
+          heading = N(e.webkitCompassHeading + this.S.decl);
+        } else if (typeof e.alpha === 'number') {
+          // Fallback: use 360 - alpha
+          heading = N(360 - e.alpha + this.S.decl);
 
-        if (!this._compassStartTs) {
-          this._compassStartTs = t;
-        }
-
-        if (p == null) {
-          // initial reading (no smoothing)
-          this.S.heading = adj;
-          this.S.mag = mag;
-          this._prevHead = adj;
-          this._lastHeadTs = t;
-          if (this.S.rotate) {
-            this.S.bearing = adj;
+          // Optionally invert on Android if configured
+          if ($('invertAndroid')?.checked) {
+            heading = N(-heading);
           }
         } else {
-          // smoothing in angular domain
-          const diff = Δ(this._prevHead, adj);
-          const smoothedDelta = diff * this.SMOOTH.alpha;
-          const newHead = N(this._prevHead + smoothedDelta);
-
-          // update omega using raw delta
-          if (this._lastHeadTs != null) {
-            const dt = (t - this._lastHeadTs) / 1000;
-            if (dt > 0) {
-              const rawDiff = Math.abs(Δ(p, adj));
-              this.S.omega = Math.min(720, rawDiff / dt);
-            }
-          }
-
-          this.S.heading = newHead;
-          this.S.mag = mag;
-          this._prevHead = newHead;
-          this._lastHeadTs = t;
-
-          if (this.S.rotate && p == null) {
-            this.S.bearing = newHead;
-          }
-        }
-      },
-
-      onOrient(e) {
-        const now = performance.now();
-        const hasWCH = typeof e.webkitCompassHeading === 'number';
-        const hasAlpha = typeof e.alpha === 'number';
-        const isAbs = (e.absolute === true) || hasWCH;
-
-        if (isAbs) {
-          this._lastAbsTs = now;
-          if (hasWCH) {
-            this._setHeadingRaw(e.webkitCompassHeading);
-          } else if (hasAlpha) {
-            this._setHeadingRaw(e.alpha);
-          }
           return;
         }
 
-        if (now - this._lastAbsTs < 120) return;
+        const t = performance.now();
 
-        if (hasAlpha) {
-          let heading = e.alpha;
-          const orientationAngle = screen.orientation?.angle ?? window.orientation ?? 0;
-          const corrected = N(heading - orientationAngle);
-          this._setHeadingRaw(corrected);
+        if (this._compassStartTs == null) {
+          this._compassStartTs = t;
         }
+
+        if (this.S.heading == null) {
+          this.S.heading = heading;
+        } else {
+          const diff = Δ(this.S.heading, heading);
+          if (Math.abs(diff) >= this.DEAD_ZONE) {
+            const step = Math.sign(diff) * Math.min(Math.abs(diff), this.MAX_STEP);
+            this.S.heading = N(this.S.heading + step);
+          }
+        }
+        this.S.mag = e.alpha ?? null;
+      },
+
+      onOrient(e) {
+        this._lastOrientEvent = e;
+        this._setHeadingFromOrient();
       },
 
       async enableCompass() {
@@ -995,16 +974,15 @@
           }
           if (typeof DeviceOrientationEvent !== 'undefined' &&
               typeof DeviceOrientationEvent.requestPermission === 'function') {
-            const g = await DeviceOrientationEvent.requestPermission();
-            if (g !== 'granted') {
+            const perm = await DeviceOrientationEvent.requestPermission();
+            if (perm !== 'granted') {
               alert('Compass permission denied.');
               return false;
             }
           }
           if (!this._compassBound) {
-            const h = e => this.onOrient(e);
-            addEventListener('deviceorientationabsolute', h, true);
-            addEventListener('deviceorientation', h, true);
+            addEventListener('deviceorientationabsolute', e => this.onOrient(e), true);
+            addEventListener('deviceorientation', e => this.onOrient(e), true);
             this._compassBound = true;
           }
           this.S.compass = true;
@@ -1030,7 +1008,7 @@
             this.map.setView([latitude, longitude], Math.max(this.map.getZoom(), 16), { animate: false });
           }
           if (Number.isFinite(p.coords.heading)) {
-            this._setHeadingRaw(p.coords.heading);
+            // Optional: feed gps heading into orientation (less reliable though)
           }
         }, e => {
           alert('Unable to get location: ' + e.message);
@@ -1071,7 +1049,7 @@
         const pivot = (this.S.press && this.S.fPivot) ? this.S.fPivot : this.map.latLngToLayerPoint(this.pivotLL());
         const th = R(ang), c = Math.cos(th), s = Math.sin(th);
         const dx = layer.x - pivot.x, dy = layer.y - pivot.y;
-        const un = L.point(pivot.x + dx*c + dy*s, pivot.y + (-dx*s) + dy*c);
+        const un = L.point(pivot.x + dx * c + dy * s, pivot.y + (-dx * s) + dy * c);
         return this.map.layerPointToLatLng(un);
       },
 
@@ -1238,11 +1216,10 @@
           btnSettings.setAttribute('aria-expanded', String(open));
         });
 
-        // Close Waypoints or Settings when clicking on map
+        // Close Waypoints / Settings on map click
         App.map.getContainer().addEventListener('click', e => {
           const wpOpen = wpPanel?.classList.contains('open');
           const settingsOpen = settings?.classList.contains('open');
-
           if (wpOpen) {
             wpPanel.classList.remove('open');
             wpPanel.setAttribute('aria-hidden', 'true');
@@ -1312,7 +1289,12 @@
           if (Number.isFinite(v)) {
             App.S.decl = v;
             if (App.S.mag != null) {
-              App.S.heading = N(App.S.mag + App.S.decl);
+              // Recompute heading
+              const e = App._lastOrientEvent;
+              if (e && typeof e.alpha === 'number') {
+                // Rerun setHeadingFromOrient
+                App._setHeadingFromOrient();
+              }
             }
             App.persist();
             App.updateHUD();
@@ -1362,7 +1344,7 @@
             <input data-e-name placeholder="Name" value="${w.name}"/>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
               <input data-e-lat placeholder="Lat" value="${w.lat.toFixed(6)}"/>
-              <input data-e-lng placeholder="Lng" value="${w.lng.toFixed(6)}"/>  
+              <input data-e-lng placeholder="Lng" value="${w.lng.toFixed(6)}"/>
             </div></div>
           <button class="btn primary" data-idx="${i}" data-save-edit>Save</button>
           <button class="btn" data-idx="${i}" data-cancel>Cancel</button>`;
