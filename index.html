@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
   <meta name="theme-color" content="#0c1012"/>
-  <title>AP Alignment Tool — Dual‑Platform Compass Fix</title>
+  <title>AP Alignment Tool — Reduced Jitter Version</title>
 
   <link
     rel="stylesheet"
@@ -309,7 +309,7 @@
 
   <div class="dock">
     <button id="btnLocate" class="fab" title="Enable GPS (L)">📡</button>
-    <button id="btnWaypoints" class a="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
+    <button id="btnWaypoints" class="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
     <button id="btnSettings" class="fab" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️</button>
     <button id="btnReset" class="fab" title="Reset / Clear Nav (C)">↺</button>
   </div>
@@ -550,16 +550,12 @@
       _flashCooldown: new Map(),
       _flashTarget: null,
 
-      // warm-up & smoothing
+      // warm-up & filtering
       _compassStartTs: null,
       WARMUP_MS: 2000,
-
-      // settings for smoothing
-      SMOOTH_ALPHA: 0.15,
-      DEAD_ZONE: 0.5,  // degrees
-      MAX_STEP: 5,    // max change per update
-
-      // store last orientation event
+      SMOOTH_ALPHA: 0.05,      // stronger smoothing (lower α means slower movement)
+      DEAD_ZONE: 2.0,          // ±2° dead zone
+      MAX_STEP: 2.0,           // max 2° change per frame
       _lastOrientEvent: null,
 
       init() {
@@ -574,6 +570,7 @@
           maxZoom: 20, minZoom: 2, attribution: '© OpenStreetMap'
         }).addTo(this.map);
         this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
+
         this.accCircle = L.circle([this.DEF.lat, this.DEF.lng], {
           radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
         }).addTo(this.map);
@@ -696,7 +693,7 @@
           this.ray.getElement?.().classList.add('guide-hit');
         } else {
           this.ray.setStyle({ color: '#2aff2a', weight: 3, opacity: 1 });
-          this.ray.getElement?.().classList.remove('guide‑hit');
+          this.ray.getElement?.().classList.remove('guide-hit');
         }
       },
 
@@ -767,6 +764,7 @@
           return;
         }
 
+        // Warm-up window
         if (this._compassStartTs != null && (now - this._compassStartTs) < this.WARMUP_MS) {
           return;
         }
@@ -926,15 +924,11 @@
       _setHeadingFromOrient() {
         const e = this._lastOrientEvent;
         if (!e) return;
-        // Detect iOS via webkitCompassHeading
         let heading;
         if (typeof e.webkitCompassHeading === 'number') {
           heading = N(e.webkitCompassHeading + this.S.decl);
         } else if (typeof e.alpha === 'number') {
-          // Fallback: use 360 - alpha
           heading = N(360 - e.alpha + this.S.decl);
-
-          // Optionally invert on Android if configured
           if ($('invertAndroid')?.checked) {
             heading = N(-heading);
           }
@@ -943,7 +937,6 @@
         }
 
         const t = performance.now();
-
         if (this._compassStartTs == null) {
           this._compassStartTs = t;
         }
@@ -1006,9 +999,6 @@
           this.accCircle.setLatLng([latitude, longitude]).setRadius(Math.max(accuracy || 0, 0));
           if (this.S.follow && !this.S.press) {
             this.map.setView([latitude, longitude], Math.max(this.map.getZoom(), 16), { animate: false });
-          }
-          if (Number.isFinite(p.coords.heading)) {
-            // Optional: feed gps heading into orientation (less reliable though)
           }
         }, e => {
           alert('Unable to get location: ' + e.message);
@@ -1216,7 +1206,6 @@
           btnSettings.setAttribute('aria-expanded', String(open));
         });
 
-        // Close Waypoints / Settings on map click
         App.map.getContainer().addEventListener('click', e => {
           const wpOpen = wpPanel?.classList.contains('open');
           const settingsOpen = settings?.classList.contains('open');
@@ -1288,13 +1277,8 @@
           const v = parseFloat(slider.value);
           if (Number.isFinite(v)) {
             App.S.decl = v;
-            if (App.S.mag != null) {
-              // Recompute heading
-              const e = App._lastOrientEvent;
-              if (e && typeof e.alpha === 'number') {
-                // Rerun setHeadingFromOrient
-                App._setHeadingFromOrient();
-              }
+            if (App.S.mag != null && App._lastOrientEvent) {
+              App._setHeadingFromOrient();
             }
             App.persist();
             App.updateHUD();
@@ -1507,7 +1491,6 @@
         }
       }
     });
-
   })();
   </script>
 </body>
