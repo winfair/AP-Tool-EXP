@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
   <meta name="theme-color" content="#0c1012"/>
-  <title>AP Alignment Tool — Smooth Line Version</title>
+  <title>AP Alignment Tool — Robust Version</title>
 
   <link
     rel="stylesheet"
@@ -19,6 +19,7 @@
   ></script>
 
   <style>
+    /* (keep your existing CSS unchanged) */
     :root {
       --bg: #0c1012;
       --elev-2: #10181c;
@@ -26,7 +27,7 @@
       --muted: #a7d3bd;
       --brand: #2ac18a;
       --line: rgba(255,255,255, .10);
-      --line-2: rgba(255,255,255, .16);
+      --line-2: rgba(255,255,white, .16);
       --glass: rgba(16,23,26, .76);
       --glass-2: rgba(16,23,26, .9);
       --shadow: 0 10px 32px rgba(0,0,0, .5);
@@ -48,243 +49,50 @@
       min-height: 100%;
       touch-action: none;
     }
-    .appbar {
-      position: fixed;
-      top: 0;
-      left: 0; right: 0;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      background: var(--glass-2);
-      border-bottom: 1px solid var(--line-2);
-      backdrop-filter: blur(8px);
-      z-index: 1200;
-      box-shadow: var(--shadow);
-    }
+    .appbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--glass-2); border-bottom: 1px solid var(--line-2); backdrop-filter: blur(8px); z-index: 1200; box-shadow: var(--shadow); }
     .brand { font: 700 16px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; letter-spacing: .3px; }
     .appbar .spacer { flex: 1; }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      font: 600 13px/1 system-ui;
-      cursor: pointer;
-    }
-    .chip .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--brand);
-    }
-    .dock {
-      position: fixed;
-      right: 12px;
-      top: 72px;
-      display: grid;
-      gap: 10px;
-      z-index: 1150;
-    }
-    .fab {
-      width: 52px; height: 52px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: var(--glass-2);
-      display: grid;
-      place-items: center;
-      box-shadow: var(--shadow);
-      cursor: pointer;
-    }
+    .chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); font: 600 13px/1 system-ui; cursor: pointer; }
+    .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); }
+    .dock { position: fixed; right: 12px; top: 72px; display: grid; gap: 10px; z-index: 1150; }
+    .fab { width: 52px; height: 52px; border-radius: 16px; border: 1px solid var(--line); background: var(--glass-2); display: grid; place-items: center; box-shadow: var(--shadow); cursor: pointer; }
     .fab.toggled { outline: 2px solid var(--brand); }
-    .panel {
-      position: fixed;
-      right: 12px;
-      top: 140px;
-      width: min(92vw, 380px);
-      max-height: 65vh;
-      overflow: auto;
-      background: var(--glass-2);
-      border: 1px solid var(--line-2);
-      border-radius: 16px;
-      padding: 12px;
-      z-index: 1100;
-      box-shadow: var(--shadow);
-      display: none;
-    }
+    .panel { position: fixed; right: 12px; top: 140px; width: min(92vw, 380px); max-height: 65vh; overflow: auto; background: var(--glass-2); border: 1px solid var(--line-2); border-radius: 16px; padding: 12px; z-index: 1100; box-shadow: var(--shadow); display: none; }
     .panel.open { display: block; }
     .row { display: grid; gap: 8px; margin: 10px 0; }
-    .row input, .row button {
-      width: 100%;
-      padding: 12px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255, .04);
-      color: var(--ink);
-      font: 500 14px/1.2 system-ui;
-    }
+    .row input, .row button { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255, .04); color: var(--ink); font: 500 14px/1.2 system-ui; }
     .list { display: grid; gap: 8px; }
-    .item {
-      display: grid;
-      grid-template-columns: 1fr auto auto auto auto;
-      gap: 6px;
-      align-items: center;
-      padding: 8px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-    }
+    .item { display: grid; grid-template-columns: 1fr auto auto auto auto; gap: 6px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 12px; }
     .item small { color: var(--muted); display: block; }
     .item button { padding: 8px 10px; }
-    .btn {
-      appearance: none;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      color: var(--ink);
-      padding: 10px 12px;
-      border-radius: 12px;
-      font: 600 14px/1 system-ui;
-      cursor: pointer;
-    }
+    .btn { appearance: none; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); color: var(--ink); padding: 10px 12px; border-radius: 12px; font: 600 14px/1 system-ui; cursor: pointer; }
     .btn.primary { border-color: var(--brand); }
     .btn.danger { border-color: var(--brand); color: var(--brand); }
-    .hud {
-      position: fixed;
-      left: 12px; right: 12px;
-      bottom: env(safe-area-inset-bottom, 12px);
-      background: var(--glass);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 10px 12px;
-      backdrop-filter: blur(10px);
-      box-shadow: var(--shadow);
-      z-index: 1050;
-    }
-    .hud .metrics {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px 14px;
-    }
-    .metric {
-      display: flex;
-      gap: 6px;
-      align-items: baseline;
-    }
+    .hud { position: fixed; left: 12px; right: 12px; bottom: env(safe-area-inset-bottom, 12px); background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; backdrop-filter: blur(10px); box-shadow: var(--shadow); z-index: 1050; }
+    .hud .metrics { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+    .metric { display: flex; gap: 6px; align-items: baseline; }
     .metric span { color: var(--muted); font: 600 12px/1 system-ui; }
-    .metric .value {
-      color: var(--ink);
-      font: 700 15px/1 ui-monospace;
-      letter-spacing: .2px;
-    }
-    .align {
-      position: fixed;
-      top: 64px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--glass-2);
-      border: 1px solid var(--line-2);
-      border-radius: 12px;
-      padding: 8px 12px;
-      font: 700 13px/1 system-ui;
-      color: var(--ink);
-      box-shadow: var(--shadow);
-      z-index: 1200;
-    }
+    .metric .value { color: var(--ink); font: 700 15px/1 ui-monospace; letter-spacing: .2px; }
+    .align { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: var(--glass-2); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 12px; font: 700 13px/1 system-ui; color: var(--ink); box-shadow: var(--shadow); z-index: 1200; }
     .align .name.unstable { color: var(--muted); }
-    .align.pulse {
-      outline: 2px solid var(--brand);
-      box-shadow: 0 0 0 0 rgba(42,193,138, .55);
-      animation: pulse .6s ease;
-    }
-    @keyframes pulse {
-      to {
-        outline-color: transparent;
-        box-shadow: 0 0 0 22px rgba(42,193,138, 0);
-      }
-    }
-    .dot-pin {
-      border-radius: 50%;
-      background: var(--elev-2);
-      border: 2px solid var(--brand);
-      box-shadow: 0 4px 14px rgba(0,0,0, .5);
-    }
+    .align.pulse { outline: 2px solid var(--brand); box-shadow: 0 0 0 0 rgba(42,193,138, .55); animation: pulse .6s ease; }
+    @keyframes pulse { to { outline-color: transparent; box-shadow: 0 0 0 22px rgba(42,193,138, 0); } }
+    .dot-pin { border-radius: 50%; background: var(--elev-2); border: 2px solid var(--brand); box-shadow: 0 4px 14px rgba(0,0,0, .5); }
     .guide-hit { filter: drop-shadow(0 0 7px #ff4444); }
-    .leaflet-control-attribution, .leaflet-control-zoom {
-      filter: drop-shadow(0 6px 12px rgba(0,0,0, .35));
-    }
+    .leaflet-control-attribution, .leaflet-control-zoom { filter: drop-shadow(0 6px 12px rgba(0,0,0, .35)); }
     .leaflet-container a { color: var(--muted); }
     .leaflet-map-pane { will-change: transform; }
-    .leaflet-popup-content {
-      font: 500 13px/1.35 system-ui;
-      color: var(--ink);
-    }
-    .floating-popup .leaflet-popup-content-wrapper {
-      background: var(--glass-2);
-      border: 1px solid var(--line-2);
-      backdrop-filter: blur(8px);
-      border-radius: 12px;
-      box-shadow: var(--shadow);
-    }
-    .floating-popup .leaflet-popup-tip {
-      background: var(--glass-2);
-      border: 1px solid var(--line-2);
-    }
-    .floating-popup .leaflet-popup-content {
-      margin: 10px 12px;
-    }
+    .leaflet-popup-content { font: 500 13px/1.35 system-ui; color: var(--ink); }
+    .floating-popup .leaflet-popup-content-wrapper { background: var(--glass-2); border: 1px solid var(--line-2); backdrop-filter: blur(8px); border-radius: 12px; box-shadow: var(--shadow); }
+    .floating-popup .leaflet-popup-tip { background: var(--glass-2); border: 1px solid var(--line-2); }
+    .floating-popup .leaflet-popup-content { margin: 10px 12px; }
     .popup-grid { display: grid; gap: 8px; }
-    .popup-input {
-      width: 100%;
-      padding: 8px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255, .06);
-      color: var(--ink);
-      font: 500 13px/1;
-    }
-    .popup-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-    .mini-label {
-      background: var(--glass);
-      color: var(--ink);
-      padding: 2px 6px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      font: 600 12px/1 system-ui;
-      backdrop-filter: blur(4px);
-      pointer-events: none;
-    }
-    #error {
-      position: fixed;
-      left: 12px; right: 12px;
-      top: 12px;
-      z-index: 2000;
-      background: #2a1d1d;
-      color: #ffdede;
-      border: 1px solid #ff6b6b;
-      border-radius: 10px;
-      padding: 10px 36px 10px 12px;
-      font: 600 13px/1.35 ui-monospace;
-      display: none;
-    }
-    #errClose {
-      position: absolute;
-      right: 8px; top: 6px;
-      background: transparent;
-      border: none;
-      color: #ffdede;
-      font: 700 18px/1 system-ui;
-      cursor: pointer;
-    }
-    #errClose:focus {
-      outline: 2px solid #ff9b9b;
-      border-radius: 6px;
-    }
+    .popup-input { width: 100%; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255, .06); color: var(--ink); font: 500 13px/1; }
+    .popup-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .mini-label { background: var(--glass); color: var(--ink); padding: 2px 6px; border: 1px solid var(--line); border-radius: 8px; font: 600 12px/1 system-ui; backdrop-filter: blur(4px); pointer-events: none; }
+    #error { position: fixed; left: 12px; right: 12px; top: 12px; z-index: 2000; background: #2a1d1d; color: #ffdede; border: 1px solid #ff6b6b; border-radius: 10px; padding: 10px 36px 10px 12px; font: 600 13px/1.35 ui-monospace; display: none; }
+    #errClose { position: absolute; right: 8px; top: 6px; background: transparent; border: none; color: #ffdede; font: 700 18px/1 system-ui; cursor: pointer; }
+    #errClose:focus { outline: 2px solid #ff9b9b; border-radius: 6px; }
   </style>
 </head>
 
@@ -311,7 +119,7 @@
     <button id="btnLocate" class="fab" title="Enable GPS (L)">📡</button>
     <button id="btnWaypoints" class="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
     <button id="btnSettings" class="fab" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️</button>
-    <button id="btnReset" class="fab" title="Reset / Clear Nav (C)">↺</button>
+    <button id="btnReset" class a="fab" title="Reset / Clear Nav (C)">↺</button>
   </div>
 
   <div id="wpPanel" class="panel" aria-hidden="true">
@@ -550,10 +358,9 @@
       _flashCooldown: new Map(),
       _flashTarget: null,
 
-      // For smooth line & ray length
       _lastRayEndpoint: null,
-      RAY_MAX_LEN: 500,   // meters
-      RAY_SMOOTH: 0.2,    // interpolation factor 0–1
+      RAY_MAX_LEN: 500,
+      RAY_SMOOTH: 0.2,
 
       init() {
         const s = Store.loadState();
@@ -567,6 +374,7 @@
           maxZoom: 20, minZoom: 2, attribution: '© OpenStreetMap'
         }).addTo(this.map);
         this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
+
         this.accCircle = L.circle([this.DEF.lat, this.DEF.lng], {
           radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
         }).addTo(this.map);
@@ -682,6 +490,17 @@
         }
       },
 
+      _setRay(red) {
+        if (!this.ray) return;
+        if (red) {
+          this.ray.setStyle({ color: '#ff4444', weight: 4, opacity: 1 });
+          this.ray.getElement?.().classList.add('guide-hit');
+        } else {
+          this.ray.setStyle({ color: '#2aff2a', weight: 3, opacity: 1 });
+          this.ray.getElement?.().classList.remove('guide-hit');
+        }
+      },
+
       refreshNav() {
         if (!this.S.dest || !this.last) {
           this.navLine?.setLatLngs([]);
@@ -735,116 +554,130 @@
       },
 
       checkAnyAlignment() {
-        const now = performance.now();
-        if (!this.last || this.S.heading == null) {
-          this._pending = null;
-          if (!(this._flashName && now < (this._flashUntil || 0))) {
-            this._aligned = null;
-            this._flashName = null;
-            this._flashUntil = 0;
-            this._flashTarget = null;
-            this._setRay(false);
-            UI.bannerUnset();
-          }
-          return;
-        }
+        try {
+          const now = performance.now();
 
-        if (now - this._tAlign < 30) return;
-        this._tAlign = now;
-
-        const from = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
-        const head = this.S.heading;
-        const prevHead = this._lastAlignHead ?? head;
-        const movedLL = !this._lastAlignLL || this.map.distance(this._lastAlignLL, from) > 1.8;
-        const movedHead = this._lastAlignHead == null || Math.abs(Δ(this._lastAlignHead, head)) > 0.06;
-        if (!movedLL && !movedHead) return;
-        this._lastAlignLL = from;
-        this._lastAlignHead = head;
-
-        const cand = this.candidates();
-        if (cand.length === 0) {
-          this._setRay(false);
-          UI.bannerUnset();
-          return;
-        }
-
-        let instBest = null, instErr = Infinity, instDist = Infinity;
-        for (const c of cand) {
-          const br = bearing(from, c.ll);
-          const err = Math.abs(Δ(head, br));
-          const dist = haversine(from, c.ll);
-          if (err < instErr - 1e-6 || (Math.abs(err - instErr) < 1e-6 && dist < instDist)) {
-            instBest = { ...c, brg: br };
-            instErr = err;
-            instDist = dist;
-          }
-        }
-
-        const rayTarget = this._aligned || this._flashTarget || instBest;
-        const rayErr = rayTarget ? Math.abs(Δ(head, bearing(from, rayTarget.ll))) : Infinity;
-        this._setRay(rayErr <= this.RAY.ACTIVE);
-
-        const step = Math.abs(Δ(prevHead, head));
-        const dwell = Math.max(0, this.ALIGN.DWELL_BASE - 0.6 * (this.S.omega || 0));
-        const enter = this.ALIGN.ENTER, exit = this.ALIGN.EXIT;
-
-        if (this._aligned) {
-          const e = Math.abs(Δ(head, bearing(from, this._aligned.ll)));
-          if (e <= exit) {
-            UI.bannerLock(this._aligned.name, false);
-            return;
-          }
-          this._aligned = null;
-        }
-
-        if (instBest && instErr <= enter) {
-          if (this._pending && this._pending.name === instBest.name) {
-            if (now - this._pending.since >= dwell) {
-              this._aligned = { name: instBest.name, ll: instBest.ll, err: instErr, dist: instDist };
-              this._pending = null;
+          // Guard: if no last or no heading, reset states
+          if (!this.last || this.S.heading == null) {
+            this._pending = null;
+            if (!(this._flashName && now < (this._flashUntil || 0))) {
+              this._aligned = null;
               this._flashName = null;
               this._flashUntil = 0;
               this._flashTarget = null;
-              UI.bannerLock(this._aligned.name, true);
-              Haptics.hit();
+              this._setRay(false);
+              UI.bannerUnset();
+            }
+            return;
+          }
+
+          if (now - this._tAlign < 30) return;
+          this._tAlign = now;
+
+          const from = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+          const head = this.S.heading;
+          const prevHead = this._lastAlignHead ?? head;
+          const movedLL = !this._lastAlignLL || this.map.distance(this._lastAlignLL, from) > 1.8;
+          const movedHead = this._lastAlignHead == null || Math.abs(Δ(this._lastAlignHead, head)) > 0.06;
+          if (!movedLL && !movedHead) return;
+          this._lastAlignLL = from;
+          this._lastAlignHead = head;
+
+          const cand = this.candidates();
+          if (cand.length === 0) {
+            this._setRay(false);
+            UI.bannerUnset();
+            return;
+          }
+
+          let instBest = null, instErr = Infinity, instDist = Infinity;
+          for (const c of cand) {
+            if (!c.ll) continue;
+            const br = bearing(from, c.ll);
+            const err = Math.abs(Δ(head, br));
+            const dist = haversine(from, c.ll);
+            if (err < instErr - 1e-6 || (Math.abs(err - instErr) < 1e-6 && dist < instDist)) {
+              instBest = { ...c, brg: br };
+              instErr = err;
+              instDist = dist;
+            }
+          }
+
+          const rayTarget = this._aligned || this._flashTarget || instBest;
+          const rayErr = rayTarget ? Math.abs(Δ(head, bearing(from, rayTarget.ll))) : Infinity;
+          this._setRay(rayErr <= this.RAY.ACTIVE);
+
+          const step = Math.abs(Δ(prevHead, head));
+          const dwell = Math.max(0, this.ALIGN.DWELL_BASE - 0.6 * (this.S.omega || 0));
+          const enter = this.ALIGN.ENTER, exit = this.ALIGN.EXIT;
+
+          if (this._aligned) {
+            const e = Math.abs(Δ(head, bearing(from, this._aligned.ll)));
+            if (e <= exit) {
+              UI.bannerLock(this._aligned.name, false);
               return;
             }
-          } else {
-            this._pending = { name: instBest.name, since: now };
+            this._aligned = null;
           }
-        } else {
-          this._pending = null;
-        }
 
-        let flashPick = null, flashErr = Infinity;
-        if (step <= 35) {
-          for (const c of cand) {
-            const br = bearing(from, c.ll);
-            if (this.between(prevHead, head, br)) {
-              const e = Math.abs(Δ(head, br));
-              if (e < flashErr) {
-                flashErr = e;
-                flashPick = c;
+          if (instBest && instErr <= enter) {
+            if (this._pending && this._pending.name === instBest.name) {
+              if (now - this._pending.since >= dwell) {
+                this._aligned = { name: instBest.name, ll: instBest.ll, err: instErr, dist: instDist };
+                this._pending = null;
+                this._flashName = null;
+                this._flashUntil = 0;
+                this._flashTarget = null;
+                UI.bannerLock(this._aligned.name, true);
+                Haptics.hit();
+                return;
+              }
+            } else {
+              this._pending = { name: instBest.name, since: now };
+            }
+          } else {
+            this._pending = null;
+          }
+
+          let flashPick = null, flashErr = Infinity;
+          if (step <= 35) {
+            for (const c of cand) {
+              if (!c.ll) continue;
+              const br = bearing(from, c.ll);
+              if (this.between(prevHead, head, br)) {
+                const e = Math.abs(Δ(head, br));
+                if (e < flashErr) {
+                  flashErr = e;
+                  flashPick = c;
+                }
               }
             }
           }
-        }
-        if (flashPick) {
-          const lastFire = this._flashCooldown.get(flashPick.name) || 0;
-          if (now - lastFire > this.SCAN.COOLDOWN) {
-            this._flashCooldown.set(flashPick.name, now);
-            this._flashName = flashPick.name;
-            this._flashUntil = now + this.SCAN.FLASH;
-            this._flashTarget = { name: flashPick.name, ll: flashPick.ll };
-            UI.bannerFlash(this._flashName, true);
-            Haptics.hit();
+          if (flashPick) {
+            const lastFire = this._flashCooldown.get(flashPick.name) || 0;
+            if (now - lastFire > this.SCAN.COOLDOWN) {
+              this._flashCooldown.set(flashPick.name, now);
+              this._flashName = flashPick.name;
+              this._flashUntil = now + this.SCAN.FLASH;
+              this._flashTarget = { name: flashPick.name, ll: flashPick.ll };
+              UI.bannerFlash(this._flashName, true);
+              Haptics.hit();
+            }
           }
-        }
-        if (this._flashName && now > this._flashUntil) {
-          this._flashName = null;
-          this._flashUntil = 0;
-          this._flashTarget = null;
-          UI.bannerUnset();
+          if (this._flashName && now > this._flashUntil) {
+            this._flashName = null;
+            this._flashUntil = 0;
+            this._flashTarget = null;
+            UI.bannerUnset();
+          }
+
+        } catch (e) {
+          console.error("Error in checkAnyAlignment:", e, {
+            last: this.last,
+            heading: this.S.heading,
+            aligned: this._aligned,
+            pending: this._pending
+          });
         }
       },
 
@@ -882,7 +715,7 @@
       },
 
       loop() {
-        const tgt = (this.S.rotate ?? false) ? (this.S.heading ?? 0) : 0;
+        const tgt = (this.S.rotate ?? false) ? (this.S heading ?? 0) : 0;
         const err = Math.abs(Δ(this.S.bearing, tgt));
         const aRot = 0.12 + 0.38 * Math.min(1, (this.S.omega || 0) / 240);
         this.S.bearing = err < 0.08 ? this.S.bearing : blend(this.S.bearing, tgt, aRot);
@@ -916,16 +749,10 @@
           return;
         }
 
-        const t = performance.now();
-        if (this._compassStartTs == null) {
-          this._compassStartTs = t;
-        }
-
         if (this.S.heading == null) {
           this.S.heading = heading;
         } else {
           const diff = Δ(this.S.heading, heading);
-          // keep original logic or your filtered logic here
           this.S.heading = N(this.S.heading + diff);
         }
         this.S.mag = e.alpha ?? null;
@@ -1255,9 +1082,6 @@
           const v = parseFloat(slider.value);
           if (Number.isFinite(v)) {
             App.S.decl = v;
-            if (App.S.mag != null && App._lastOrientEvent) {
-              App._setHeadingFromOrient();
-            }
             App.persist();
             App.updateHUD();
           }
