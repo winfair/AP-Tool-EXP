@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
   <meta name="theme-color" content="#0c1012"/>
-  <title>AP Alignment Tool — Reduced Jitter Version</title>
+  <title>AP Alignment Tool — Smooth Line Version</title>
 
   <link
     rel="stylesheet"
@@ -550,13 +550,10 @@
       _flashCooldown: new Map(),
       _flashTarget: null,
 
-      // warm-up & filtering
-      _compassStartTs: null,
-      WARMUP_MS: 2000,
-      SMOOTH_ALPHA: 0.05,      // stronger smoothing (lower α means slower movement)
-      DEAD_ZONE: 2.0,          // ±2° dead zone
-      MAX_STEP: 2.0,           // max 2° change per frame
-      _lastOrientEvent: null,
+      // For smooth line & ray length
+      _lastRayEndpoint: null,
+      RAY_MAX_LEN: 500,   // meters
+      RAY_SMOOTH: 0.2,    // interpolation factor 0–1
 
       init() {
         const s = Store.loadState();
@@ -570,7 +567,6 @@
           maxZoom: 20, minZoom: 2, attribution: '© OpenStreetMap'
         }).addTo(this.map);
         this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
-
         this.accCircle = L.circle([this.DEF.lat, this.DEF.lng], {
           radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
         }).addTo(this.map);
@@ -653,47 +649,36 @@
       },
 
       refreshRay() {
-        if (!this.last) {
+        if (!this.last || this.S.heading == null) {
           this.ray?.setLatLngs([]);
+          this._lastRayEndpoint = null;
           return;
         }
         const originLL = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
-        if (!this.originDot) {
-          this.originDot = L.circleMarker(originLL, {
-            radius: 3, color: '#2aff2a', weight: 2, fillColor: '#2aff2a', fillOpacity: 1, interactive: false
-          }).addTo(this.map);
+        const desired = dest(originLL, this.S.heading, this.RAY_MAX_LEN);
+
+        let endpoint;
+        if (this._lastRayEndpoint) {
+          const lat0 = this._lastRayEndpoint.lat;
+          const lng0 = this._lastRayEndpoint.lng;
+          const lat1 = desired.lat;
+          const lng1 = desired.lng;
+          const f = this.RAY_SMOOTH;
+          endpoint = L.latLng(
+            lat0 + (lat1 - lat0) * f,
+            lng0 + (lng1 - lng0) * f
+          );
         } else {
-          this.originDot.setLatLng(originLL).bringToFront();
+          endpoint = desired;
         }
-        if (this.S.heading == null) return;
+        this._lastRayEndpoint = endpoint;
+
         if (!this.ray) {
-          this.ray = L.polyline([], {
+          this.ray = L.polyline([originLL, endpoint], {
             color: '#2aff2a', weight: 3, opacity: 1, interactive: false
           }).addTo(this.map);
-        }
-        this.ray.setLatLngs([originLL, dest(originLL, this.S.heading, this.rayLen())]).bringToFront();
-      },
-
-      rayLen() {
-        const s = this.map.getSize();
-        return Math.max(Math.hypot(s.x, s.y) * this.mpp() * 1.35 + 200, 3000);
-      },
-
-      mpp() {
-        const s = this.map.getSize();
-        const a = this.map.containerPointToLatLng(L.point(s.x/2, s.y/2));
-        const b = this.map.containerPointToLatLng(L.point(s.x/2 + 1, s.y/2));
-        return this.map.distance(a, b) || 1;
-      },
-
-      _setRay(red) {
-        if (!this.ray) return;
-        if (red) {
-          this.ray.setStyle({ color: '#ff4444', weight: 4, opacity: 1 });
-          this.ray.getElement?.().classList.add('guide-hit');
         } else {
-          this.ray.setStyle({ color: '#2aff2a', weight: 3, opacity: 1 });
-          this.ray.getElement?.().classList.remove('guide-hit');
+          this.ray.setLatLngs([originLL, endpoint]).bringToFront();
         }
       },
 
@@ -761,11 +746,6 @@
             this._setRay(false);
             UI.bannerUnset();
           }
-          return;
-        }
-
-        // Warm-up window
-        if (this._compassStartTs != null && (now - this._compassStartTs) < this.WARMUP_MS) {
           return;
         }
 
@@ -945,10 +925,8 @@
           this.S.heading = heading;
         } else {
           const diff = Δ(this.S.heading, heading);
-          if (Math.abs(diff) >= this.DEAD_ZONE) {
-            const step = Math.sign(diff) * Math.min(Math.abs(diff), this.MAX_STEP);
-            this.S.heading = N(this.S.heading + step);
-          }
+          // keep original logic or your filtered logic here
+          this.S.heading = N(this.S.heading + diff);
         }
         this.S.mag = e.alpha ?? null;
       },
