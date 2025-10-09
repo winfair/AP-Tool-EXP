@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
   <meta name="theme-color" content="#0c1012"/>
-  <title>AP Alignment Tool — Full Version with Fixes</title>
+  <title>AP Alignment Tool — Dual‑Platform Compass Fix</title>
 
   <link
     rel="stylesheet"
@@ -43,15 +43,19 @@
       position: fixed;
       inset: 0;
       width: 100vw;
+      height: 100svh;
       height: 100vh;
+      min-height: 100%;
       touch-action: none;
     }
     .appbar {
       position: fixed;
-      top: 0; left: 0; right: 0;
+      top: 0;
+      left: 0; right: 0;
       height: 56px;
       display: flex;
       align-items: center;
+      gap: 10px;
       padding: 10px 14px;
       background: var(--glass-2);
       border-bottom: 1px solid var(--line-2);
@@ -59,8 +63,8 @@
       z-index: 1200;
       box-shadow: var(--shadow);
     }
-    .brand { font: 700 16px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; letter-spacing: .3px; }
-    .spacer { flex: 1; }
+    .brand { font: 700 16px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; letter-spacing: .3px; }
+    .appbar .spacer { flex: 1; }
     .chip {
       display: inline-flex;
       align-items: center;
@@ -69,7 +73,7 @@
       border-radius: 12px;
       border: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      font: 600 13px system-ui;
+      font: 600 13px/1 system-ui;
       cursor: pointer;
     }
     .chip .dot {
@@ -120,7 +124,7 @@
       border: 1px solid var(--line);
       background: rgba(255,255,255, .04);
       color: var(--ink);
-      font: 500 14px system-ui;
+      font: 500 14px/1.2 system-ui;
     }
     .list { display: grid; gap: 8px; }
     .item {
@@ -132,7 +136,7 @@
       border: 1px solid var(--line);
       border-radius: 12px;
     }
-    .item small { color: var(--muted); }
+    .item small { color: var(--muted); display: block; }
     .item button { padding: 8px 10px; }
     .btn {
       appearance: none;
@@ -141,7 +145,7 @@
       color: var(--ink);
       padding: 10px 12px;
       border-radius: 12px;
-      font: 600 14px system-ui;
+      font: 600 14px/1 system-ui;
       cursor: pointer;
     }
     .btn.primary { border-color: var(--brand); }
@@ -158,10 +162,22 @@
       box-shadow: var(--shadow);
       z-index: 1050;
     }
-    .hud .metrics { display: flex; flex-wrap: wrap; gap: 10px 14px; }
-    .metric { display: flex; gap: 6px; align-items: baseline; }
-    .metric span { color: var(--muted); font: 600 12px system-ui; }
-    .metric .value { color: var(--ink); font: 700 15px ui-monospace; letter-spacing: .2px; }
+    .hud .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+    }
+    .metric {
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+    }
+    .metric span { color: var(--muted); font: 600 12px/1 system-ui; }
+    .metric .value {
+      color: var(--ink);
+      font: 700 15px/1 ui-monospace;
+      letter-spacing: .2px;
+    }
     .align {
       position: fixed;
       top: 64px;
@@ -171,7 +187,7 @@
       border: 1px solid var(--line-2);
       border-radius: 12px;
       padding: 8px 12px;
-      font: 700 13px system-ui;
+      font: 700 13px/1 system-ui;
       color: var(--ink);
       box-shadow: var(--shadow);
       z-index: 1200;
@@ -199,6 +215,11 @@
       filter: drop-shadow(0 6px 12px rgba(0,0,0, .35));
     }
     .leaflet-container a { color: var(--muted); }
+    .leaflet-map-pane { will-change: transform; }
+    .leaflet-popup-content {
+      font: 500 13px/1.35 system-ui;
+      color: var(--ink);
+    }
     .floating-popup .leaflet-popup-content-wrapper {
       background: var(--glass-2);
       border: 1px solid var(--line-2);
@@ -221,16 +242,20 @@
       border: 1px solid var(--line);
       background: rgba(255,255,255, .06);
       color: var(--ink);
-      font: 500 13px system-ui;
+      font: 500 13px/1;
     }
-    .popup-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .popup-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
     .mini-label {
       background: var(--glass);
       color: var(--ink);
       padding: 2px 6px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      font: 600 12px system-ui;
+      font: 600 12px/1 system-ui;
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
@@ -244,7 +269,7 @@
       border: 1px solid #ff6b6b;
       border-radius: 10px;
       padding: 10px 36px 10px 12px;
-      font: 600 13px ui-monospace;
+      font: 600 13px/1.35 ui-monospace;
       display: none;
     }
     #errClose {
@@ -253,7 +278,7 @@
       background: transparent;
       border: none;
       color: #ffdede;
-      font: 700 18px system-ui;
+      font: 700 18px/1 system-ui;
       cursor: pointer;
     }
     #errClose:focus {
@@ -284,7 +309,7 @@
 
   <div class="dock">
     <button id="btnLocate" class="fab" title="Enable GPS (L)">📡</button>
-    <button id="btnWaypoints" class="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
+    <button id="btnWaypoints" class a="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
     <button id="btnSettings" class="fab" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️</button>
     <button id="btnReset" class="fab" title="Reset / Clear Nav (C)">↺</button>
   </div>
@@ -292,7 +317,11 @@
   <div id="wpPanel" class="panel" aria-hidden="true">
     <div class="row">
       <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
-      <input id="wpCoords" placeholder="34.851939 N, -119.168399 W or 34.851939,-119.168399" aria-label="Coordinates"/>
+      <input
+        id="wpCoords"
+        placeholder="34.851939 N, -119.168399 W or 34.851939,-119.168399"
+        aria-label="Coordinates"
+      />
       <button id="wpAdd" class="btn primary">Add / Update</button>
     </div>
     <div class="list" id="wpList" aria-live="polite"></div>
@@ -301,12 +330,15 @@
   <div id="settingsPanel" class="panel" aria-hidden="true">
     <div class="row">
       <div style="display: grid; gap: 8px;">
-        <label for="declSlider" style="font:600 13px system-ui">Declination Offset</label>
+        <label for="declSlider" style="font:600 13px/1 system-ui">Declination Offset</label>
         <input id="declSlider" type="range" min="-30" max="30" step="0.1" aria-label="Declination slider"/>
         <div style="color: var(--muted); font-size: 12px;">
-          True heading = Magnetic + <span id="declVal" style="font:600 12px ui-monospace">0.0°</span>
+          True heading = Magnetic + <span id="declVal" style="font:600 12px/1 ui-monospace">0.0°</span>
         </div>
         <button id="declSave" class="btn primary">Save</button>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="invertAndroid"/> Invert Android Heading</label>
       </div>
     </div>
   </div>
@@ -318,7 +350,7 @@
   (function() {
     function showError(m) {
       const e = document.getElementById('error'), s = document.getElementById('errMsg');
-      if (!e || !s) { console.error(m); return; }
+      if (!e || !s) { alert(m); return; }
       s.textContent = m || 'Error';
       e.style.display = 'block';
       console.error(m);
@@ -375,6 +407,107 @@
     const makeDot = (lat, lng, size = 12) =>
       L.marker([lat, lng], { icon: DotIcon(size), riseOnHover: true });
 
+    function parseCoords(t) {
+      const s = t.trim().replace(/\s+/g, ' ').replace(/[,;]+/g, ',');
+      const m = s.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
+      if (m) {
+        const lat = +m[1], lng = +m[3];
+        if (isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+          return { lat, lng };
+        }
+      }
+      const parts = s.split(',');
+      if (parts.length === 2) {
+        const one = q => {
+          const x = q.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);
+          if (!x) return null;
+          const h = (x[1] || x[4] || '').toUpperCase();
+          let v = parseFloat(x[2]);
+          if (h === 'S' || h === 'W') v = -Math.abs(v);
+          if (h === 'N' || h === 'E') v = Math.abs(v);
+          return { v, h };
+        };
+        const a = one(parts[0]), b = one(parts[1]);
+        if (a && b) {
+          const lat = (a.h === 'N' || a.h === 'S') ? a.v : b.v;
+          const lng = (a.h === 'E' || a.h === 'W') ? a.v : b.v;
+          if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+            return { lat, lng };
+          }
+        }
+      }
+      return null;
+    }
+
+    const AudioHaptics = (() => {
+      let ctx = null;
+      const ensure = () => {
+        if (!ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return null;
+          ctx = new AC();
+        }
+        if (ctx.state === 'suspended') ctx.resume();
+        return ctx;
+      };
+      const prime = () => { ensure(); };
+      addEventListener('pointerdown', prime, { passive: true });
+      addEventListener('keydown', prime);
+      const click = () => {
+        const c = ensure();
+        if (!c || c.state !== 'running') return;
+        const t = c.currentTime;
+        const osc = c.createOscillator(), g = c.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(120, t);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.25, t + 0.001);
+        g.gain.exponentialRampToValueAtTime(0.0009, t + 0.03);
+        osc.connect(g).connect(c.destination);
+        osc.start(t);
+        osc.stop(t + 0.035);
+      };
+      return { click };
+    })();
+    const Haptics = (() => {
+      let last = 0;
+      return {
+        hit() {
+          const n = performance.now();
+          if (n - last < 260) return;
+          last = n;
+          try {
+            if ('vibrate' in navigator) {
+              navigator.vibrate(10);
+              return;
+            }
+          } catch (_) {}
+          AudioHaptics.click();
+        }
+      };
+    })();
+
+    const Store = {
+      stateKey: 'mapapp.state.v3',
+      wpKey: 'mapapp.waypoints.v3',
+      loadState() {
+        try { return JSON.parse(localStorage.getItem(this.stateKey) || '{}'); }
+        catch { return {}; }
+      },
+      saveState(s) {
+        try { localStorage.setItem(this.stateKey, JSON.stringify(s)); }
+        catch { }
+      },
+      loadWPs() {
+        try { return JSON.parse(localStorage.getItem(this.wpKey) || '[]'); }
+        catch { return []; }
+      },
+      saveWPs(a) {
+        try { localStorage.setItem(this.wpKey, JSON.stringify(a)); }
+        catch { }
+      }
+    };
+
     const App = {
       S: {
         follow: true,
@@ -417,12 +550,20 @@
       _flashCooldown: new Map(),
       _flashTarget: null,
 
-      _lastRayEndpoint: null,
-      RAY_MAX_LEN: 500,
-      RAY_SMOOTH: 0.2,
+      // warm-up & smoothing
+      _compassStartTs: null,
+      WARMUP_MS: 2000,
+
+      // settings for smoothing
+      SMOOTH_ALPHA: 0.15,
+      DEAD_ZONE: 0.5,  // degrees
+      MAX_STEP: 5,    // max change per update
+
+      // store last orientation event
+      _lastOrientEvent: null,
 
       init() {
-        const s = JSON.parse(localStorage.getItem('mapapp.state.v3') || '{}');
+        const s = Store.loadState();
         if (typeof s.follow === 'boolean') this.S.follow = s.follow;
         if (typeof s.rotate === 'boolean') this.S.rotate = s.rotate;
         if (typeof s.bearing === 'number') this.S.bearing = N(s.bearing);
@@ -433,7 +574,6 @@
           maxZoom: 20, minZoom: 2, attribution: '© OpenStreetMap'
         }).addTo(this.map);
         this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
-
         this.accCircle = L.circle([this.DEF.lat, this.DEF.lng], {
           radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
         }).addTo(this.map);
@@ -450,14 +590,103 @@
 
         this.loop();
         addEventListener('beforeunload', () => {
-          localStorage.setItem('mapapp.state.v3', JSON.stringify({
-            follow: this.S.follow,
-            rotate: this.S.rotate,
-            bearing: this.S.bearing,
-            decl: this.S.decl
-          }));
+          this.persist();
           this.stopGPS();
         }, { once: true });
+      },
+
+      persist() {
+        Store.saveState({
+          follow: this.S.follow,
+          rotate: this.S.rotate,
+          bearing: this.S.bearing,
+          decl: this.S.decl
+        });
+      },
+
+      setFollow(v) {
+        this.S.follow = !!v;
+        UI.sync(this.S);
+        if (this.S.follow && this.last) {
+          const { latitude, longitude } = this.last.coords;
+          this.map.setView([latitude, longitude], Math.max(this.map.getZoom(), 16), { animate: false });
+        }
+      },
+
+      setRotate(v) {
+        this.S.rotate = !!v;
+        if (this.S.rotate) this.setFollow(true);
+        UI.sync(this.S);
+        this.applyBearing(this.S.bearing);
+        this.persist();
+      },
+
+      uprightOverlays(deg) {
+        if (this._lastOverlayAngle != null && Math.abs(Δ(this._lastOverlayAngle, deg)) < 0.12) {
+          return;
+        }
+        this._lastOverlayAngle = deg;
+        const rot = ` rotate(${deg}deg)`;
+        const fixEl = el => {
+          if (!el || !el.style) return;
+          const base = (el.style.transform || '').replace(/rotate\([^)]*\)/g, '').trim();
+          el.style.transformOrigin = el.classList && el.classList.contains('leaflet-popup') ?
+            'bottom center' : 'left center';
+          el.style.transform = base + rot;
+        };
+        this.map.getPanes().popupPane?.querySelectorAll('.leaflet-popup').forEach(fixEl);
+        this.map.getPanes().tooltipPane?.querySelectorAll('.leaflet-tooltip').forEach(fixEl);
+      },
+
+      applyBearing(d) {
+        const pane = this.map.getPane && this.map.getPane('mapPane');
+        if (!pane) {
+          console.warn("mapPane not found");
+          return;
+        }
+        let origin = '50% 50%';
+        if (this.last) {
+          const p = this.map.latLngToContainerPoint([this.last.coords.latitude, this.last.coords.longitude]);
+          origin = `${p.x}px ${p.y}px`;
+        }
+        const base = (pane.style.transform || '').replace(/rotate\([^)]*\)/g, '');
+        pane.style.transformOrigin = origin;
+        pane.style.transform = base + ` rotate(${-d}deg)`;
+        this.uprightOverlays(d);
+      },
+
+      refreshRay() {
+        if (!this.last) {
+          this.ray?.setLatLngs([]);
+          return;
+        }
+        const originLL = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+        if (!this.originDot) {
+          this.originDot = L.circleMarker(originLL, {
+            radius: 3, color: '#2aff2a', weight: 2, fillColor: '#2aff2a', fillOpacity: 1, interactive: false
+          }).addTo(this.map);
+        } else {
+          this.originDot.setLatLng(originLL).bringToFront();
+        }
+        if (this.S.heading == null) return;
+        if (!this.ray) {
+          this.ray = L.polyline([], {
+            color: '#2aff2a', weight: 3, opacity: 1, interactive: false
+          }).addTo(this.map);
+        }
+        this.ray.setLatLngs([originLL, dest(originLL, this.S.heading, this.rayLen())]).bringToFront();
+      },
+
+      rayLen() {
+        const s = this.map.getSize();
+        return Math.max(Math.hypot(s.x, s.y) * this.mpp() * 1.35 + 200, 3000);
+      },
+
+      mpp() {
+        const s = this.map.getSize();
+        const a = this.map.containerPointToLatLng(L.point(s.x/2, s.y/2));
+        const b = this.map.containerPointToLatLng(L.point(s.x/2 + 1, s.y/2));
+        return this.map.distance(a, b) || 1;
       },
 
       _setRay(red) {
@@ -467,181 +696,177 @@
           this.ray.getElement?.().classList.add('guide-hit');
         } else {
           this.ray.setStyle({ color: '#2aff2a', weight: 3, opacity: 1 });
-          this.ray.getElement?.().classList.remove('guide-hit');
+          this.ray.getElement?.().classList.remove('guide‑hit');
         }
       },
 
-      refreshRay() {
-        if (!this.last || this.S.heading == null) {
-          this.ray?.setLatLngs([]);
-          this._lastRayEndpoint = null;
+      refreshNav() {
+        if (!this.S.dest || !this.last) {
+          this.navLine?.setLatLngs([]);
+          UI.setReset('Reset');
+          this._navState = null;
           return;
         }
-        const originLL = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
-        const desired = dest(originLL, this.S.heading, this.RAY_MAX_LEN);
-
-        let endpoint;
-        if (this._lastRayEndpoint) {
-          const lat0 = this._lastRayEndpoint.lat;
-          const lng0 = this._lastRayEndpoint.lng;
-          const lat1 = desired.lat;
-          const lng1 = desired.lng;
-          const f = this.RAY_SMOOTH;
-          endpoint = L.latLng(
-            lat0 + (lat1 - lat0) * f,
-            lng0 + (lng1 - lng0) * f
-          );
-        } else {
-          endpoint = desired;
-        }
-        this._lastRayEndpoint = endpoint;
-
-        if (!this.ray) {
-          this.ray = L.polyline([originLL, endpoint], {
-            color: '#2aff2a', weight: 3, opacity: 1, interactive: false
+        UI.setReset('Clear Nav');
+        const from = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+        const to = L.latLng(this.S.dest.lat, this.S.dest.lng);
+        if (!this.navLine) {
+          this.navLine = L.polyline([], {
+            color: '#2ac18a',
+            weight: 3,
+            opacity: .95,
+            interactive: false,
+            dashArray: '6 6'
           }).addTo(this.map);
-        } else {
-          this.ray.setLatLngs([originLL, endpoint]).bringToFront();
         }
+        this.navLine.setLatLngs([from, to]).bringToFront();
+        const b = bearing(from, to);
+        const d = haversine(from, to);
+        const err = this.S.heading == null ? null : Δ(this.S.heading, b);
+        this._navState = { b, d, err };
+        if (this.S.heading != null) {
+          const on = Math.abs(err) < .5;
+          if (on) {
+            this.navLine.setStyle({ color: '#ff4444', weight: 4, opacity: 1 });
+            this.navLine.getElement?.().classList.add('guide-hit');
+          } else {
+            this.navLine.setStyle({ color: '#2ac18a', weight: 3, opacity: .95 });
+            this.navLine.getElement?.().classList.remove('guide-hit');
+          }
+        }
+      },
+
+      candidates() {
+        const list = [];
+        Waypoints.markers.forEach((m, name) => list.push({ name, ll: m.getLatLng() }));
+        if (Pins.pin) {
+          const ll = Pins.pin.getLatLng();
+          const nm = Pins.pin._nm || `Pin ${fix(ll.lat)},${fix(ll.lng)}`;
+          list.push({ name: nm, ll });
+        }
+        return list;
+      },
+
+      between(a, b, x) {
+        const ab = Δ(a, b), ax = Δ(a, x);
+        return Math.sign(ab) === Math.sign(ax) && Math.abs(ax) <= Math.abs(ab);
       },
 
       checkAnyAlignment() {
-        try {
-          const now = performance.now();
-          if (!this.last || this.S.heading == null) {
-            this._pending = null;
-            if (!(this._flashName && now < (this._flashUntil || 0))) {
-              this._aligned = null;
-              this._flashName = null;
-              this._flashUntil = 0;
-              this._flashTarget = null;
-              this._setRay(false);
-              UI.bannerUnset();
-            }
-            return;
-          }
-          if (now - this._tAlign < 30) return;
-          this._tAlign = now;
-
-          const from = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
-          const head = this.S.heading;
-          const prevHead = this._lastAlignHead ?? head;
-          const movedLL = !this._lastAlignLL || this.map.distance(this._lastAlignLL, from) > 1.8;
-          const movedHead = this._lastAlignHead == null || Math.abs(Δ(this._lastAlignHead, head)) > 0.06;
-          if (!movedLL && !movedHead) return;
-          this._lastAlignLL = from;
-          this._lastAlignHead = head;
-
-          const cand = Waypoints ? Waypoints.markers : [];
-          // convert markers to candidate objects
-          const candidatesList = [];
-          if (Waypoints && Waypoints.markers) {
-            Waypoints.markers.forEach((m, name) => {
-              const ll = m.getLatLng();
-              if (ll) candidatesList.push({ name, ll });
-            });
-          }
-          if (Pins && Pins.pin) {
-            const pll = Pins.pin.getLatLng();
-            if (pll) {
-              const nm = Pins.pin._nm || `Pin ${fix(pll.lat)},${fix(pll.lng)}`;
-              candidatesList.push({ name: nm, ll: pll });
-            }
-          }
-          if (candidatesList.length === 0) {
-            this._setRay(false);
-            UI.bannerUnset();
-            return;
-          }
-
-          let instBest = null, instErr = Infinity, instDist = Infinity;
-          for (const c of candidatesList) {
-            if (!c.ll) continue;
-            const br = bearing(from, c.ll);
-            const err = Math.abs(Δ(head, br));
-            const dist = haversine(from, c.ll);
-            if (err < instErr - 1e-6 || (Math.abs(err - instErr) < 1e-6 && dist < instDist)) {
-              instBest = { ...c, brg: br };
-              instErr = err;
-              instDist = dist;
-            }
-          }
-
-          const rayTarget = this._aligned || this._flashTarget || instBest;
-          const rayErr = rayTarget ? Math.abs(Δ(head, bearing(from, rayTarget.ll))) : Infinity;
-          this._setRay(rayErr <= this.RAY.ACTIVE);
-
-          const step = Math.abs(Δ(prevHead, head));
-          const dwell = Math.max(0, this.ALIGN.DWELL_BASE - 0.6 * (this.S.omega || 0));
-          const enter = this.ALIGN.ENTER, exit = this.ALIGN.EXIT;
-
-          if (this._aligned) {
-            const e = Math.abs(Δ(head, bearing(from, this._aligned.ll)));
-            if (e <= exit) {
-              UI.bannerLock(this._aligned.name, false);
-              return;
-            }
+        const now = performance.now();
+        if (!this.last || this.S.heading == null) {
+          this._pending = null;
+          if (!(this._flashName && now < (this._flashUntil || 0))) {
             this._aligned = null;
-          }
-
-          if (instBest && instErr <= enter) {
-            if (this._pending && this._pending.name === instBest.name) {
-              if (now - this._pending.since >= dwell) {
-                this._aligned = { name: instBest.name, ll: instBest.ll, err: instErr, dist: instDist };
-                this._pending = null;
-                this._flashName = null;
-                this._flashUntil = 0;
-                this._flashTarget = null;
-                UI.bannerLock(this._aligned.name, true);
-                Haptics.hit();
-                return;
-              }
-            } else {
-              this._pending = { name: instBest.name, since: now };
-            }
-          } else {
-            this._pending = null;
-          }
-
-          let flashPick = null, flashErr = Infinity;
-          if (step <= 35) {
-            for (const c of candidatesList) {
-              if (!c.ll) continue;
-              const br = bearing(from, c.ll);
-              if (this.between(prevHead, head, br)) {
-                const e = Math.abs(Δ(head, br));
-                if (e < flashErr) {
-                  flashErr = e;
-                  flashPick = c;
-                }
-              }
-            }
-          }
-          if (flashPick) {
-            const lastFire = this._flashCooldown.get(flashPick.name) || 0;
-            if (now - lastFire > this.SCAN.COOLDOWN) {
-              this._flashCooldown.set(flashPick.name, now);
-              this._flashName = flashPick.name;
-              this._flashUntil = now + this.SCAN.FLASH;
-              this._flashTarget = { name: flashPick.name, ll: flashPick.ll };
-              UI.bannerFlash(this._flashName, true);
-              Haptics.hit();
-            }
-          }
-          if (this._flashName && now > this._flashUntil) {
             this._flashName = null;
             this._flashUntil = 0;
             this._flashTarget = null;
+            this._setRay(false);
             UI.bannerUnset();
           }
+          return;
+        }
 
-        } catch (e) {
-          console.error("Error in checkAnyAlignment:", e, {
-            last: this.last,
-            heading: this.S.heading,
-            aligned: this._aligned,
-            pending: this._pending
-          });
+        if (this._compassStartTs != null && (now - this._compassStartTs) < this.WARMUP_MS) {
+          return;
+        }
+
+        if (now - this._tAlign < 30) return;
+        this._tAlign = now;
+
+        const from = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+        const head = this.S.heading;
+        const prevHead = this._lastAlignHead ?? head;
+        const movedLL = !this._lastAlignLL || this.map.distance(this._lastAlignLL, from) > 1.8;
+        const movedHead = this._lastAlignHead == null || Math.abs(Δ(this._lastAlignHead, head)) > 0.06;
+        if (!movedLL && !movedHead) return;
+        this._lastAlignLL = from;
+        this._lastAlignHead = head;
+
+        const cand = this.candidates();
+        if (cand.length === 0) {
+          this._setRay(false);
+          UI.bannerUnset();
+          return;
+        }
+
+        let instBest = null, instErr = Infinity, instDist = Infinity;
+        for (const c of cand) {
+          const br = bearing(from, c.ll);
+          const err = Math.abs(Δ(head, br));
+          const dist = haversine(from, c.ll);
+          if (err < instErr - 1e-6 || (Math.abs(err - instErr) < 1e-6 && dist < instDist)) {
+            instBest = { ...c, brg: br };
+            instErr = err;
+            instDist = dist;
+          }
+        }
+
+        const rayTarget = this._aligned || this._flashTarget || instBest;
+        const rayErr = rayTarget ? Math.abs(Δ(head, bearing(from, rayTarget.ll))) : Infinity;
+        this._setRay(rayErr <= this.RAY.ACTIVE);
+
+        const step = Math.abs(Δ(prevHead, head));
+        const dwell = Math.max(0, this.ALIGN.DWELL_BASE - 0.6 * (this.S.omega || 0));
+        const enter = this.ALIGN.ENTER, exit = this.ALIGN.EXIT;
+
+        if (this._aligned) {
+          const e = Math.abs(Δ(head, bearing(from, this._aligned.ll)));
+          if (e <= exit) {
+            UI.bannerLock(this._aligned.name, false);
+            return;
+          }
+          this._aligned = null;
+        }
+
+        if (instBest && instErr <= enter) {
+          if (this._pending && this._pending.name === instBest.name) {
+            if (now - this._pending.since >= dwell) {
+              this._aligned = { name: instBest.name, ll: instBest.ll, err: instErr, dist: instDist };
+              this._pending = null;
+              this._flashName = null;
+              this._flashUntil = 0;
+              this._flashTarget = null;
+              UI.bannerLock(this._aligned.name, true);
+              Haptics.hit();
+              return;
+            }
+          } else {
+            this._pending = { name: instBest.name, since: now };
+          }
+        } else {
+          this._pending = null;
+        }
+
+        let flashPick = null, flashErr = Infinity;
+        if (step <= 35) {
+          for (const c of cand) {
+            const br = bearing(from, c.ll);
+            if (this.between(prevHead, head, br)) {
+              const e = Math.abs(Δ(head, br));
+              if (e < flashErr) {
+                flashErr = e;
+                flashPick = c;
+              }
+            }
+          }
+        }
+        if (flashPick) {
+          const lastFire = this._flashCooldown.get(flashPick.name) || 0;
+          if (now - lastFire > this.SCAN.COOLDOWN) {
+            this._flashCooldown.set(flashPick.name, now);
+            this._flashName = flashPick.name;
+            this._flashUntil = now + this.SCAN.FLASH;
+            this._flashTarget = { name: flashPick.name, ll: flashPick.ll };
+            UI.bannerFlash(this._flashName, true);
+            Haptics.hit();
+          }
+        }
+        if (this._flashName && now > this._flashUntil) {
+          this._flashName = null;
+          this._flashUntil = 0;
+          this._flashTarget = null;
+          UI.bannerUnset();
         }
       },
 
@@ -653,8 +878,8 @@
         const lat = this.last?.coords?.latitude?.toFixed(6) ?? '—';
         const lng = this.last?.coords?.longitude?.toFixed(6) ?? '—';
         const acc = this.last?.coords?.accuracy ? Math.round(this.last.coords.accuracy) : '—';
-        const hd = this.S.heading != null ? this.S.heading.toFixed(2) : '—';
-        const mb = N(-this.S.bearing).toFixed(2);
+        const hd = this.S.heading != null ? (this.S.heading).toFixed(2) : '—';
+        const mb = (N(-this.S.bearing)).toFixed(2);
         const alignName = this._aligned?.name || (this._flashName ?? 'none');
 
         let nav = '';
@@ -679,7 +904,7 @@
       },
 
       loop() {
-        const tgt = this.S.rotate ? (this.S.heading ?? 0) : 0;
+        const tgt = (this.S.rotate ?? false) ? (this.S.heading ?? 0) : 0;
         const err = Math.abs(Δ(this.S.bearing, tgt));
         const aRot = 0.12 + 0.38 * Math.min(1, (this.S.omega || 0) / 240);
         this.S.bearing = err < 0.08 ? this.S.bearing : blend(this.S.bearing, tgt, aRot);
@@ -698,39 +923,46 @@
         requestAnimationFrame(() => this.loop());
       },
 
-      _setHeadingRaw(magRaw) {
-        const mag = N(magRaw), adj = N(mag + (this.S.decl || 0)), t = performance.now();
-        const p = this.S.heading;
-        if (p == null || Math.abs(Δ(p, adj)) > 0.02) {
-          if (this._lastHeadTs != null && this._prevHead != null) {
-            const dt = (t - this._lastHeadTs) / 1000;
-            if (dt > 0) {
-              this.S.omega = Math.min(720, Math.abs(Δ(this._prevHead, adj)) / dt);
-            }
+      _setHeadingFromOrient() {
+        const e = this._lastOrientEvent;
+        if (!e) return;
+        // Detect iOS via webkitCompassHeading
+        let heading;
+        if (typeof e.webkitCompassHeading === 'number') {
+          heading = N(e.webkitCompassHeading + this.S.decl);
+        } else if (typeof e.alpha === 'number') {
+          // Fallback: use 360 - alpha
+          heading = N(360 - e.alpha + this.S.decl);
+
+          // Optionally invert on Android if configured
+          if ($('invertAndroid')?.checked) {
+            heading = N(-heading);
           }
-          this._prevHead = adj;
-          this._lastHeadTs = t;
-          this.S.mag = mag;
-          this.S.heading = adj;
-          if (this.S.rotate && p == null) this.S.bearing = adj;
         } else {
-          this.S.mag = mag;
+          return;
         }
+
+        const t = performance.now();
+
+        if (this._compassStartTs == null) {
+          this._compassStartTs = t;
+        }
+
+        if (this.S.heading == null) {
+          this.S.heading = heading;
+        } else {
+          const diff = Δ(this.S.heading, heading);
+          if (Math.abs(diff) >= this.DEAD_ZONE) {
+            const step = Math.sign(diff) * Math.min(Math.abs(diff), this.MAX_STEP);
+            this.S.heading = N(this.S.heading + step);
+          }
+        }
+        this.S.mag = e.alpha ?? null;
       },
 
       onOrient(e) {
-        const now = performance.now();
-        const hasWCH = typeof e.webkitCompassHeading === 'number';
-        const hasAlpha = typeof e.alpha === 'number';
-        const isAbs = (e.absolute === true) || hasWCH;
-        if (isAbs) {
-          this._lastAbsTs = now;
-          if (hasWCH) this._setHeadingRaw(e.webkitCompassHeading);
-          else if (hasAlpha) this._setHeadingRaw(e.alpha);
-          return;
-        }
-        if (now - this._lastAbsTs < 120) return;
-        if (hasAlpha) this._setHeadingRaw(e.alpha);
+        this._lastOrientEvent = e;
+        this._setHeadingFromOrient();
       },
 
       async enableCompass() {
@@ -775,6 +1007,9 @@
           if (this.S.follow && !this.S.press) {
             this.map.setView([latitude, longitude], Math.max(this.map.getZoom(), 16), { animate: false });
           }
+          if (Number.isFinite(p.coords.heading)) {
+            // Optional: feed gps heading into orientation (less reliable though)
+          }
         }, e => {
           alert('Unable to get location: ' + e.message);
           console.error("GPS error:", e);
@@ -814,7 +1049,7 @@
         const pivot = (this.S.press && this.S.fPivot) ? this.S.fPivot : this.map.latLngToLayerPoint(this.pivotLL());
         const th = R(ang), c = Math.cos(th), s = Math.sin(th);
         const dx = layer.x - pivot.x, dy = layer.y - pivot.y;
-        const un = L.point(pivot.x + dx*c + dy*s, pivot.y + (-dx*s) + dy*c);
+        const un = L.point(pivot.x + dx * c + dy * s, pivot.y + (-dx * s) + dy * c);
         return this.map.layerPointToLatLng(un);
       },
 
@@ -893,18 +1128,16 @@
             this.startGPS();
           } else if (k === 'f') {
             e.preventDefault();
-            this.S.follow = !this.S.follow;
-            UI.sync(this.S);
+            this.setFollow(!this.S.follow);
           } else if (k === 'r') {
             e.preventDefault();
             (async () => {
               if (!this.S.rotate) {
                 if (!await this.enableCompass()) return;
-                this.S.rotate = true;
+                this.setRotate(true);
               } else {
-                this.S.rotate = false;
+                this.setRotate(false);
               }
-              UI.sync(this.S);
             })();
           } else if (k === 'c') {
             e.preventDefault();
@@ -957,18 +1190,14 @@
       bind() {
         $('btnLocate')?.addEventListener('click', () => App.startGPS());
         $('btnReset')?.addEventListener('click', () => App.resetView());
-        $('chipFollow')?.addEventListener('click', () => {
-          App.S.follow = !App.S.follow;
-          UI.sync(App.S);
-        });
+        $('chipFollow')?.addEventListener('click', () => App.setFollow(!App.S.follow));
         $('chipRotate')?.addEventListener('click', async () => {
           if (!App.S.rotate) {
             if (!await App.enableCompass()) return;
-            App.S.rotate = true;
+            App.setRotate(true);
           } else {
-            App.S.rotate = false;
+            App.setRotate(false);
           }
-          UI.sync(App.S);
         });
 
         const btnWP = $('btnWaypoints'), wpPanel = $('wpPanel');
@@ -987,6 +1216,7 @@
           btnSettings.setAttribute('aria-expanded', String(open));
         });
 
+        // Close Waypoints / Settings on map click
         App.map.getContainer().addEventListener('click', e => {
           const wpOpen = wpPanel?.classList.contains('open');
           const settingsOpen = settings?.classList.contains('open');
@@ -1021,7 +1251,7 @@
           if (t.hasAttribute('data-go')) {
             const w = Waypoints.load()[i];
             if (w) {
-              App.S.follow = false;
+              App.setFollow(false);
               App.S.rotate = false;
               UI.sync(App.S);
               App.map.setView([w.lat, w.lng], 16);
@@ -1059,14 +1289,14 @@
           if (Number.isFinite(v)) {
             App.S.decl = v;
             if (App.S.mag != null) {
-              App.S.heading = N(App.S.mag + App.S.decl);
+              // Recompute heading
+              const e = App._lastOrientEvent;
+              if (e && typeof e.alpha === 'number') {
+                // Rerun setHeadingFromOrient
+                App._setHeadingFromOrient();
+              }
             }
-            localStorage.setItem('mapapp.state.v3', JSON.stringify({
-              follow: App.S.follow,
-              rotate: App.S.rotate,
-              bearing: App.S.bearing,
-              decl: App.S.decl
-            }));
+            App.persist();
             App.updateHUD();
           }
           const btn = $('declSave');
@@ -1079,43 +1309,11 @@
       }
     };
 
-    function parseCoords(t) {
-      const s = t.trim().replace(/\s+/g, ' ').replace(/[,;]+/g, ',');
-      const m = s.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
-      if (m) {
-        const lat = +m[1], lng = +m[3];
-        if (isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-          return { lat, lng };
-        }
-      }
-      const parts = s.split(',');
-      if (parts.length === 2) {
-        const one = q => {
-          const x = q.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);
-          if (!x) return null;
-          const h = (x[1] || x[4] || '').toUpperCase();
-          let v = parseFloat(x[2]);
-          if (h === 'S' || h === 'W') v = -Math.abs(v);
-          if (h === 'N' || h === 'E') v = Math.abs(v);
-          return { v, h };
-        };
-        const a = one(parts[0]), b = one(parts[1]);
-        if (a && b) {
-          const lat = (a.h === 'N' || a.h === 'S') ? a.v : b.v;
-          const lng = (a.h === 'E' || a.h === 'W') ? a.v : b.v;
-          if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-            return { lat, lng };
-          }
-        }
-      }
-      return null;
-    }
-
     const Waypoints = {
       markers: new Map(),
       init() { this.render(); this.syncMarkers(); },
-      load() { return JSON.parse(localStorage.getItem('mapapp.waypoints.v3') || '[]'); },
-      save(a) { localStorage.setItem('mapapp.waypoints.v3', JSON.stringify(a)); },
+      load() { return Store.loadWPs(); },
+      save(a) { Store.saveWPs(a); },
       ensureMarker(name) { return this.markers.get(name) || null; },
       render() {
         const list = $('wpList');
@@ -1206,8 +1404,7 @@
           }
         });
         Array.from(this.markers.keys()).forEach(n => {
-          const a2 = this.load();
-          if (!a2.some(w => w.name === n)) {
+          if (!this.load().some(w => w.name === n)) {
             App.map.removeLayer(this.markers.get(n));
             this.markers.delete(n);
           }
@@ -1300,9 +1497,17 @@
         const c = document.getElementById('errClose');
         if (c) c.onclick = hideError;
       } catch (e) {
-        showError(e.stack || String(e));
+        const msg = (e && e.stack) || String(e);
+        console.error(msg);
+        const el = document.getElementById('errMsg');
+        const box = document.getElementById('error');
+        if (el && box) {
+          el.textContent = msg;
+          box.style.display = 'block';
+        }
       }
     });
+
   })();
   </script>
 </body>
