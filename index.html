@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#0c1012"/>
   <title>AP Alignment Tool — Dual-Platform Compass Fix</title>
 
-  <!-- Leaflet core -->
   <link
     rel="stylesheet"
     href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
@@ -18,16 +17,6 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin="anonymous"
   ></script>
-
-  <!-- ADDED: Leaflet plugins (Draw / Geocoder / Locate) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css">
-  <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder/dist/Control.Geocoder.css">
-  <script src="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.js"></script>
 
   <style>
     :root {
@@ -296,9 +285,6 @@
       outline: 2px solid #ff9b9b;
       border-radius: 6px;
     }
-
-    /* ADDED: make plugin controls sit above map & under appbar */
-    .leaflet-control-container { z-index: 1125; } /* below appbar (1200) but above map */
   </style>
 </head>
 
@@ -323,7 +309,7 @@
 
   <div class="dock">
     <button id="btnLocate" class="fab" title="Enable GPS (L)">📡</button>
-    <button id="btnWaypoints" class="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
+    <button id="btnWaypoints" class a="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
     <button id="btnSettings" class="fab" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️</button>
     <button id="btnReset" class="fab" title="Reset / Clear Nav (C)">↺</button>
   </div>
@@ -354,13 +340,6 @@
       <div class="row">
         <label><input type="checkbox" id="invertAndroid"/> Invert Android Heading</label>
       </div>
-    </div>
-
-    <!-- ADDED: simple GeoJSON import control -->
-    <div class="row">
-      <label style="font:600 13px/1 system-ui">Import GeoJSON</label>
-      <input id="fileInput" type="file" accept=".geojson,.json"/>
-      <small class="muted">Loads GeoJSON as an overlay and zooms to it.</small>
     </div>
   </div>
 
@@ -459,6 +438,17 @@
       }
       return null;
     }
+
+    // PATCH: helpers for Android heading normalization
+    const getScreenAngle = () => {
+      if (screen && screen.orientation && typeof screen.orientation.angle === 'number') {
+        return screen.orientation.angle; // 0, 90, 180, 270
+      }
+      const o = window.orientation;
+      return (typeof o === 'number') ? (o % 360 + 360) % 360 : 0;
+    };
+    const isAndroid = () =>
+      /Android/i.test(navigator.userAgent || '') || /\bAdr\b/i.test(navigator.userAgent || '');
 
     const AudioHaptics = (() => {
       let ctx = null;
@@ -583,12 +573,6 @@
       // store last orientation event
       _lastOrientEvent: null,
 
-      // ADDED: layer refs / drawn items
-      _baseMaps: null,            // ADDED
-      _overlays: null,            // ADDED
-      _drawnGroup: null,          // ADDED
-      _importedLayer: null,       // ADDED
-
       init() {
         const s = Store.loadState();
         if (typeof s.follow === 'boolean') this.S.follow = s.follow;
@@ -598,71 +582,16 @@
 
         this.map = L.map('map', { zoomControl: true, attributionControl: true });
 
-        // ADDED: Basemaps + overlays + layer control
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 20, minZoom: 2, attribution: '© OpenStreetMap'
-        });
-        const esriTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+        // PATCH: swap OSM for Esri Topo basemap
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
           maxZoom: 19,
           attribution: 'Tiles © Esri — Source: Esri, Garmin, USGS, NPS, and others'
-        });
-        const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-          maxZoom: 17,
-          attribution: 'Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap (CC-BY-SA)'
-        });
-        const stamenTerrain = L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg', {
-          maxZoom: 17,
-          attribution: 'Map tiles by Stamen (CC BY 3.0) — Data: OSM'
-        });
-
-        osm.addTo(this.map); // default base
-
-        this._baseMaps = {           // ADDED
-          'OSM Standard': osm,
-          'ESRI Topo': esriTopo,
-          'OpenTopoMap': openTopo
-        };
-        this._overlays = {            // ADDED
-          'Hillshade (Terrain)': stamenTerrain
-        };
-        L.control.layers(this._baseMaps, this._overlays, { position: 'topright', collapsed: true }).addTo(this.map);
+        }).addTo(this.map);
 
         this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
         this.accCircle = L.circle([this.DEF.lat, this.DEF.lng], {
           radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
         }).addTo(this.map);
-
-        // ADDED: Draw / Measure
-        this._drawnGroup = new L.FeatureGroup();
-        this.map.addLayer(this._drawnGroup);
-        const drawControl = new L.Control.Draw({
-          position: 'topleft',
-          draw: {
-            polyline: { shapeOptions: { color: '#2ac18a' } },
-            polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#2ac18a' } },
-            rectangle: true, circle: false, circlemarker: false, marker: true
-          },
-          edit: { featureGroup: this._drawnGroup }
-        });
-        this.map.addControl(drawControl);
-        this.map.on(L.Draw.Event.CREATED, e => this._drawnGroup.addLayer(e.layer)); // keep whatever user draws
-
-        // ADDED: Geocoder (search bar)
-        L.Control.geocoder({ defaultMarkGeocode: false })
-          .on('markgeocode', (e) => {
-            const bbox = e.geocode.bbox;
-            const poly = L.polygon([
-              bbox.getSouthEast(),
-              bbox.getNorthEast(),
-              bbox.getNorthWest(),
-              bbox.getSouthWest()
-            ]);
-            this.map.fitBounds(poly.getBounds());
-          })
-          .addTo(this.map);
-
-        // ADDED: Optional locate control (kept separate from your 📡 button)
-        L.control.locate({ flyTo: true, keepCurrentZoomLevel: false }).addTo(this.map);
 
         UI.bind();
         this.bindMap();
@@ -673,32 +602,6 @@
         this.applyBearing(this.S.bearing);
         UI.sync(this.S);
         UI.declInit(this.S.decl);
-
-        // ADDED: GeoJSON import hook
-        const file = $('fileInput');
-        if (file) {
-          file.addEventListener('change', async (e) => {
-            const f = e.target.files && e.target.files[0];
-            if (!f) return;
-            try {
-              const text = await f.text();
-              const gj = JSON.parse(text);
-              if (this._importedLayer) {
-                this.map.removeLayer(this._importedLayer);
-                this._importedLayer = null;
-              }
-              this._importedLayer = L.geoJSON(gj, {
-                style: { color: '#2ac18a' },
-                pointToLayer: (feat, latlng) => L.circleMarker(latlng, { radius: 5 })
-              }).addTo(this.map);
-              this.map.fitBounds(this._importedLayer.getBounds(), { padding: [20,20] });
-            } catch (err) {
-              alert('Not valid GeoJSON: ' + (err && err.message || err));
-            } finally {
-              e.target.value = ''; // allow re-importing same file
-            }
-          });
-        }
 
         this.loop();
         addEventListener('beforeunload', () => {
@@ -833,9 +736,9 @@
         }
         this.navLine.setLatLngs([from, to]).bringToFront();
         const b = bearing(from, to);
-        const d = haversine(from, to);
+        the_d = haversine(from, to);
         const err = this.S.heading == null ? null : Δ(this.S.heading, b);
-        this._navState = { b, d, err };
+        this._navState = { b, d: the_d, err };
         if (this.S.heading != null) {
           const on = Math.abs(err) < .5;
           if (on) {
@@ -1035,45 +938,56 @@
         requestAnimationFrame(() => this.loop());
       },
 
+      // PATCH: normalized cross-platform heading
       _setHeadingFromOrient() {
         const e = this._lastOrientEvent;
         if (!e) return;
-        // Detect iOS via webkitCompassHeading
-        let heading;
-        if (typeof e.webkitCompassHeading === 'number') {
-          heading = N(e.webkitCompassHeading + this.S.decl);
-        } else if (typeof e.alpha === 'number') {
-          // Fallback: use 360 - alpha
-          heading = N(360 - e.alpha + this.S.decl);
 
-          // Optionally invert on Android if configured
-          if ($('invertAndroid')?.checked) {
-            heading = N(-heading);
-          }
+        let heading = null;
+
+        // iOS provides webkitCompassHeading (already corrected for screen rotation)
+        if (typeof e.webkitCompassHeading === 'number' && Number.isFinite(e.webkitCompassHeading)) {
+          heading = e.webkitCompassHeading;
+        } else if (typeof e.alpha === 'number' && Number.isFinite(e.alpha)) {
+          // Android & others: flip and add current screen angle
+          const flip = 360 - e.alpha;           // make it clockwise from North
+          const ang  = getScreenAngle();        // portrait=0, landscape=90/270
+          heading = (flip + ang) % 360;
         } else {
-          return;
+          return; // no usable data
         }
 
-        const t = performance.now();
-
-        if (this._compassStartTs == null) {
-          this._compassStartTs = t;
+        // Optional override: your existing "invert Android" checkbox
+        if (isAndroid() && (document.getElementById('invertAndroid')?.checked)) {
+          heading = (360 - heading) % 360;
         }
+
+        // Add declination
+        heading = (heading + (this.S.decl || 0)) % 360;
+        if (heading < 0) heading += 360;
+
+        if (this._compassStartTs == null) this._compassStartTs = performance.now();
 
         if (this.S.heading == null) {
           this.S.heading = heading;
         } else {
-          const diff = Δ(this.S.heading, heading);
+          const diff = ((heading - this.S.heading + 540) % 360) - 180; // shortest path
           if (Math.abs(diff) >= this.DEAD_ZONE) {
             const step = Math.sign(diff) * Math.min(Math.abs(diff), this.MAX_STEP);
-            this.S.heading = N(this.S.heading + step);
+            this.S.heading = (this.S.heading + step + 360) % 360;
           }
         }
+
         this.S.mag = e.alpha ?? null;
       },
 
+      // PATCH: prefer absolute readings when available
       onOrient(e) {
-        this._lastOrientEvent = e;
+        if (e.absolute === true || e.type === 'deviceorientationabsolute' || typeof e.webkitCompassHeading === 'number') {
+          this._lastOrientEvent = e;
+        } else if (!this._lastOrientEvent) {
+          this._lastOrientEvent = e;
+        }
         this._setHeadingFromOrient();
       },
 
@@ -1112,15 +1026,25 @@
           return;
         }
         if (this.watchId != null) return;
+        let prev = null;
         this.watchId = navigator.geolocation.watchPosition(p => {
+          // keep a copy for course estimation
+          const old = prev;
+          prev = p;
+
           this.last = p;
           const { latitude, longitude, accuracy } = p.coords;
           this.accCircle.setLatLng([latitude, longitude]).setRadius(Math.max(accuracy || 0, 0));
           if (this.S.follow && !this.S.press) {
             this.map.setView([latitude, longitude], Math.max(this.map.getZoom(), 16), { animate: false });
           }
-          if (Number.isFinite(p.coords.heading)) {
-            // Optional: feed gps heading into orientation (less reliable though)
+
+          // PATCH (optional): when moving at >= 1 m/s, estimate heading from motion if we have no compass yet
+          if (old && Number.isFinite(p.coords.speed) && p.coords.speed >= 1 && this.S.rotate && this.S.heading == null) {
+            const prevLL = L.latLng(old.coords.latitude, old.coords.longitude);
+            const currLL = L.latLng(p.coords.latitude, p.coords.longitude);
+            const course = bearing(prevLL, currLL);
+            this.S.heading = course;
           }
         }, e => {
           alert('Unable to get location: ' + e.message);
@@ -1401,8 +1325,7 @@
           if (Number.isFinite(v)) {
             App.S.decl = v;
             if (App.S.mag != null) {
-              // Rerun setHeadingFromOrient
-              App._setHeadingFromOrient();
+              App._setHeadingFromOrient(); // recompute immediately
             }
             App.persist();
             App.updateHUD();
