@@ -1,1545 +1,850 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-  <meta name="theme-color" content="#0c1012"/>
-  <title>AP Alignment Tool — Dual-Platform Compass Fix</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+<meta name="theme-color" content="#0b0f12"/>
+<title>AP Alignment — Minimap Edition</title>
 
-  <link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin="anonymous"
-  />
-  <script
-    src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin="anonymous"
-  ></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 
-  <style>
-    :root {
-      --bg: #0c1012;
-      --elev-2: #10181c;
-      --ink: #e9f7f0;
-      --muted: #a7d3bd;
-      --brand: #2ac18a;
-      --line: rgba(255,255,255, .10);
-      --line-2: rgba(255,255,255, .16);
-      --glass: rgba(16,23,26, .76);
-      --glass-2: rgba(16,23,26, .9);
-      --shadow: 0 10px 32px rgba(0,0,0, .5);
-    }
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: var(--bg);
-      color: var(--ink);
-      -webkit-tap-highlight-color: transparent;
-    }
-    #map {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100svh;
-      height: 100vh;
-      min-height: 100%;
-      touch-action: none;
-    }
-    .appbar {
-      position: fixed;
-      top: 0;
-      left: 0; right: 0;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      background: var(--glass-2);
-      border-bottom: 1px solid var(--line-2);
-      backdrop-filter: blur(8px);
-      z-index: 1200;
-      box-shadow: var(--shadow);
-    }
-    .brand { font: 700 16px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; letter-spacing: .3px; }
-    .appbar .spacer { flex: 1; }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      font: 600 13px/1 system-ui;
-      cursor: pointer;
-    }
-    .chip .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--brand);
-    }
-    .dock {
-      position: fixed;
-      right: 12px;
-      top: 72px;
-      display: grid;
-      gap: 10px;
-      z-index: 1150;
-    }
-    .fab {
-      width: 52px; height: 52px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: var(--glass-2);
-      display: grid;
-      place-items: center;
-      box-shadow: var(--shadow);
-      cursor: pointer;
-    }
-    .fab.toggled { outline: 2px solid var(--brand); }
-    .panel {
-      position: fixed;
-      right: 12px;
-      top: 140px;
-      width: min(92vw, 380px);
-      max-height: 65vh;
-      overflow: auto;
-      background: var(--glass-2);
-      border: 1px solid var(--line-2);
-      border-radius: 16px;
-      padding: 12px;
-      z-index: 1100;
-      box-shadow: var(--shadow);
-      display: none;
-    }
-    .panel.open { display: block; }
-    .row { display: grid; gap: 8px; margin: 10px 0; }
-    .row input, .row button {
-      width: 100%;
-      padding: 12px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255, .04);
-      color: var(--ink);
-      font: 500 14px/1.2 system-ui;
-    }
-    .list { display: grid; gap: 8px; }
-    .item {
-      display: grid;
-      grid-template-columns: 1fr auto auto auto auto;
-      gap: 6px;
-      align-items: center;
-      padding: 8px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-    }
-    .item small { color: var(--muted); display: block; }
-    .item button { padding: 8px 10px; }
-    .btn {
-      appearance: none;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      color: var(--ink);
-      padding: 10px 12px;
-      border-radius: 12px;
-      font: 600 14px/1 system-ui;
-      cursor: pointer;
-    }
-    .btn.primary { border-color: var(--brand); }
-    .btn.danger { border-color: var(--brand); color: var(--brand); }
-    .hud {
-      position: fixed;
-      left: 12px; right: 12px;
-      bottom: env(safe-area-inset-bottom, 12px);
-      background: var(--glass);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 10px 12px;
-      backdrop-filter: blur(10px);
-      box-shadow: var(--shadow);
-      z-index: 1050;
-    }
-    .hud .metrics {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px 14px;
-    }
-    .metric {
-      display: flex;
-      gap: 6px;
-      align-items: baseline;
-    }
-    .metric span { color: var(--muted); font: 600 12px/1 system-ui; }
-    .metric .value {
-      color: var(--ink);
-      font: 700 15px/1 ui-monospace;
-      letter-spacing: .2px;
-    }
-    .align {
-      position: fixed;
-      top: 64px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--glass-2);
-      border: 1px solid var(--line-2);
-      border-radius: 12px;
-      padding: 8px 12px;
-      font: 700 13px/1 system-ui;
-      color: var(--ink);
-      box-shadow: var(--shadow);
-      z-index: 1200;
-    }
-    .align .name.unstable { color: var(--muted); }
-    .align.pulse {
-      outline: 2px solid var(--brand);
-      box-shadow: 0 0 0 0 rgba(42,193,138, .55);
-      animation: pulse .6s ease;
-    }
-    @keyframes pulse {
-      to {
-        outline-color: transparent;
-        box-shadow: 0 0 0 22px rgba(42,193,138, 0);
-      }
-    }
-    .dot-pin {
-      border-radius: 50%;
-      background: var(--elev-2);
-      border: 2px solid var(--brand);
-      box-shadow: 0 4px 14px rgba(0,0,0, .5);
-    }
-    .guide-hit { filter: drop-shadow(0 0 7px #ff4444); }
-    .leaflet-control-attribution, .leaflet-control-zoom {
-      filter: drop-shadow(0 6px 12px rgba(0,0,0, .35));
-    }
-    .leaflet-container a { color: var(--muted); }
-    .leaflet-map-pane { will-change: transform; }
-    .leaflet-popup-content {
-      font: 500 13px/1.35 system-ui;
-      color: var(--ink);
-    }
-    .floating-popup .leaflet-popup-content-wrapper {
-      background: var(--glass-2);
-      border: 1px solid var(--line-2);
-      backdrop-filter: blur(8px);
-      border-radius: 12px;
-      box-shadow: var(--shadow);
-    }
-    .floating-popup .leaflet-popup-tip {
-      background: var(--glass-2);
-      border: 1px solid var(--line-2);
-    }
-    .floating-popup .leaflet-popup-content {
-      margin: 10px 12px;
-    }
-    .popup-grid { display: grid; gap: 8px; }
-    .popup-input {
-      width: 100%;
-      padding: 8px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255, .06);
-      color: var(--ink);
-      font: 500 13px/1;
-    }
-    .popup-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-    .mini-label {
-      background: var(--glass);
-      color: var(--ink);
-      padding: 2px 6px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      font: 600 12px/1 system-ui;
-      backdrop-filter: blur(4px);
-      pointer-events: none;
-    }
-    #error {
-      position: fixed;
-      left: 12px; right: 12px;
-      top: 12px;
-      z-index: 2000;
-      background: #2a1d1d;
-      color: #ffdede;
-      border: 1px solid #ff6b6b;
-      border-radius: 10px;
-      padding: 10px 36px 10px 12px;
-      font: 600 13px/1.35 ui-monospace;
-      display: none;
-    }
-    #errClose {
-      position: absolute;
-      right: 8px; top: 6px;
-      background: transparent;
-      border: none;
-      color: #ffdede;
-      font: 700 18px/1 system-ui;
-      cursor: pointer;
-    }
-    #errClose:focus {
-      outline: 2px solid #ff9b9b;
-      border-radius: 6px;
-    }
-  </style>
+<style>
+:root{
+  --bg:#0b0f12; --ink:#eafaf5; --muted:#9ed6c2; --brand:#17f0c8; --brand-2:#2ac18a;
+  --line:rgba(255,255,255,.1); --line2:rgba(255,255,255,.18);
+  --glass:rgba(12,18,20,.7); --glass2:rgba(12,18,20,.88);
+  --shadow:0 16px 40px rgba(0,0,0,.55);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 110%, #0b0f12 40%, #06080a 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,ui-sans-serif}
+a{color:var(--muted)}
+/* ===== Layout ============================================================ */
+.app{
+  position:fixed; inset:0; display:grid;
+  grid-template-rows: 64px 1fr 120px;
+  grid-template-columns: 1fr;
+}
+.topbar{
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  border-bottom:1px solid var(--line2);
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.00));
+  backdrop-filter: blur(8px);
+  z-index:20;
+}
+.brand{
+  font-weight:800; letter-spacing:.3px; font-size:15px; opacity:.9;
+}
+.alignbar{
+  flex:1; height:26px; border:1px solid var(--line2); border-radius:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+  display:grid; grid-template-columns: 1fr auto; overflow:hidden;
+}
+.alignbar .needle{
+  --err:0deg;
+  position:relative;
+  isolation:isolate;
+}
+.alignbar .needle::before{
+  content:""; position:absolute; inset:0;
+  background:
+    linear-gradient(90deg, rgba(23,240,200,.00) 0%,
+                           rgba(23,240,200,.75) 50%,
+                           rgba(23,240,200,.00) 100%);
+  transform:translateX(calc(var(--err) * 0.7)); /* visualize Δ heading */
+  mix-blend-mode:screen; filter:blur(3px); opacity:.7;
+}
+.alignbar .readout{
+  display:flex; align-items:center; gap:8px; padding:0 10px;
+  font-weight:700; font-variant-numeric:tabular-nums;
+}
+.btn{
+  appearance:none; border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+  color:var(--ink); border-radius:12px; padding:10px 12px; font-weight:700; cursor:pointer;
+}
+.btn.ghost{ background:transparent }
+.btn.glow{ border-color:var(--brand); box-shadow:0 0 0 1px rgba(23,240,200,.2), 0 0 32px rgba(23,240,200,.18) inset }
+.btn.small{ padding:8px 10px; font-size:13px }
+.spacer{flex:1}
+
+/* ===== Minimap ========================================================== */
+.stage{
+  position:relative; display:grid; place-items:center; overflow:hidden;
+}
+.minimap{
+  position:relative; width:min(88vmin, 700px); aspect-ratio:1/1;
+  border-radius:50%;
+  box-shadow: 0 12px 32px rgba(0,0,0,.55), 0 0 0 1px var(--line2) inset,
+              0 0 60px rgba(23,240,200,.08) inset;
+  background: radial-gradient(60% 60% at 50% 50%, rgba(23,240,200,.06), rgba(23,240,200,.01) 60%, rgba(0,0,0,.0) 62%),
+              radial-gradient(90% 90% at 50% 50%, rgba(0,0,0,.0) 60%, rgba(23,240,200,.07) 102%);
+}
+.map-wrap{
+  position:absolute; inset:3%; border-radius:50%;
+  overflow:hidden; filter: drop-shadow(0 20px 30px rgba(0,0,0,.35));
+}
+#map{
+  position:absolute; inset:-6%; /* extend beyond crop for rotation */
+  will-change:transform;
+}
+.ring, .ring2{
+  position:absolute; inset:0; border-radius:50%; pointer-events:none;
+  border:1px dashed rgba(255,255,255,.14);
+}
+.ring2{ inset:6%; border-style:solid; border-width:2px; border-color:rgba(23,240,200,.12) }
+.cardinals{
+  position:absolute; inset:0; display:grid; place-items:center; pointer-events:none;
+  font-weight:800; letter-spacing:1.5px; font-size:10px; color:#b6fff0aa; text-shadow:0 1px 0 #000;
+}
+.cardinals span{ position:absolute }
+.cardinals .N{ top:2%; } .S{ bottom:2% } .E{ right:3% } .W{ left:3% }
+/* Sweep beam */
+.sweep{
+  --rot:0deg;
+  position:absolute; inset:3%;
+  border-radius:50%;
+  overflow:hidden; pointer-events:none; mix-blend-mode:screen;
+}
+.sweep::before{
+  content:""; position:absolute; inset:-20%;
+  background: conic-gradient(from 0deg,
+      rgba(23,240,200,0) 0deg,
+      rgba(23,240,200,.0) 5deg,
+      rgba(23,240,200,.15) 12deg,
+      rgba(23,240,200,.06) 18deg,
+      rgba(23,240,200,0) 24deg);
+  transform:rotate(var(--rot));
+  transform-origin:50% 50%;
+  animation:spin 4s linear infinite;
+  filter:blur(1.6px);
+}
+@keyframes spin{ to{ transform:rotate(360deg) } }
+
+/* Target pings */
+.ping{
+  position:absolute; width:10px; height:10px; border-radius:50%;
+  background:radial-gradient(circle, #bffff3, #17f0c8 60%, #17f0c800 62%);
+  box-shadow:0 0 24px rgba(23,240,200,.65), 0 0 0 1px rgba(23,240,200,.7) inset;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+}
+.ping.flash{
+  animation:ping 0.7s ease-out 1;
+}
+@keyframes ping{
+  0%{ box-shadow:0 0 0 2px rgba(23,240,200,.9), 0 0 20px rgba(23,240,200,.9) }
+  100%{ box-shadow:0 0 0 10px rgba(23,240,200,0), 0 0 40px rgba(23,240,200,0) }
+}
+
+/* ===== HUD bottom ======================================================= */
+.hud{
+  display:grid; grid-template-columns: 1fr auto 1fr; align-items:center;
+  gap:12px; padding:10px 14px 20px;
+}
+.stat{
+  display:flex; gap:8px; align-items:baseline; flex-wrap:wrap;
+}
+.k{color:var(--muted); font-weight:700; font-size:12px}
+.v{font-weight:900; font-variant-numeric:tabular-nums}
+.center-controls{ display:flex; gap:10px }
+.badge{ padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:var(--glass2) }
+
+/* ===== Radial Menu ====================================================== */
+.radial{
+  position:fixed; inset:0; display:none; place-items:center; z-index:40;
+  background:rgba(0,0,0,.35); backdrop-filter:blur(3px);
+}
+.radial.open{ display:grid }
+.radial .ring{
+  position:relative; width:min(70vmin,560px); aspect-ratio:1/1; border-radius:50%;
+  border:1px solid var(--line2); background:radial-gradient(50% 50% at 50% 50%, rgba(23,240,200,.06), rgba(23,240,200,0) 60%);
+  box-shadow:0 0 0 1px rgba(23,240,200,.15) inset, 0 50px 80px rgba(0,0,0,.45);
+}
+.radial .action{
+  position:absolute; transform:translate(-50%,-50%);
+  width:44%; max-width:230px;
+  display:grid; place-items:center; text-align:center; gap:8px;
+}
+.radial .action .btn{ width:100% }
+.radial .label{font-size:12px; color:var(--muted)}
+.radial .close{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+}
+
+/* ===== Leaflet tweaks =================================================== */
+.leaflet-container{ background:transparent; }
+.leaflet-control-attribution, .leaflet-control-zoom{ filter:drop-shadow(0 6px 12px rgba(0,0,0,.35)) }
+.leaflet-tooltip.mini{ background:rgba(0,0,0,.5); border:1px solid var(--line2); color:#dffcf5; border-radius:8px; padding:2px 6px }
+
+/* Error toast */
+.toast{
+  position:fixed; left:12px; right:12px; top:12px; z-index:50;
+  background:#2a1d1d; color:#ffdede; border:1px solid #ff6b6b; border-radius:10px;
+  padding:10px 36px 10px 12px; font-weight:700; display:none;
+}
+.toast .x{ position:absolute; right:8px; top:6px; background:transparent; border:none; color:#ffdede; font-weight:900; cursor:pointer }
+</style>
 </head>
-
 <body>
-  <div id="map" aria-label="Map"></div>
-  <div id="error"><button id="errClose" aria-label="Dismiss">×</button><span id="errMsg"></span></div>
-
-  <div class="appbar" role="toolbar">
-    <div class="brand">AP Alignment Tool</div>
+<div class="app">
+  <!-- Top -->
+  <div class="topbar">
+    <div class="brand">AP Alignment — Minimap</div>
     <div class="spacer"></div>
-    <button id="chipFollow" class="chip" aria-pressed="true" title="Toggle Follow (F)">
-      <span class="dot" id="dotFollow"></span> Follow
-    </button>
-    <button id="chipRotate" class="chip" aria-pressed="false" title="Toggle Rotate/Compass (R)">
-      <span class="dot" id="dotRotate" style="background: #888;"></span> Rotate
-    </button>
+    <button id="btnMenu" class="btn small ghost" title="Menu (hold)">⚙️</button>
   </div>
 
-  <div id="alignBanner" class="align">
-    Aligned: <b id="alignName" class="name unstable">—</b>
-  </div>
-
-  <div class="dock">
-    <button id="btnLocate" class="fab" title="Enable GPS (L)">📡</button>
-    <button id="btnWaypoints" class a="fab" aria-haspopup="true" aria-controls="wpPanel" aria-expanded="false" title="Waypoints">📍</button>
-    <button id="btnSettings" class="fab" aria-haspopup="true" aria-controls="settingsPanel" aria-expanded="false" title="Settings">⚙️</button>
-    <button id="btnReset" class="fab" title="Reset / Clear Nav (C)">↺</button>
-  </div>
-
-  <div id="wpPanel" class="panel" aria-hidden="true">
-    <div class="row">
-      <input id="wpName" placeholder="Name (e.g., Tower SE)" aria-label="Waypoint name"/>
-      <input
-        id="wpCoords"
-        placeholder="34.851939 N, -119.168399 W or 34.851939,-119.168399"
-        aria-label="Coordinates"
-      />
-      <button id="wpAdd" class="btn primary">Add / Update</button>
+  <!-- Stage -->
+  <div class="stage">
+    <div class="minimap" aria-label="Minimap">
+      <div class="ring"></div>
+      <div class="ring2"></div>
+      <div class="map-wrap">
+        <div id="map" aria-label="Map"></div>
+      </div>
+      <div class="cardinals">
+        <span class="N">N</span><span class="S">S</span><span class="E">E</span><span class="W">W</span>
+      </div>
+      <div class="sweep" id="sweep"></div>
     </div>
-    <div class="list" id="wpList" aria-live="polite"></div>
   </div>
 
-  <div id="settingsPanel" class="panel" aria-hidden="true">
-    <div class="row">
-      <div style="display: grid; gap: 8px;">
-        <label for="declSlider" style="font:600 13px/1 system-ui">Declination Offset</label>
-        <input id="declSlider" type="range" min="-30" max="30" step="0.1" aria-label="Declination slider"/>
-        <div style="color: var(--muted); font-size: 12px;">
-          True heading = Magnetic + <span id="declVal" style="font:600 12px/1 ui-monospace">0.0°</span>
+  <!-- HUD -->
+  <div class="hud">
+    <div class="stat">
+      <span class="k">LAT</span><span id="hudLat" class="v">—</span>
+      <span class="k">LNG</span><span id="hudLng" class="v">—</span>
+      <span class="k">ACC</span><span id="hudAcc" class="v">— m</span>
+    </div>
+    <div class="center-controls">
+      <button id="btnGPS" class="btn glow" title="Enable GPS (L)">📡 GPS</button>
+      <button id="btnRotate" class="btn" title="Toggle Rotate/Compass (R)">🧭 Rotate</button>
+      <button id="btnReset" class="btn" title="Recenter / Clear Nav (C)">↺ Reset</button>
+    </div>
+    <div class="stat" style="justify-self:end">
+      <span class="k">HEAD</span><span id="hudHead" class="v">—°</span>
+      <span class="k">MAP</span><span id="hudMap" class="v">—°</span>
+      <span class="k">ALIGN</span><span id="hudAlign" class="v">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- Radial menu -->
+<div id="radial" class="radial" aria-hidden="true">
+  <div class="ring">
+    <button class="btn close" id="radialClose">✕</button>
+
+    <div class="action" style="top:14%; left:50%">
+      <div class="label">Declination</div>
+      <input id="declSlider" type="range" min="-30" max="30" step="0.1" style="width:100%"/>
+      <div class="badge">True = Magnetic + <b id="declVal">0.0°</b></div>
+      <button id="declSave" class="btn glow">Save</button>
+    </div>
+
+    <div class="action" style="top:50%; left:85%">
+      <div class="label">Waypoints</div>
+      <div class="badge" style="width:100%; text-align:left">
+        <div style="display:grid; gap:8px">
+          <input id="wpName" placeholder="Name" class="btn" style="text-align:left"/>
+          <input id="wpCoords" placeholder="34.851939,-119.168399" class="btn" style="text-align:left"/>
+          <button id="wpAdd" class="btn glow">Add / Update</button>
+          <div id="wpList" style="max-height:180px; overflow:auto; border:1px solid var(--line); border-radius:10px; padding:6px"></div>
         </div>
-        <button id="declSave" class="btn primary">Save</button>
-      </div>
-      <div class="row">
-        <label><input type="checkbox" id="invertAndroid"/> Invert Android Heading</label>
       </div>
     </div>
+
+    <div class="action" style="top:86%; left:50%">
+      <div class="label">Platform</div>
+      <label class="badge" style="display:flex; gap:10px; align-items:center">
+        <input type="checkbox" id="invertAndroid"/>
+        Invert Android heading
+      </label>
+    </div>
+
+    <div class="action" style="top:50%; left:15%">
+      <div class="label">Shortcuts</div>
+      <button id="rmGPS" class="btn">📡 Start GPS</button>
+      <button id="rmRotate" class="btn">🧭 Toggle Rotate</button>
+      <button id="rmReset" class="btn">↺ Reset</button>
+    </div>
   </div>
-
-  <div class="hud" id="readout"><div class="metrics"></div></div>
-
-  <script>
-  'use strict';
-  (function() {
-    function showError(m) {
-      const e = document.getElementById('error'), s = document.getElementById('errMsg');
-      if (!e || !s) { alert(m); return; }
-      s.textContent = m || 'Error';
-      e.style.display = 'block';
-      console.error(m);
-    }
-    function hideError() {
-      const e = document.getElementById('error'), s = document.getElementById('errMsg');
-      if (!e || !s) return;
-      s.textContent = '';
-      e.style.display = 'none';
-    }
-
-    if (!window.L) {
-      showError('Leaflet failed to load.');
-      return;
-    }
-
-    const $ = id => document.getElementById(id);
-    const R = d => d * Math.PI/180;
-    const Dg = r => r * 180/Math.PI;
-    const N = d => ((d % 360) + 360) % 360;
-    const Δ = (a, b) => {
-      let d = N(b) - N(a);
-      if (d > 180) d -= 360;
-      else if (d < -180) d += 360;
-      return d;
-    };
-    const blend = (p, n, a) => p == null ? n : N(p + a * Δ(p, n));
-    const fix = v => Number(v).toFixed(6);
-    const fmtDist = m => (m < 1000) ? `${Math.round(m)} m` : `${(m/1000).toFixed(2)} km`;
-    const haversine = (a, b) => {
-      const Rm = 6371000;
-      const φ1 = R(a.lat), φ2 = R(b.lat);
-      const dφ = R(b.lat - a.lat), dλ = R(b.lng - a.lng);
-      const s = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
-      return 2 * Rm * Math.asin(Math.min(1, Math.sqrt(s)));
-    };
-    const bearing = (a, b) => {
-      const φ1 = R(a.lat), φ2 = R(b.lat), λ1 = R(a.lng), λ2 = R(b.lng);
-      const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
-      const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2 - λ1);
-      return N(Dg(Math.atan2(y, x)));
-    };
-    const dest = (ll, b, dm) => {
-      const br = R(b), dr = dm / 6371000;
-      const lat1 = R(ll.lat), lon1 = R(ll.lng);
-      const lat2 = Math.asin(Math.sin(lat1)*Math.cos(dr) + Math.cos(lat1)*Math.sin(dr)*Math.cos(br));
-      const lon2 = lon1 + Math.atan2(
-        Math.sin(br)*Math.sin(dr)*Math.cos(lat1),
-        Math.cos(dr) - Math.sin(lat1)*Math.sin(lat2)
-      );
-      return L.latLng(Dg(lat2), Dg(lon2));
-    };
-    const DotIcon = s => L.divIcon({ className: 'dot-pin', iconSize: [s, s], iconAnchor: [s/2, s/2] });
-    const makeDot = (lat, lng, size = 12) =>
-      L.marker([lat, lng], { icon: DotIcon(size), riseOnHover: true });
-
-    function parseCoords(t) {
-      const s = t.trim().replace(/\s+/g, ' ').replace(/[,;]+/g, ',');
-      const m = s.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
-      if (m) {
-        const lat = +m[1], lng = +m[3];
-        if (isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-          return { lat, lng };
-        }
-      }
-      const parts = s.split(',');
-      if (parts.length === 2) {
-        const one = q => {
-          const x = q.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i);
-          if (!x) return null;
-          const h = (x[1] || x[4] || '').toUpperCase();
-          let v = parseFloat(x[2]);
-          if (h === 'S' || h === 'W') v = -Math.abs(v);
-          if (h === 'N' || h === 'E') v = Math.abs(v);
-          return { v, h };
-        };
-        const a = one(parts[0]), b = one(parts[1]);
-        if (a && b) {
-          const lat = (a.h === 'N' || a.h === 'S') ? a.v : b.v;
-          const lng = (a.h === 'E' || a.h === 'W') ? a.v : b.v;
-          if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-            return { lat, lng };
-          }
-        }
-      }
-      return null;
-    }
-
-    // PATCH: helpers for Android heading normalization
-    const getScreenAngle = () => {
-      if (screen && screen.orientation && typeof screen.orientation.angle === 'number') {
-        return screen.orientation.angle; // 0, 90, 180, 270
-      }
-      const o = window.orientation;
-      return (typeof o === 'number') ? (o % 360 + 360) % 360 : 0;
-    };
-    const isAndroid = () =>
-      /Android/i.test(navigator.userAgent || '') || /\bAdr\b/i.test(navigator.userAgent || '');
-
-    const AudioHaptics = (() => {
-      let ctx = null;
-      const ensure = () => {
-        if (!ctx) {
-          const AC = window.AudioContext || window.webkitAudioContext;
-          if (!AC) return null;
-          ctx = new AC();
-        }
-        if (ctx.state === 'suspended') ctx.resume();
-        return ctx;
-      };
-      const prime = () => { ensure(); };
-      addEventListener('pointerdown', prime, { passive: true });
-      addEventListener('keydown', prime);
-      const click = () => {
-        const c = ensure();
-        if (!c || c.state !== 'running') return;
-        const t = c.currentTime;
-        const osc = c.createOscillator(), g = c.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(120, t);
-        g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(0.25, t + 0.001);
-        g.gain.exponentialRampToValueAtTime(0.0009, t + 0.03);
-        osc.connect(g).connect(c.destination);
-        osc.start(t);
-        osc.stop(t + 0.035);
-      };
-      return { click };
-    })();
-    const Haptics = (() => {
-      let last = 0;
-      return {
-        hit() {
-          const n = performance.now();
-          if (n - last < 260) return;
-          last = n;
-          try {
-            if ('vibrate' in navigator) {
-              navigator.vibrate(10);
-              return;
-            }
-          } catch (_) {}
-          AudioHaptics.click();
-        }
-      };
-    })();
-
-    const Store = {
-      stateKey: 'mapapp.state.v3',
-      wpKey: 'mapapp.waypoints.v3',
-      loadState() {
-        try { return JSON.parse(localStorage.getItem(this.stateKey) || '{}'); }
-        catch { return {}; }
-      },
-      saveState(s) {
-        try { localStorage.setItem(this.stateKey, JSON.stringify(s)); }
-        catch { }
-      },
-      loadWPs() {
-        try { return JSON.parse(localStorage.getItem(this.wpKey) || '[]'); }
-        catch { return []; }
-      },
-      saveWPs(a) {
-        try { localStorage.setItem(this.wpKey, JSON.stringify(a)); }
-        catch { }
-      }
-    };
-
-    const App = {
-      S: {
-        follow: true,
-        heading: null,
-        bearing: 0,
-        rotate: false,
-        press: false,
-        fAngle: null,
-        fPivot: null,
-        dest: null,
-        compass: false,
-        decl: 0,
-        omega: 0,
-        mag: null
-      },
-      DEF: { lat: 34.9, lng: -119.17, z: 16 },
-      map: null,
-      last: null,
-      ray: null,
-      originDot: null,
-      navLine: null,
-      accCircle: null,
-      _navState: null,
-      _lastOverlayAngle: null,
-      _compassBound: false,
-      watchId: null,
-      _lastAbsTs: 0,
-      _tHUD: 0,
-      _tNav: 0,
-      _tAlign: 0,
-      _lastAlignLL: null,
-      _lastAlignHead: null,
-      _aligned: null,
-      _pending: null,
-      ALIGN: { ENTER: 0.35, EXIT: 0.60, DWELL_BASE: 60 },
-      SCAN: { FLASH: 500, COOLDOWN: 600 },
-      RAY: { ACTIVE: 0.15 },
-      _flashName: null,
-      _flashUntil: 0,
-      _flashCooldown: new Map(),
-      _flashTarget: null,
-
-      // warm-up & smoothing
-      _compassStartTs: null,
-      WARMUP_MS: 2000,
-
-      // settings for smoothing
-      SMOOTH_ALPHA: 0.15,
-      DEAD_ZONE: 0.5,  // degrees
-      MAX_STEP: 5,    // max change per update
-
-      // store last orientation event
-      _lastOrientEvent: null,
-
-      init() {
-        const s = Store.loadState();
-        if (typeof s.follow === 'boolean') this.S.follow = s.follow;
-        if (typeof s.rotate === 'boolean') this.S.rotate = s.rotate;
-        if (typeof s.bearing === 'number') this.S.bearing = N(s.bearing);
-        if (typeof s.decl === 'number') this.S.decl = +s.decl || 0;
-
-        this.map = L.map('map', { zoomControl: true, attributionControl: true });
-
-        // PATCH: swap OSM for Esri Topo basemap
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
-          maxZoom: 19,
-          attribution: 'Tiles © Esri — Source: Esri, Garmin, USGS, NPS, and others'
-        }).addTo(this.map);
-
-        this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
-        this.accCircle = L.circle([this.DEF.lat, this.DEF.lng], {
-          radius: 0, color: '#4db6ff', weight: 1, opacity: .6, fillOpacity: .08
-        }).addTo(this.map);
-
-        UI.bind();
-        this.bindMap();
-        this.bindKeys();
-        Waypoints.init();
-        Pins.init();
-
-        this.applyBearing(this.S.bearing);
-        UI.sync(this.S);
-        UI.declInit(this.S.decl);
-
-        this.loop();
-        addEventListener('beforeunload', () => {
-          this.persist();
-          this.stopGPS();
-        }, { once: true });
-      },
-
-      persist() {
-        Store.saveState({
-          follow: this.S.follow,
-          rotate: this.S.rotate,
-          bearing: this.S.bearing,
-          decl: this.S.decl
-        });
-      },
-
-      setFollow(v) {
-        this.S.follow = !!v;
-        UI.sync(this.S);
-        if (this.S.follow && this.last) {
-          const { latitude, longitude } = this.last.coords;
-          this.map.setView([latitude, longitude], Math.max(this.map.getZoom(), 16), { animate: false });
-        }
-      },
-
-      setRotate(v) {
-        this.S.rotate = !!v;
-        if (this.S.rotate) this.setFollow(true);
-        UI.sync(this.S);
-        this.applyBearing(this.S.bearing);
-        this.persist();
-      },
-
-      uprightOverlays(deg) {
-        if (this._lastOverlayAngle != null && Math.abs(Δ(this._lastOverlayAngle, deg)) < 0.12) {
-          return;
-        }
-        this._lastOverlayAngle = deg;
-        const rot = ` rotate(${deg}deg)`;
-        const fixEl = el => {
-          if (!el || !el.style) return;
-          const base = (el.style.transform || '').replace(/rotate\([^)]*\)/g, '').trim();
-          el.style.transformOrigin = el.classList && el.classList.contains('leaflet-popup') ?
-            'bottom center' : 'left center';
-          el.style.transform = base + rot;
-        };
-        this.map.getPanes().popupPane?.querySelectorAll('.leaflet-popup').forEach(fixEl);
-        this.map.getPanes().tooltipPane?.querySelectorAll('.leaflet-tooltip').forEach(fixEl);
-      },
-
-      applyBearing(d) {
-        const pane = this.map.getPane && this.map.getPane('mapPane');
-        if (!pane) {
-          console.warn("mapPane not found");
-          return;
-        }
-        let origin = '50% 50%';
-        if (this.last) {
-          const p = this.map.latLngToContainerPoint([this.last.coords.latitude, this.last.coords.longitude]);
-          origin = `${p.x}px ${p.y}px`;
-        }
-        const base = (pane.style.transform || '').replace(/rotate\([^)]*\)/g, '');
-        pane.style.transformOrigin = origin;
-        pane.style.transform = base + ` rotate(${-d}deg)`;
-        this.uprightOverlays(d);
-      },
-
-      refreshRay() {
-        if (!this.last) {
-          this.ray?.setLatLngs([]);
-          return;
-        }
-        const originLL = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
-        if (!this.originDot) {
-          this.originDot = L.circleMarker(originLL, {
-            radius: 3, color: '#2aff2a', weight: 2, fillColor: '#2aff2a', fillOpacity: 1, interactive: false
-          }).addTo(this.map);
-        } else {
-          this.originDot.setLatLng(originLL).bringToFront();
-        }
-        if (this.S.heading == null) return;
-        if (!this.ray) {
-          this.ray = L.polyline([], {
-            color: '#2aff2a', weight: 3, opacity: 1, interactive: false
-          }).addTo(this.map);
-        }
-        this.ray.setLatLngs([originLL, dest(originLL, this.S.heading, this.rayLen())]).bringToFront();
-      },
-
-      rayLen() {
-        const s = this.map.getSize();
-        return Math.max(Math.hypot(s.x, s.y) * this.mpp() * 1.35 + 200, 3000);
-      },
-
-      mpp() {
-        const s = this.map.getSize();
-        const a = this.map.containerPointToLatLng(L.point(s.x/2, s.y/2));
-        const b = this.map.containerPointToLatLng(L.point(s.x/2 + 1, s.y/2));
-        return this.map.distance(a, b) || 1;
-      },
-
-      _setRay(red) {
-        if (!this.ray) return;
-        if (red) {
-          this.ray.setStyle({ color: '#ff4444', weight: 4, opacity: 1 });
-          this.ray.getElement?.().classList.add('guide-hit');
-        } else {
-          this.ray.setStyle({ color: '#2aff2a', weight: 3, opacity: 1 });
-          this.ray.getElement?.().classList.remove('guide-hit');
-        }
-      },
-
-      refreshNav() {
-        if (!this.S.dest || !this.last) {
-          this.navLine?.setLatLngs([]);
-          UI.setReset('Reset');
-          this._navState = null;
-          return;
-        }
-        UI.setReset('Clear Nav');
-        const from = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
-        const to = L.latLng(this.S.dest.lat, this.S.dest.lng);
-        if (!this.navLine) {
-          this.navLine = L.polyline([], {
-            color: '#2ac18a',
-            weight: 3,
-            opacity: .95,
-            interactive: false,
-            dashArray: '6 6'
-          }).addTo(this.map);
-        }
-        this.navLine.setLatLngs([from, to]).bringToFront();
-        const b = bearing(from, to);
-        the_d = haversine(from, to);
-        const err = this.S.heading == null ? null : Δ(this.S.heading, b);
-        this._navState = { b, d: the_d, err };
-        if (this.S.heading != null) {
-          const on = Math.abs(err) < .5;
-          if (on) {
-            this.navLine.setStyle({ color: '#ff4444', weight: 4, opacity: 1 });
-            this.navLine.getElement?.().classList.add('guide-hit');
-          } else {
-            this.navLine.setStyle({ color: '#2ac18a', weight: 3, opacity: .95 });
-            this.navLine.getElement?.().classList.remove('guide-hit');
-          }
-        }
-      },
-
-      candidates() {
-        const list = [];
-        Waypoints.markers.forEach((m, name) => list.push({ name, ll: m.getLatLng() }));
-        if (Pins.pin) {
-          const ll = Pins.pin.getLatLng();
-          const nm = Pins.pin._nm || `Pin ${fix(ll.lat)},${fix(ll.lng)}`;
-          list.push({ name: nm, ll });
-        }
-        return list;
-      },
-
-      between(a, b, x) {
-        const ab = Δ(a, b), ax = Δ(a, x);
-        return Math.sign(ab) === Math.sign(ax) && Math.abs(ax) <= Math.abs(ab);
-      },
-
-      checkAnyAlignment() {
-        const now = performance.now();
-        if (!this.last || this.S.heading == null) {
-          this._pending = null;
-          if (!(this._flashName && now < (this._flashUntil || 0))) {
-            this._aligned = null;
-            this._flashName = null;
-            this._flashUntil = 0;
-            this._flashTarget = null;
-            this._setRay(false);
-            UI.bannerUnset();
-          }
-          return;
-        }
-
-        if (this._compassStartTs != null && (now - this._compassStartTs) < this.WARMUP_MS) {
-          return;
-        }
-
-        if (now - this._tAlign < 30) return;
-        this._tAlign = now;
-
-        const from = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
-        const head = this.S.heading;
-        const prevHead = this._lastAlignHead ?? head;
-        const movedLL = !this._lastAlignLL || this.map.distance(this._lastAlignLL, from) > 1.8;
-        const movedHead = this._lastAlignHead == null || Math.abs(Δ(this._lastAlignHead, head)) > 0.06;
-        if (!movedLL && !movedHead) return;
-        this._lastAlignLL = from;
-        this._lastAlignHead = head;
-
-        const cand = this.candidates();
-        if (cand.length === 0) {
-          this._setRay(false);
-          UI.bannerUnset();
-          return;
-        }
-
-        let instBest = null, instErr = Infinity, instDist = Infinity;
-        for (const c of cand) {
-          const br = bearing(from, c.ll);
-          const err = Math.abs(Δ(head, br));
-          const dist = haversine(from, c.ll);
-          if (err < instErr - 1e-6 || (Math.abs(err - instErr) < 1e-6 && dist < instDist)) {
-            instBest = { ...c, brg: br };
-            instErr = err;
-            instDist = dist;
-          }
-        }
-
-        const rayTarget = this._aligned || this._flashTarget || instBest;
-        const rayErr = rayTarget ? Math.abs(Δ(head, bearing(from, rayTarget.ll))) : Infinity;
-        this._setRay(rayErr <= this.RAY.ACTIVE);
-
-        const step = Math.abs(Δ(prevHead, head));
-        const dwell = Math.max(0, this.ALIGN.DWELL_BASE - 0.6 * (this.S.omega || 0));
-        const enter = this.ALIGN.ENTER, exit = this.ALIGN.EXIT;
-
-        if (this._aligned) {
-          const e = Math.abs(Δ(head, bearing(from, this._aligned.ll)));
-          if (e <= exit) {
-            UI.bannerLock(this._aligned.name, false);
-            return;
-          }
-          this._aligned = null;
-        }
-
-        if (instBest && instErr <= enter) {
-          if (this._pending && this._pending.name === instBest.name) {
-            if (now - this._pending.since >= dwell) {
-              this._aligned = { name: instBest.name, ll: instBest.ll, err: instErr, dist: instDist };
-              this._pending = null;
-              this._flashName = null;
-              this._flashUntil = 0;
-              this._flashTarget = null;
-              UI.bannerLock(this._aligned.name, true);
-              Haptics.hit();
-              return;
-            }
-          } else {
-            this._pending = { name: instBest.name, since: now };
-          }
-        } else {
-          this._pending = null;
-        }
-
-        let flashPick = null, flashErr = Infinity;
-        if (step <= 35) {
-          for (const c of cand) {
-            const br = bearing(from, c.ll);
-            if (this.between(prevHead, head, br)) {
-              const e = Math.abs(Δ(head, br));
-              if (e < flashErr) {
-                flashErr = e;
-                flashPick = c;
-              }
-            }
-          }
-        }
-        if (flashPick) {
-          const lastFire = this._flashCooldown.get(flashPick.name) || 0;
-          if (now - lastFire > this.SCAN.COOLDOWN) {
-            this._flashCooldown.set(flashPick.name, now);
-            this._flashName = flashPick.name;
-            this._flashUntil = now + this.SCAN.FLASH;
-            this._flashTarget = { name: flashPick.name, ll: flashPick.ll };
-            UI.bannerFlash(this._flashName, true);
-            Haptics.hit();
-          }
-        }
-        if (this._flashName && now > this._flashUntil) {
-          this._flashName = null;
-          this._flashUntil = 0;
-          this._flashTarget = null;
-          UI.bannerUnset();
-        }
-      },
-
-      updateHUD() {
-        const now = performance.now();
-        if (now - this._tHUD < 120) return;
-        this._tHUD = now;
-
-        const lat = this.last?.coords?.latitude?.toFixed(6) ?? '—';
-        const lng = this.last?.coords?.longitude?.toFixed(6) ?? '—';
-        const acc = this.last?.coords?.accuracy ? Math.round(this.last.coords.accuracy) : '—';
-        const hd = this.S.heading != null ? (this.S.heading).toFixed(2) : '—';
-        const mb = (N(-this.S.bearing)).toFixed(2);
-        const alignName = this._aligned?.name || (this._flashName ?? 'none');
-
-        let nav = '';
-        if (this.S.dest && this.last) {
-          const b = this._navState?.b, d = this._navState?.d;
-          const steer = (this._navState?.err != null) ? this._navState.err.toFixed(2) : '—';
-          nav = `<div class="metric"><span>To</span><b class="value">${this.S.dest.name || 'Dest'}</b></div>` +
-                `<div class="metric"><span>Dist</span><b class="value">${fmtDist(d ?? 0)}</b></div>` +
-                `<div class="metric"><span>Brg</span><b class="value">${(b ?? 0).toFixed(2)}°</b></div>` +
-                `<div class="metric"><span>Δ</span><b class="value">${steer}°</b></div>`;
-        }
-
-        $('readout').innerHTML = `<div class="metrics">` +
-          `<div class="metric"><span>Lat</span><b class="value">${lat}</b></div>` +
-          `<div class="metric"><span>Lng</span><b class="value">${lng}</b></div>` +
-          `<div class="metric"><span>Acc</span><b class="value">${acc} m</b></div>` +
-          `<div class="metric"><span>Head</span><b class="value">${hd}°</b></div>` +
-          `<div class="metric"><span>Map</span><b class="value">${mb}°</b></div>` +
-          `<div class="metric"><span>Alignment</span><b class="value">${alignName}</b></div>` +
-          nav +
-          `</div>`;
-      },
-
-      loop() {
-        const tgt = (this.S.rotate ?? false) ? (this.S.heading ?? 0) : 0;
-        const err = Math.abs(Δ(this.S.bearing, tgt));
-        const aRot = 0.12 + 0.38 * Math.min(1, (this.S.omega || 0) / 240);
-        this.S.bearing = err < 0.08 ? this.S.bearing : blend(this.S.bearing, tgt, aRot);
-
-        this.applyBearing(this.S.bearing);
-        this.refreshRay();
-
-        const now = performance.now();
-        if (now - this._tNav > 60) {
-          this._tNav = now;
-          this.refreshNav();
-        }
-        this.checkAnyAlignment();
-        this.updateHUD();
-
-        requestAnimationFrame(() => this.loop());
-      },
-
-      // PATCH: normalized cross-platform heading
-      _setHeadingFromOrient() {
-        const e = this._lastOrientEvent;
-        if (!e) return;
-
-        let heading = null;
-
-        // iOS provides webkitCompassHeading (already corrected for screen rotation)
-        if (typeof e.webkitCompassHeading === 'number' && Number.isFinite(e.webkitCompassHeading)) {
-          heading = e.webkitCompassHeading;
-        } else if (typeof e.alpha === 'number' && Number.isFinite(e.alpha)) {
-          // Android & others: flip and add current screen angle
-          const flip = 360 - e.alpha;           // make it clockwise from North
-          const ang  = getScreenAngle();        // portrait=0, landscape=90/270
-          heading = (flip + ang) % 360;
-        } else {
-          return; // no usable data
-        }
-
-        // Optional override: your existing "invert Android" checkbox
-        if (isAndroid() && (document.getElementById('invertAndroid')?.checked)) {
-          heading = (360 - heading) % 360;
-        }
-
-        // Add declination
-        heading = (heading + (this.S.decl || 0)) % 360;
-        if (heading < 0) heading += 360;
-
-        if (this._compassStartTs == null) this._compassStartTs = performance.now();
-
-        if (this.S.heading == null) {
-          this.S.heading = heading;
-        } else {
-          const diff = ((heading - this.S.heading + 540) % 360) - 180; // shortest path
-          if (Math.abs(diff) >= this.DEAD_ZONE) {
-            const step = Math.sign(diff) * Math.min(Math.abs(diff), this.MAX_STEP);
-            this.S.heading = (this.S.heading + step + 360) % 360;
-          }
-        }
-
-        this.S.mag = e.alpha ?? null;
-      },
-
-      // PATCH: prefer absolute readings when available
-      onOrient(e) {
-        if (e.absolute === true || e.type === 'deviceorientationabsolute' || typeof e.webkitCompassHeading === 'number') {
-          this._lastOrientEvent = e;
-        } else if (!this._lastOrientEvent) {
-          this._lastOrientEvent = e;
-        }
-        this._setHeadingFromOrient();
-      },
-
-      async enableCompass() {
-        if (this.S.compass) return true;
-        try {
-          if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-            alert('Compass requires HTTPS.');
-            return false;
-          }
-          if (typeof DeviceOrientationEvent !== 'undefined' &&
-              typeof DeviceOrientationEvent.requestPermission === 'function') {
-            const perm = await DeviceOrientationEvent.requestPermission();
-            if (perm !== 'granted') {
-              alert('Compass permission denied.');
-              return false;
-            }
-          }
-          if (!this._compassBound) {
-            addEventListener('deviceorientationabsolute', e => this.onOrient(e), true);
-            addEventListener('deviceorientation', e => this.onOrient(e), true);
-            this._compassBound = true;
-          }
-          this.S.compass = true;
-          return true;
-        } catch (err) {
-          alert('Compass access failed.');
-          console.error(err);
-          return false;
-        }
-      },
-
-      startGPS() {
-        if (!('geolocation' in navigator)) {
-          alert('Geolocation not supported.');
-          return;
-        }
-        if (this.watchId != null) return;
-        let prev = null;
-        this.watchId = navigator.geolocation.watchPosition(p => {
-          // keep a copy for course estimation
-          const old = prev;
-          prev = p;
-
-          this.last = p;
-          const { latitude, longitude, accuracy } = p.coords;
-          this.accCircle.setLatLng([latitude, longitude]).setRadius(Math.max(accuracy || 0, 0));
-          if (this.S.follow && !this.S.press) {
-            this.map.setView([latitude, longitude], Math.max(this.map.getZoom(), 16), { animate: false });
-          }
-
-          // PATCH (optional): when moving at >= 1 m/s, estimate heading from motion if we have no compass yet
-          if (old && Number.isFinite(p.coords.speed) && p.coords.speed >= 1 && this.S.rotate && this.S.heading == null) {
-            const prevLL = L.latLng(old.coords.latitude, old.coords.longitude);
-            const currLL = L.latLng(p.coords.latitude, p.coords.longitude);
-            const course = bearing(prevLL, currLL);
-            this.S.heading = course;
-          }
-        }, e => {
-          alert('Unable to get location: ' + e.message);
-          console.error("GPS error:", e);
-        }, {
-          enableHighAccuracy: true,
-          maximumAge: 2000,
-          timeout: 15000
-        });
-      },
-
-      stopGPS() {
-        if (this.watchId != null && 'geolocation' in navigator) {
-          navigator.geolocation.clearWatch(this.watchId);
-          this.watchId = null;
-        }
-      },
-
-      resetView() {
-        if (this.S.dest) {
-          this.S.dest = null;
-          this.refreshNav();
-          this.updateHUD();
-          return;
-        }
-        if (this.last) {
-          const { latitude, longitude } = this.last.coords;
-          this.map.setView([latitude, longitude], Math.max(this.map.getZoom(), 16));
-        } else {
-          this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
-        }
-        this.applyBearing(this.S.bearing);
-      },
-
-      latLngFromPt(pt) {
-        const ang = (this.S.press && this.S.fAngle != null) ? this.S.fAngle : this.S.bearing;
-        const layer = this.map.containerPointToLayerPoint(pt);
-        const pivot = (this.S.press && this.S.fPivot) ? this.S.fPivot : this.map.latLngToLayerPoint(this.pivotLL());
-        const th = R(ang), c = Math.cos(th), s = Math.sin(th);
-        const dx = layer.x - pivot.x, dy = layer.y - pivot.y;
-        const un = L.point(pivot.x + dx * c + dy * s, pivot.y + (-dx * s) + dy * c);
-        return this.map.layerPointToLatLng(un);
-      },
-
-      bindMap() {
-        const container = this.map.getContainer();
-        let timer = null, start = null, last = null;
-        const LONG = 380, MOVE = 5;
-        const pt = e => {
-          const r = container.getBoundingClientRect();
-          return L.point(e.clientX - r.left, e.clientY - r.top);
-        };
-        const freezeS = () => {
-          this.S.press = true;
-          this.S.fAngle = this.S.bearing;
-          this.S.fPivot = this.map.latLngToLayerPoint(this.pivotLL());
-        };
-        const freezeE = () => {
-          this.S.press = false;
-          this.S.fAngle = null;
-          this.S.fPivot = null;
-        };
-        const dropAt = ll => Pins.drop(ll.lat, ll.lng);
-
-        container.addEventListener('pointerdown', e => {
-          if (e.button !== 0 && e.pointerType === 'mouse') return;
-          e.preventDefault();
-          freezeS();
-          start = last = pt(e);
-          clearTimeout(timer);
-          timer = setTimeout(() => {
-            timer = null;
-            dropAt(this.latLngFromPt(last));
-            freezeE();
-          }, LONG);
-        }, { passive: false });
-        container.addEventListener('pointermove', e => {
-          if (!timer) return;
-          e.preventDefault();
-          last = pt(e);
-          if (Math.hypot(last.x - start.x, last.y - start.y) > MOVE) {
-            clearTimeout(timer);
-            freezeE();
-          }
-        }, { passive: false });
-        ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
-          container.addEventListener(ev, () => {
-            clearTimeout(timer);
-            freezeE();
-          }, { passive: true })
-        );
-        this.map.on('contextmenu', e => {
-          e.originalEvent?.preventDefault();
-          freezeS();
-          const p = e.containerPoint ?? pt(e.originalEvent);
-          dropAt(this.latLngFromPt(p));
-          freezeE();
-        });
-        this.map.on('move moveend zoom zoomend zoomanim', () => {
-          this.applyBearing(this.S.bearing);
-          this.refreshRay();
-        });
-        addEventListener('resize', () => {
-          this.map.invalidateSize();
-          this.applyBearing(this.S.bearing);
-          this.refreshRay();
-        }, { passive: true });
-      },
-
-      bindKeys() {
-        addEventListener('keydown', e => {
-          const tag = (e.target && e.target.tagName) || '';
-          if (tag === 'INPUT' || tag === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return;
-          const k = (e.key || '').toLowerCase();
-          if (k === 'l') {
-            e.preventDefault();
-            this.startGPS();
-          } else if (k === 'f') {
-            e.preventDefault();
-            this.setFollow(!this.S.follow);
-          } else if (k === 'r') {
-            e.preventDefault();
-            (async () => {
-              if (!this.S.rotate) {
-                if (!await this.enableCompass()) return;
-                this.setRotate(true);
-              } else {
-                this.setRotate(false);
-              }
-            })();
-          } else if (k === 'c') {
-            e.preventDefault();
-            this.resetView();
-          }
-        });
-      },
-
-      pivotLL() {
-        return this.last ? L.latLng(this.last.coords.latitude, this.last.coords.longitude) : this.map.getCenter();
-      }
-    };
-
-    const UI = {
-      sync(S) {
-        $('chipFollow')?.setAttribute('aria-pressed', String(S.follow));
-        $('btnLocate')?.classList.toggle('toggled', !!App.last);
-        $('chipRotate')?.setAttribute('aria-pressed', String(S.rotate));
-        const brand = getComputedStyle(document.documentElement).getPropertyValue('--brand') || '#2ac18a';
-        $('dotFollow') && ( $('dotFollow').style.background = S.follow ? brand : '#888' );
-        $('dotRotate') && ( $('dotRotate').style.background = S.rotate ? brand : '#888' );
-      },
-      setReset(t) {
-        $('btnReset') && ( $('btnReset').textContent = '↺', $('btnReset').title = t );
-      },
-      declInit(v) {
-        $('declSlider') && ( $('declSlider').value = String(v) );
-        $('declVal') && ( $('declVal').textContent = `${(+v).toFixed(1)}°` );
-      },
-      bannerLock(name, pulse) {
-        $('alignName').textContent = name || '—';
-        $('alignName').classList.remove('unstable');
-        if (pulse) this._pulse();
-      },
-      bannerFlash(name, pulse) {
-        $('alignName').textContent = name || '—';
-        $('alignName').classList.add('unstable');
-        if (pulse) this._pulse();
-      },
-      bannerUnset() {
-        $('alignName').textContent = '—';
-        $('alignName').classList.add('unstable');
-      },
-      _pulse() {
-        const b = $('alignBanner');
-        if (!b) return;
-        b.classList.add('pulse');
-        setTimeout(() => b.classList.remove('pulse'), 600);
-      },
-      bind() {
-        $('btnLocate')?.addEventListener('click', () => App.startGPS());
-        $('btnReset')?.addEventListener('click', () => App.resetView());
-        $('chipFollow')?.addEventListener('click', () => App.setFollow(!App.S.follow));
-        $('chipRotate')?.addEventListener('click', async () => {
-          if (!App.S.rotate) {
-            if (!await App.enableCompass()) return;
-            App.setRotate(true);
-          } else {
-            App.setRotate(false);
-          }
-        });
-
-        const btnWP = $('btnWaypoints'), wpPanel = $('wpPanel');
-        btnWP?.addEventListener('click', () => {
-          const open = !wpPanel.classList.contains('open');
-          wpPanel.classList.toggle('open', open);
-          wpPanel.setAttribute('aria-hidden', open ? 'false' : 'true');
-          btnWP.setAttribute('aria-expanded', String(open));
-        });
-
-        const btnSettings = $('btnSettings'), settings = $('settingsPanel');
-        btnSettings?.addEventListener('click', () => {
-          const open = !settings.classList.contains('open');
-          settings.classList.toggle('open', open);
-          settings.setAttribute('aria-hidden', open ? 'false' : 'true');
-          btnSettings.setAttribute('aria-expanded', String(open));
-        });
-
-        // Close Waypoints / Settings on map click
-        App.map.getContainer().addEventListener('click', e => {
-          const wpOpen = wpPanel?.classList.contains('open');
-          const settingsOpen = settings?.classList.contains('open');
-          if (wpOpen) {
-            wpPanel.classList.remove('open');
-            wpPanel.setAttribute('aria-hidden', 'true');
-            btnWP.setAttribute('aria-expanded', 'false');
-          }
-          if (settingsOpen) {
-            settings.classList.remove('open');
-            settings.setAttribute('aria-hidden', 'true');
-            btnSettings.setAttribute('aria-expanded', 'false');
-          }
-        });
-
-        $('wpAdd')?.addEventListener('click', () => {
-          const p = parseCoords($('wpCoords').value);
-          if (!p) {
-            alert('Could not parse coordinates.');
-            return;
-          }
-          Waypoints.upsert($('wpName').value.trim(), p.lat, p.lng);
-          $('wpName').value = '';
-          $('wpCoords').value = '';
-        });
-
-        $('wpList')?.addEventListener('click', e => {
-          const t = e.target;
-          const idx = t.getAttribute('data-idx');
-          if (idx == null) return;
-          const i = +idx;
-          if (t.hasAttribute('data-go')) {
-            const w = Waypoints.load()[i];
-            if (w) {
-              App.setFollow(false);
-              App.S.rotate = false;
-              UI.sync(App.S);
-              App.map.setView([w.lat, w.lng], 16);
-              Waypoints.ensureMarker(w.name)?.openPopup();
-            }
-          } else if (t.hasAttribute('data-guide')) {
-            const w = Waypoints.load()[i];
-            if (w) {
-              App.S.dest = { lat: w.lat, lng: w.lng, name: w.name };
-              App.refreshNav();
-              App.updateHUD();
-            }
-          } else if (t.hasAttribute('data-edit')) {
-            Waypoints.edit(i);
-          } else if (t.hasAttribute('data-save-edit')) {
-            Waypoints.saveEdit(i);
-          } else if (t.hasAttribute('data-cancel')) {
-            Waypoints.render();
-          } else if (t.hasAttribute('data-del')) {
-            Waypoints.del(i);
-          }
-        });
-
-        const slider = $('declSlider'), val = $('declVal');
-        slider?.addEventListener('input', () => {
-          const v = parseFloat(slider.value);
-          if (Number.isFinite(v)) {
-            App.S.decl = v;
-            val && (val.textContent = `${v.toFixed(1)}°`);
-          }
-        }, { passive: true });
-
-        $('declSave')?.addEventListener('click', () => {
-          const v = parseFloat(slider.value);
-          if (Number.isFinite(v)) {
-            App.S.decl = v;
-            if (App.S.mag != null) {
-              App._setHeadingFromOrient(); // recompute immediately
-            }
-            App.persist();
-            App.updateHUD();
-          }
-          const btn = $('declSave');
-          if (btn) {
-            const old = btn.textContent;
-            btn.textContent = 'Saved ✓';
-            setTimeout(() => btn.textContent = old, 900);
-          }
-        });
-      }
-    };
-
-    const Waypoints = {
-      markers: new Map(),
-      init() { this.render(); this.syncMarkers(); },
-      load() { return Store.loadWPs(); },
-      save(a) { Store.saveWPs(a); },
-      ensureMarker(name) { return this.markers.get(name) || null; },
-      render() {
-        const list = $('wpList');
-        if (!list) return;
-        list.innerHTML = '';
-        const a = this.load();
-        a.forEach((w, i) => {
-          const d = document.createElement('div');
-          d.className = 'item';
-          d.innerHTML = `<div><strong>${w.name}</strong><small>${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}</small></div>
-            <button class="btn" data-idx="${i}" data-go>Go</button>
-            <button class="btn" data-idx="${i}" data-guide>Guide</button>
-            <button class="btn" data-idx="${i}" data-edit>Edit</button>
-            <button class="btn danger" data-idx="${i}" data-del>Del</button>`;
-          list.appendChild(d);
-        });
-      },
-      edit(i) {
-        const list = $('wpList');
-        const a = this.load();
-        const w = a[i];
-        if (!w || !list) return;
-        const d = list.children[i];
-        if (!d) return;
-        d.className = 'item';
-        d.style.gridTemplateColumns = '1fr auto auto';
-        d.innerHTML = `<div style="display:grid;gap:6px">
-            <input data-e-name placeholder="Name" value="${w.name}"/>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-              <input data-e-lat placeholder="Lat" value="${w.lat.toFixed(6)}"/>
-              <input data-e-lng placeholder="Lng" value="${w.lng.toFixed(6)}"/>
-            </div></div>
-          <button class="btn primary" data-idx="${i}" data-save-edit>Save</button>
-          <button class="btn" data-idx="${i}" data-cancel>Cancel</button>`;
-      },
-      saveEdit(i) {
-        const a = this.load();
-        const w = a[i];
-        if (!w) return;
-        const list = $('wpList');
-        if (!list) return;
-        const d = list.children[i];
-        if (!d) return;
-        const nm = (d.querySelector('[data-e-name]')?.value || '').trim() || w.name;
-        const lat = parseFloat((d.querySelector('[data-e-lat]')?.value || '').trim());
-        const lng = parseFloat((d.querySelector('[data-e-lng]')?.value || '').trim());
-        if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-          alert('Invalid coordinates.');
-          return;
-        }
-        a[i] = { name: nm, lat, lng };
-        this.save(a);
-        this.render();
-        this.syncMarkers();
-      },
-      upsert(name, lat, lng) {
-        const a = this.load();
-        const nm = (name?.trim()) || `WP ${Date.now().toString().slice(-5)}`;
-        const i = a.findIndex(w => w.name.toLowerCase() === nm.toLowerCase());
-        const e = { name: nm, lat, lng };
-        if (i >= 0) a[i] = e;
-        else a.push(e);
-        this.save(a);
-        this.render();
-        this.syncMarkers();
-      },
-      del(i) {
-        const a = this.load();
-        const [rm] = a.splice(i, 1);
-        this.save(a);
-        this.render();
-        if (rm && this.markers.has(rm.name)) {
-          App.map.removeLayer(this.markers.get(rm.name));
-          this.markers.delete(rm.name);
-        }
-      },
-      syncMarkers() {
-        const a = this.load();
-        a.forEach(w => {
-          if (!this.markers.has(w.name)) {
-            const m = makeDot(w.lat, w.lng, 12).addTo(App.map);
-            bindMarker(m, { name: w.name, lat: w.lat, lng: w.lng });
-            this.markers.set(w.name, m);
-          } else {
-            const m = this.markers.get(w.name);
-            m.setLatLng([w.lat, w.lng]).setIcon(DotIcon(12));
-            bindMarker(m, { name: w.name, lat: w.lat, lng: w.lng });
-          }
-        });
-        Array.from(this.markers.keys()).forEach(n => {
-          if (!this.load().some(w => w.name === n)) {
-            App.map.removeLayer(this.markers.get(n));
-            this.markers.delete(n);
-          }
-        });
-      }
-    };
-
-    const Pins = {
-      pin: null, _nm: null,
-      init() {},
-      drop(lat, lng) {
-        if (this.pin) App.map.removeLayer(this.pin);
-        this.pin = makeDot(lat, lng, 14).addTo(App.map);
-        this._nm = `Pin ${fix(lat)},${fix(lng)}`;
-        bindMarker(this.pin, { name: this._nm, lat, lng });
-        this.pin.openPopup();
-        App.uprightOverlays(App.S.bearing);
-      }
-    };
-
-    function bindMarker(m, { name, lat, lng }) {
-      m.unbindPopup();
-      m.bindPopup(() => {
-        return `<div class="popup-grid">
-          <input class="popup-input" type="text" placeholder="Name" value="${name || `Pin ${fix(lat)},${fix(lng)}`}" data-name/>
-          <div style="color: var(--muted); font-size:12px">${fix(lat)}, ${fix(lng)}</div>
-          <div class="popup-actions">
-            <button class="btn" data-copy>Copy</button>
-            <button class="btn" data-min>Minimize</button>
-            <button class="btn" data-guide>Guide</button>
-            <button class="btn primary" data-save>Save</button>
-          </div>
-        </div>`;
-      }, { className: 'floating-popup', autoClose: true, closeButton: true, offset: [0, -10] })
-      .off('popupopen').on('popupopen', () => {
-        const el = m.getPopup().getElement();
-        if (!el) {
-          console.warn("Popup element missing");
-          return;
-        }
-        const I = el.querySelector('[data-name]');
-        const C = el.querySelector('[data-copy]');
-        const SAV = el.querySelector('[data-save]');
-        const MIN = el.querySelector('[data-min]');
-        const G = el.querySelector('[data-guide]');
-
-        C?.addEventListener('click', async () => {
-          const txt = `${fix(lat)}, ${fix(lng)}`;
-          try {
-            await navigator.clipboard.writeText(txt);
-            C.textContent = 'Copied';
-            setTimeout(() => (C.textContent = 'Copy'), 900);
-          } catch {
-            prompt('Copy to clipboard:', txt);
-          }
-        });
-        SAV?.addEventListener('click', () => {
-          const nm = (I?.value || '').trim() || `WP ${Date.now().toString().slice(-5)}`;
-          Waypoints.upsert(nm, lat, lng);
-          m.closePopup();
-          m._nm = nm;
-        });
-        MIN?.addEventListener('click', () => {
-          const nm = (I?.value || m._nm || 'Pin') || 'Pin';
-          m.bindTooltip(nm, {
-            permanent: true,
-            direction: 'right',
-            offset: [8, 0],
-            className: 'mini-label'
-          }).openTooltip();
-          m.closePopup();
-          m._nm = nm;
-          App.uprightOverlays(App.S.bearing);
-        });
-        G?.addEventListener('click', () => {
-          App.S.dest = { lat, lng, name: (I?.value || m._nm || 'Dest') };
-          App.refreshNav();
-          App.updateHUD();
-          m.closePopup();
-        });
-        App.uprightOverlays(App.S.bearing);
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"><button class="x" id="toastX">×</button><span id="toastMsg"></span></div>
+
+<script>
+'use strict';
+(function(){
+  /* ===================== utilities ===================== */
+  const $ = id => document.getElementById(id);
+  const R = d => d * Math.PI/180;
+  const Dg = r => r * 180/Math.PI;
+  const N = d => ((d % 360) + 360) % 360;
+  const Δ = (a, b) => { let d = N(b) - N(a); if (d > 180) d -= 360; else if (d < -180) d += 360; return d; };
+  const blend = (p, n, a) => p == null ? n : N(p + a * Δ(p, n));
+  const fix = v => Number(v).toFixed(6);
+  const fmtDist = m => (m < 1000) ? \`\${Math.round(m)} m\` : \`\${(m/1000).toFixed(2)} km\`;
+  const haversine = (a, b) => {
+    const Rm = 6371000, φ1 = R(a.lat), φ2 = R(b.lat), dφ = R(b.lat-a.lat), dλ = R(b.lng-a.lng);
+    const s = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
+    return 2*Rm*Math.asin(Math.min(1, Math.sqrt(s)));
+  };
+  const bearing = (a, b) => {
+    const φ1=R(a.lat), φ2=R(b.lat), λ1=R(a.lng), λ2=R(b.lng);
+    const y=Math.sin(λ2-λ1)*Math.cos(φ2);
+    const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);
+    return N(Dg(Math.atan2(y,x)));
+  };
+  const DotIcon = s => L.divIcon({ className: 'ping', iconSize:[s,s], iconAnchor:[s/2,s/2] });
+  const makeDot = (lat,lng,size=10) => L.marker([lat,lng], { icon: DotIcon(size), riseOnHover:true });
+
+  /* Android screen angle + sniff */
+  const getScreenAngle = () => {
+    if (screen && screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
+    const o = window.orientation; return (typeof o === 'number') ? (o % 360 + 360) % 360 : 0;
+  };
+  const isAndroid = () => /Android/i.test(navigator.userAgent || '') || /\\bAdr\\b/i.test(navigator.userAgent || '');
+
+  /* toast */
+  function toast(m){ const t=$('toast'), s=$('toastMsg'); if (!t||!s) { alert(m); return; }
+    s.textContent=m; t.style.display='block'; }
+  $('toastX').onclick=()=>{ $('toast').style.display='none'; };
+
+  /* ===================== state ===================== */
+  const Store = {
+    stateKey:'minimap.state.v1',
+    wpKey:'minimap.waypoints.v1',
+    loadState(){ try { return JSON.parse(localStorage.getItem(this.stateKey)||'{}'); } catch { return {}; } },
+    saveState(s){ try { localStorage.setItem(this.stateKey, JSON.stringify(s)); } catch{} },
+    loadWPs(){ try { return JSON.parse(localStorage.getItem(this.wpKey)||'[]'); } catch { return []; } },
+    saveWPs(a){ try { localStorage.setItem(this.wpKey, JSON.stringify(a)); } catch{} }
+  };
+
+  const App = {
+    S:{
+      follow:true, heading:null, bearing:0, rotate:false, decl:0, compass:false, omega:0, mag:null,
+      dest:null
+    },
+    DEF:{ lat:34.9, lng:-119.17, z:16 },
+    map:null, last:null, navLine:null, originDot:null, ray:null, accCircle:null,
+    _lastOverlay: null, _compassBound:false, watchId:null,
+    _tHUD:0, _tNav:0, _tAlign:0, _lastAlignLL:null, _lastAlignHead:null,
+    _aligned:null,_pending:null,_flashName:null,_flashUntil:0,_flashCooldown:new Map(),_flashTarget:null,
+    ALIGN:{ ENTER:0.35, EXIT:0.60, DWELL_BASE:60 }, RAY:{ ACTIVE:0.15 }, SCAN:{ FLASH:550, COOLDOWN:650 },
+    WARMUP_MS:2000, _compassStartTs:null, DEAD_ZONE:0.5, MAX_STEP:5, _lastOrientEvent:null,
+
+    init(){
+      const s = Store.loadState();
+      if (typeof s.follow==='boolean') this.S.follow=s.follow;
+      if (typeof s.rotate==='boolean') this.S.rotate=s.rotate;
+      if (typeof s.bearing==='number') this.S.bearing=N(s.bearing);
+      if (typeof s.decl==='number') this.S.decl=+s.decl || 0;
+
+      this.map = L.map('map',{ zoomControl:false, attributionControl:true, inertia:true });
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{
+        maxZoom:19, attribution:'Tiles © Esri — Sources: Esri, Garmin, USGS, NPS, others'
+      }).addTo(this.map);
+
+      this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
+      this.accCircle = L.circle([this.DEF.lat,this.DEF.lng],{radius:0,color:'#4df8ff',weight:1,opacity:.6,fillOpacity:.08}).addTo(this.map);
+
+      this.bind();
+      this.applyBearing(this.S.bearing);
+      UI.sync(this.S); UI.declInit(this.S.decl);
+
+      this.loop();
+      addEventListener('beforeunload',()=>{ this.persist(); this.stopGPS(); },{once:true});
+    },
+
+    bind(){
+      $('btnGPS').onclick=()=>this.startGPS();
+      $('btnRotate').onclick=()=>this.toggleRotate();
+      $('btnReset').onclick=()=>this.resetView();
+
+      // keyboard
+      addEventListener('keydown',e=>{
+        const tag=(e.target&&e.target.tagName)||''; if (tag==='INPUT'||tag==='TEXTAREA'||e.metaKey||e.ctrlKey||e.altKey) return;
+        const k=(e.key||'').toLowerCase();
+        if (k==='l') this.startGPS();
+        else if (k==='r') this.toggleRotate();
+        else if (k==='c') this.resetView();
       });
-      m.on('tooltipopen', () => App.uprightOverlays(App.S.bearing));
-    }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      try {
-        App.init();
-        hideError();
-        const c = document.getElementById('errClose');
-        if (c) c.onclick = hideError;
-      } catch (e) {
-        const msg = (e && e.stack) || String(e);
-        console.error(msg);
-        const el = document.getElementById('errMsg');
-        const box = document.getElementById('error');
-        if (el && box) {
-          el.textContent = msg;
-          box.style.display = 'block';
+      // radial menu
+      const openRadial = (open)=>{ $('radial').classList.toggle('open', open); $('radial').setAttribute('aria-hidden',(!open).toString()); };
+      $('btnMenu').onpointerdown=()=>openRadial(true);
+      $('radialClose').onclick=()=>openRadial(false);
+      $('radial').onclick=e=>{ if(e.target.id==='radial') openRadial(false); };
+      $('rmGPS').onclick=()=>this.startGPS();
+      $('rmRotate').onclick=()=>this.toggleRotate();
+      $('rmReset').onclick=()=>this.resetView();
+
+      // waypoints
+      $('wpAdd').onclick=()=>{
+        const p = parseCoords($('wpCoords').value);
+        if(!p){ toast('Could not parse coordinates.'); return; }
+        Waypoints.upsert(($('wpName').value||'').trim(), p.lat, p.lng);
+        $('wpName').value=''; $('wpCoords').value='';
+      };
+      $('wpList').addEventListener('click',e=>{
+        const t=e.target, idx=t.getAttribute('data-idx'); if (idx==null) return; const i=+idx;
+        if(t.hasAttribute('data-go')){
+          const w=Waypoints.load()[i]; if(w){ this.S.follow=false; this.S.rotate=false; UI.sync(this.S); this.map.setView([w.lat,w.lng],16); Waypoints.ensureMarker(w.name)?.openPopup(); }
+        }else if(t.hasAttribute('data-guide')){
+          const w=Waypoints.load()[i]; if(w){ this.S.dest={lat:w.lat,lng:w.lng,name:w.name}; this.refreshNav(); UI.updateHUD(); }
+        }else if(t.hasAttribute('data-del')){
+          Waypoints.del(i);
+        }
+      });
+
+      // declination
+      $('declSlider').addEventListener('input',()=>{ const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; $('declVal').textContent=\`\${v.toFixed(1)}°\`; } },{passive:true});
+      $('declSave').onclick=()=>{
+        const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; if(this.S.mag!=null){ this._setHeadingFromOrient(); } this.persist(); UI.updateHUD(); }
+        $('declSave').textContent='Saved ✓'; setTimeout(()=>$('declSave').textContent='Save',900);
+      };
+
+      // map gestures: keep overlays upright on move
+      this.map.on('move moveend zoom zoomend zoomanim', ()=>{ this.applyBearing(this.S.bearing); this.refreshRay(); });
+      addEventListener('resize',()=>{ this.map.invalidateSize(); this.applyBearing(this.S.bearing); this.refreshRay(); },{passive:true});
+
+      // place pin with long-press / contextmenu
+      this.map.on('contextmenu', e=>{
+        const ll=e.latlng; Pins.drop(ll.lat,ll.lng); UI.flashPing(ll);
+      });
+    },
+
+    persist(){ Store.saveState({ follow:this.S.follow, rotate:this.S.rotate, bearing:this.S.bearing, decl:this.S.decl }); },
+
+    toggleRotate(){ (async()=>{
+      if(!this.S.rotate){ if(!await this.enableCompass()) return; this.S.rotate=true; this.S.follow=true; }
+      else this.S.rotate=false;
+      UI.sync(this.S); this.applyBearing(this.S.bearing); this.persist();
+    })(); },
+
+    applyBearing(d){
+      const pane=this.map.getPane && this.map.getPane('mapPane'); if(!pane) return;
+      const base=(pane.style.transform||'').replace(/rotate\\([^)]*\\)/g,'');
+      pane.style.transformOrigin='50% 50%';
+      pane.style.transform=base+` rotate(${-d}deg)`;
+      this.uprightOverlays(d);
+    },
+    uprightOverlays(deg){
+      if(this._lastOverlay!=null && Math.abs(Δ(this._lastOverlay,deg))<0.12) return;
+      this._lastOverlay=deg;
+      const rot=` rotate(${deg}deg)`;
+      const fixEl=el=>{ if(!el||!el.style) return; const base=(el.style.transform||'').replace(/rotate\\([^)]*\\)/g,'').trim(); el.style.transformOrigin='left center'; el.style.transform=base+rot; };
+      this.map.getPanes().popupPane?.querySelectorAll('.leaflet-popup').forEach(fixEl);
+      this.map.getPanes().tooltipPane?.querySelectorAll('.leaflet-tooltip').forEach(fixEl);
+    },
+
+    refreshRay(){
+      if(!this.last){ this.ray?.setLatLngs([]); return; }
+      const originLL = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+      if(!this.originDot){ this.originDot=L.circleMarker(originLL,{radius:3,color:'#17f0c8',weight:2,fillColor:'#17f0c8',fillOpacity:1,interactive:false}).addTo(this.map); }
+      else this.originDot.setLatLng(originLL).bringToFront();
+      if(this.S.heading==null) return;
+      if(!this.ray){ this.ray=L.polyline([], {color:'#17f0c8', weight:3, opacity:1, interactive:false}).addTo(this.map); }
+      this.ray.setLatLngs([originLL, this._dest(originLL, this.S.heading, this._rayLen())]).bringToFront();
+    },
+    _rayLen(){ const s=this.map.getSize(); return Math.max(Math.hypot(s.x,s.y) * this._mpp() * 1.35 + 200, 3000); },
+    _mpp(){ const s=this.map.getSize(); const a=this.map.containerPointToLatLng(L.point(s.x/2,s.y/2)); const b=this.map.containerPointToLatLng(L.point(s.x/2+1,s.y/2)); return this.map.distance(a,b)||1; },
+    _dest(ll,b,dm){
+      const br=R(b), dr=dm/6371000, lat1=R(ll.lat), lon1=R(ll.lng);
+      const lat2=Math.asin(Math.sin(lat1)*Math.cos(dr)+Math.cos(lat1)*Math.sin(dr)*Math.cos(br));
+      const lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1), Math.cos(dr)-Math.sin(lat1)*Math.sin(lat2));
+      return L.latLng(Dg(lat2), Dg(lon2));
+    },
+
+    refreshNav(){
+      if(!this.S.dest || !this.last){
+        this.navLine?.setLatLngs([]); UI.setResetLabel('Reset'); return;
+      }
+      UI.setResetLabel('Clear Nav');
+      const from = L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+      const to = L.latLng(this.S.dest.lat, this.S.dest.lng);
+      if(!this.navLine){ this.navLine=L.polyline([], {color:'#2ac18a', weight:3, opacity:.95, interactive:false, dashArray:'6 6'}).addTo(this.map); }
+      this.navLine.setLatLngs([from,to]).bringToFront();
+      const b = bearing(from,to);
+      const d = haversine(from,to);
+      const err = this.S.heading==null ? null : Δ(this.S.heading,b);
+      this._navState={ b, d, err };
+      if(this.S.heading!=null){
+        const on=Math.abs(err)<.5;
+        this.navLine.setStyle(on ? {color:'#ff4444',weight:4,opacity:1}:{color:'#2ac18a',weight:3,opacity:.95});
+      }
+    },
+
+    candidates(){
+      const list=[]; Waypoints.markers.forEach((m,name)=>list.push({name, ll:m.getLatLng()}));
+      if(Pins.pin){const ll=Pins.pin.getLatLng(); const nm=Pins.pin._nm||\`Pin \${fix(ll.lat)},\${fix(ll.lng)}\`; list.push({name:nm, ll});}
+      return list;
+    },
+    between(a,b,x){ const ab=Δ(a,b), ax=Δ(a,x); return Math.sign(ab)===Math.sign(ax) && Math.abs(ax)<=Math.abs(ab); },
+
+    checkAnyAlignment(){
+      const now=performance.now();
+      if(!this.last || this.S.heading==null){
+        this._pending=null;
+        if(!(this._flashName && now < (this._flashUntil||0))){
+          this._aligned=null; this._flashName=null; this._flashUntil=0; this._flashTarget=null;
+          UI.setAlign('—'); UI.setNeedle(0);
+        }
+        return;
+      }
+      if(this._compassStartTs!=null && (now-this._compassStartTs) < this.WARMUP_MS) return;
+      if(now - this._tAlign < 30) return; this._tAlign=now;
+
+      const from=L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+      const head=this.S.heading;
+      const prevHead=this._lastAlignHead ?? head;
+      const movedLL=!this._lastAlignLL || this.map.distance(this._lastAlignLL, from) > 1.8;
+      const movedHead=this._lastAlignHead==null || Math.abs(Δ(this._lastAlignHead, head)) > 0.06;
+      if(!movedLL && !movedHead) return;
+      this._lastAlignLL=from; this._lastAlignHead=head;
+
+      const cand=this.candidates(); if(cand.length===0){ UI.setAlign('—'); return; }
+
+      let instBest=null, instErr=Infinity, instDist=Infinity;
+      for(const c of cand){
+        const br=bearing(from,c.ll), err=Math.abs(Δ(head,br)), dist=haversine(from,c.ll);
+        if(err < instErr - 1e-6 || (Math.abs(err-instErr) < 1e-6 && dist < instDist)){ instBest={...c, brg:br}; instErr=err; instDist=dist; }
+      }
+
+      const rayTarget=this._aligned || this._flashTarget || instBest;
+      const rayErr = rayTarget ? Math.abs(Δ(head, bearing(from, rayTarget.ll))) : Infinity;
+      UI.setNeedle(Δ(head, instBest?.brg ?? head)); // animate alignment bar
+      if(rayTarget && rayErr <= this.RAY.ACTIVE){ UI.flashPing(rayTarget.ll); }
+
+      const step=Math.abs(Δ(prevHead,head));
+      const dwell=Math.max(0, this.ALIGN.DWELL_BASE - 0.6*(this.S.omega || 0));
+      const enter=this.ALIGN.ENTER, exit=this.ALIGN.EXIT;
+
+      if(this._aligned){
+        const e=Math.abs(Δ(head, bearing(from,this._aligned.ll)));
+        if(e <= exit){ UI.setAlign(this._aligned.name); return; }
+        this._aligned=null;
+      }
+
+      if(instBest && instErr <= enter){
+        if(this._pending && this._pending.name===instBest.name){
+          if(now - this._pending.since >= dwell){
+            this._aligned={name:instBest.name, ll:instBest.ll, err:instErr, dist:instDist};
+            this._pending=null; this._flashName=null; this._flashUntil=0; this._flashTarget=null;
+            UI.setAlign(this._aligned.name, true);
+            UI.flashPing(this._aligned.ll, true);
+          }
+        }else{
+          this._pending={name:instBest.name, since:now};
+        }
+      }else{
+        this._pending=null;
+      }
+
+      // scanning flash if swept over
+      let flashPick=null, flashErr=Infinity;
+      if(step <= 35){
+        for(const c of cand){
+          const br=bearing(from,c.ll);
+          if(this.between(prevHead, head, br)){
+            const e=Math.abs(Δ(head, br));
+            if(e < flashErr){ flashErr=e; flashPick=c; }
+          }
         }
       }
+      if(flashPick){
+        const lastFire=this._flashCooldown.get(flashPick.name) || 0;
+        if(now - lastFire > this.SCAN.COOLDOWN){
+          this._flashCooldown.set(flashPick.name, now);
+          this._flashName=flashPick.name; this._flashUntil=now+this.SCAN.FLASH; this._flashTarget={name:flashPick.name, ll:flashPick.ll};
+          UI.setAlign(flashPick.name, false, true); UI.flashPing(flashPick.ll);
+        }
+      }
+      if(this._flashName && now > this._flashUntil){
+        this._flashName=null; this._flashUntil=0; this._flashTarget=null; UI.setAlign('—');
+      }
+    },
+
+    updateHUD(){
+      const now=performance.now(); if(now - this._tHUD < 120) return; this._tHUD=now;
+      $('hudLat').textContent = this.last?.coords?.latitude?.toFixed(6) ?? '—';
+      $('hudLng').textContent = this.last?.coords?.longitude?.toFixed(6) ?? '—';
+      $('hudAcc').textContent = (this.last?.coords?.accuracy ? Math.round(this.last.coords.accuracy) : '—') + ' m';
+      $('hudHead').textContent = this.S.heading!=null ? this.S.heading.toFixed(2)+'°' : '—°';
+      $('hudMap').textContent  = N(-this.S.bearing).toFixed(2)+'°';
+      if(this.S.dest && this.last){
+        const from=L.latLng(this.last.coords.latitude, this.last.coords.longitude);
+        const to=L.latLng(this.S.dest.lat, this.S.dest.lng);
+        const b=bearing(from,to); const d=haversine(from,to);
+        const steer = (this.S.heading!=null) ? Δ(this.S.heading,b).toFixed(2) : '—';
+        $('hudAlign').textContent = `${this.S.dest.name||'Dest'}  ${fmtDist(d)}  brg ${b.toFixed(1)}°  Δ ${steer}°`;
+      } else {
+        $('hudAlign').textContent = '—';
+      }
+    },
+
+    loop(){
+      const tgt = (this.S.rotate ?? false) ? (this.S.heading ?? 0) : 0;
+      const err = Math.abs(Δ(this.S.bearing, tgt));
+      const aRot = 0.12 + 0.38 * Math.min(1, (this.S.omega || 0) / 240);
+      this.S.bearing = err < 0.08 ? this.S.bearing : blend(this.S.bearing, tgt, aRot);
+
+      this.applyBearing(this.S.bearing);
+      this.refreshRay();
+
+      const now=performance.now();
+      if(now - this._tNav > 60){ this._tNav=now; this.refreshNav(); }
+      this.checkAnyAlignment();
+      this.updateHUD();
+
+      requestAnimationFrame(()=>this.loop());
+    },
+
+    // Cross-platform heading normalization
+    _setHeadingFromOrient(){
+      const e=this._lastOrientEvent; if(!e) return;
+      let heading=null;
+      if (typeof e.webkitCompassHeading === 'number' && Number.isFinite(e.webkitCompassHeading)) {
+        heading=e.webkitCompassHeading;
+      } else if (typeof e.alpha === 'number' && Number.isFinite(e.alpha)) {
+        const flip = 360 - e.alpha;
+        const ang  = getScreenAngle();
+        heading = (flip + ang) % 360;
+      } else return;
+
+      if (isAndroid() && ($('invertAndroid')?.checked)) heading = (360 - heading) % 360;
+      heading = (heading + (this.S.decl || 0)) % 360; if (heading<0) heading += 360;
+
+      if (this._compassStartTs==null) this._compassStartTs=performance.now();
+      if (this.S.heading==null) this.S.heading=heading;
+      else {
+        const diff=((heading - this.S.heading + 540)%360)-180;
+        if (Math.abs(diff) >= this.DEAD_ZONE) {
+          const step=Math.sign(diff) * Math.min(Math.abs(diff), this.MAX_STEP);
+          this.S.heading = (this.S.heading + step + 360) % 360;
+        }
+      }
+      this.S.mag = e.alpha ?? null;
+    },
+
+    onOrient(e){
+      if (e.absolute===true || e.type==='deviceorientationabsolute' || typeof e.webkitCompassHeading==='number')
+        this._lastOrientEvent=e;
+      else if (!this._lastOrientEvent) this._lastOrientEvent=e;
+      this._setHeadingFromOrient();
+    },
+
+    async enableCompass(){
+      if(this.S.compass) return true;
+      try{
+        if(location.protocol!=='https:' && location.hostname!=='localhost'){ toast('Compass requires HTTPS.'); return false; }
+        if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+          const perm=await DeviceOrientationEvent.requestPermission(); if(perm!=='granted'){ toast('Compass permission denied.'); return false; }
+        }
+        if(!this._compassBound){
+          addEventListener('deviceorientationabsolute', e=>this.onOrient(e), true);
+          addEventListener('deviceorientation', e=>this.onOrient(e), true);
+          this._compassBound=true;
+        }
+        this.S.compass=true; return true;
+      }catch(err){ toast('Compass access failed.'); console.error(err); return false; }
+    },
+
+    startGPS(){
+      if(!('geolocation' in navigator)){ toast('Geolocation not supported.'); return; }
+      if(this.watchId!=null) return;
+      let prev=null;
+      this.watchId = navigator.geolocation.watchPosition(p=>{
+        const old=prev; prev=p; this.last=p;
+        const { latitude, longitude, accuracy } = p.coords;
+        this.accCircle.setLatLng([latitude,longitude]).setRadius(Math.max(accuracy||0,0));
+        if(this.S.follow){ this.map.setView([latitude,longitude], Math.max(this.map.getZoom(),16), {animate:false}); }
+        if(old && Number.isFinite(p.coords.speed) && p.coords.speed>=1 && this.S.rotate && this.S.heading==null){
+          const prevLL=L.latLng(old.coords.latitude, old.coords.longitude);
+          const currLL=L.latLng(p.coords.latitude, p.coords.longitude);
+          this.S.heading=bearing(prevLL,currLL);
+        }
+      }, e=>{ toast('Unable to get location: '+e.message); console.error(e); },{
+        enableHighAccuracy:true, maximumAge:2000, timeout:15000
+      });
+    },
+
+    stopGPS(){ if(this.watchId!=null && 'geolocation' in navigator){ navigator.geolocation.clearWatch(this.watchId); this.watchId=null; } },
+
+    resetView(){
+      if(this.S.dest){ this.S.dest=null; this.refreshNav(); UI.updateHUD(); return; }
+      if(this.last){ const {latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude], Math.max(this.map.getZoom(),16)); }
+      else this.map.setView([this.DEF.lat,this.DEF.lng], this.DEF.z);
+      this.applyBearing(this.S.bearing);
+    }
+  };
+
+  const UI = {
+    sync(S){
+      $('btnGPS').classList.toggle('glow', !!App.last);
+      $('btnRotate').classList.toggle('glow', !!S.rotate);
+    },
+    setResetLabel(t){ $('btnReset').textContent = '↺ '+t; },
+    declInit(v){ $('declSlider').value=String(v); $('declVal').textContent=\`\${(+v).toFixed(1)}°\`; },
+    setAlign(name,lock=false,flash=false){
+      $('hudAlign').textContent = name || '—';
+      if (flash) $('hudAlign').parentElement.classList.add('flash');
+      setTimeout(()=>$('hudAlign').parentElement.classList.remove('flash'), 450);
+    },
+    setNeedle(delta){
+      const clamped=Math.max(-45, Math.min(45, delta)); // visual range
+      document.documentElement.style.setProperty('--err', clamped+'deg');
+    },
+    flashPing(ll, strong=false){
+      try{
+        const pt=App.map.latLngToContainerPoint(ll);
+        const mini = document.querySelector('.map-wrap');
+        const rect=mini.getBoundingClientRect();
+        const x = pt.x, y = pt.y;
+        const el=document.createElement('div');
+        el.className='ping flash';
+        el.style.left = x + 'px'; el.style.top = y + 'px';
+        mini.appendChild(el);
+        setTimeout(()=>el.remove(), 700);
+      }catch{}
+    },
+    updateHUD(){ App.updateHUD(); }
+  };
+
+  const Waypoints = {
+    markers:new Map(),
+    init(){ this.render(); this.syncMarkers(); },
+    load(){ return Store.loadWPs(); },
+    save(a){ Store.saveWPs(a); },
+    ensureMarker(name){ return this.markers.get(name) || null; },
+    render(){
+      const el=$('wpList'); if(!el) return; el.innerHTML='';
+      const a=this.load();
+      a.forEach((w,i)=>{
+        const row=document.createElement('div');
+        row.style.display='grid'; row.style.gridTemplateColumns='1fr auto auto'; row.style.gap='6px'; row.style.alignItems='center';
+        row.style.padding='6px'; row.style.borderBottom='1px solid var(--line)';
+        row.innerHTML=\`<div><b>\${w.name}</b><br/><small style="color:var(--muted)">\${w.lat.toFixed(6)}, \${w.lng.toFixed(6)}</small></div>
+          <button class="btn small" data-idx="\${i}" data-go>Go</button>
+          <button class="btn small" data-idx="\${i}" data-guide>Guide</button>
+          <button class="btn small" style="grid-column:3/4;margin-top:6px" data-idx="\${i}" data-del>Del</button>\`;
+        el.appendChild(row);
+      });
+    },
+    upsert(name,lat,lng){
+      const a=this.load();
+      const nm=(name?.trim()) || \`WP \${Date.now().toString().slice(-5)}\`;
+      const i=a.findIndex(w=>w.name.toLowerCase()===nm.toLowerCase());
+      const e={name:nm,lat,lng}; if(i>=0) a[i]=e; else a.push(e);
+      this.save(a); this.render(); this.syncMarkers();
+    },
+    del(i){
+      const a=this.load(); const [rm]=a.splice(i,1); this.save(a); this.render();
+      if(rm && this.markers.has(rm.name)){ App.map.removeLayer(this.markers.get(rm.name)); this.markers.delete(rm.name); }
+    },
+    syncMarkers(){
+      const a=this.load();
+      a.forEach(w=>{
+        if(!this.markers.has(w.name)){
+          const m=makeDot(w.lat,w.lng,10).addTo(App.map);
+          bindMarker(m, { name:w.name, lat:w.lat, lng:w.lng });
+          this.markers.set(w.name,m);
+        }else{
+          const m=this.markers.get(w.name);
+          m.setLatLng([w.lat,w.lng]).setIcon(DotIcon(10));
+          bindMarker(m, { name:w.name, lat:w.lat, lng:w.lng });
+        }
+      });
+      Array.from(this.markers.keys()).forEach(n=>{
+        if(!this.load().some(w=>w.name===n)){ App.map.removeLayer(this.markers.get(n)); this.markers.delete(n); }
+      });
+    }
+  };
+
+  const Pins = {
+    pin:null,_nm:null,
+    drop(lat,lng){
+      if(this.pin) App.map.removeLayer(this.pin);
+      this.pin=makeDot(lat,lng,12).addTo(App.map);
+      this._nm=\`Pin \${fix(lat)},\${fix(lng)}\`;
+      bindMarker(this.pin, { name:this._nm, lat, lng });
+      this.pin.openPopup();
+      App.uprightOverlays(App.S.bearing);
+    }
+  };
+
+  function parseCoords(t){
+    const s=t.trim().replace(/\\s+/g,' ').replace(/[,;]+/g,',');
+    const m=s.match(/^\\s*([+-]?\\d+(\\.\\d+)?)\\s*,\\s*([+-]?\\d+(\\.\\d+)?)\\s*$/i);
+    if(m){ const lat=+m[1], lng=+m[3]; if(isFinite(lat)&&isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
+    const parts=s.split(','); if(parts.length===2){
+      const one=q=>{ const x=q.trim().match(/^([NSEW])?\\s*([+-]?\\d+(\\.\\d+)?)\\s*([NSEW])?$/i); if(!x) return null;
+        const h=(x[1]||x[4]||'').toUpperCase(); let v=parseFloat(x[2]);
+        if(h==='S'||h==='W') v=-Math.abs(v); if(h==='N'||h==='E') v=Math.abs(v); return {v,h}; };
+      const a=one(parts[0]), b=one(parts[1]);
+      if(a&&b){ const lat=(a.h==='N'||a.h==='S')?a.v:b.v; const lng=(a.h==='E'||a.h==='W')?a.v:b.v;
+        if(Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
+    }
+    return null;
+  }
+
+  function bindMarker(m,{name,lat,lng}){
+    m.unbindPopup();
+    m.bindPopup(()=>{
+      return `<div style="display:grid;gap:8px">
+        <input type="text" value="${name || \`Pin ${fix(lat)},${fix(lng)}\`}" data-name
+          style="padding:8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink)"/>
+        <div style="color:var(--muted);font-size:12px">${fix(lat)}, ${fix(lng)}</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn small" data-copy>Copy</button>
+          <button class="btn small" data-min>Min</button>
+          <button class="btn small" data-guide>Guide</button>
+          <button class="btn small glow" data-save>Save</button>
+        </div>
+      </div>`;
+    }, { className:'floating-popup', autoClose:true, closeButton:true, offset:[0,-10] })
+    .off('popupopen').on('popupopen', ()=>{
+      const el=m.getPopup().getElement(); if(!el) return;
+      const I=el.querySelector('[data-name]'), C=el.querySelector('[data-copy]'),
+            SAV=el.querySelector('[data-save]'), MIN=el.querySelector('[data-min]'), G=el.querySelector('[data-guide]');
+      C?.addEventListener('click', async ()=>{
+        const txt=\`\${fix(lat)}, \${fix(lng)}\`;
+        try{ await navigator.clipboard.writeText(txt); C.textContent='Copied'; setTimeout(()=>C.textContent='Copy',900); }
+        catch{ prompt('Copy to clipboard:', txt); }
+      });
+      SAV?.addEventListener('click', ()=>{ const nm=(I?.value||'').trim()||\`WP \${Date.now().toString().slice(-5)}\`; Waypoints.upsert(nm,lat,lng); m.closePopup(); m._nm=nm; });
+      MIN?.addEventListener('click', ()=>{
+        const nm=(I?.value || m._nm || 'Pin') || 'Pin';
+        m.bindTooltip(nm, { permanent:true, direction:'right', offset:[8,0], className:'mini leaflet-tooltip mini' }).openTooltip();
+        m.closePopup(); m._nm=nm; App.uprightOverlays(App.S.bearing);
+      });
+      G?.addEventListener('click', ()=>{ App.S.dest={lat,lng,name:(I?.value || m._nm || 'Dest')}; App.refreshNav(); UI.updateHUD(); m.closePopup(); });
+      App.uprightOverlays(App.S.bearing);
+    });
+    m.on('tooltipopen', ()=>App.uprightOverlays(App.S.bearing));
+  }
+
+  /* boot */
+  document.addEventListener('DOMContentLoaded', ()=>{
+    if(!window.L){ toast('Leaflet failed to load.'); return; }
+    App.init(); Waypoints.init();
+
+    // Hook compass enabling when rotate toggles
+    $('btnRotate').addEventListener('click', async ()=>{
+      if(!App.S.rotate){ await App.enableCompass(); }
     });
 
-  })();
-  </script>
+    // Initial radial neighbors
+    $('btnMenu').addEventListener('contextmenu', e=>{ e.preventDefault(); });
+
+    // ensure sweep continues (CSS anim already handles)
+  });
+
+})();
+</script>
 </body>
 </html>
