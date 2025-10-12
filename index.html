@@ -34,32 +34,7 @@ a{color:var(--muted)}
   backdrop-filter: blur(8px);
   z-index:20;
 }
-.brand{
-  font-weight:800; letter-spacing:.3px; font-size:15px; opacity:.9;
-}
-.alignbar{
-  flex:1; height:26px; border:1px solid var(--line2); border-radius:12px;
-  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
-  display:grid; grid-template-columns: 1fr auto; overflow:hidden;
-}
-.alignbar .needle{
-  --err:0deg;
-  position:relative;
-  isolation:isolate;
-}
-.alignbar .needle::before{
-  content:""; position:absolute; inset:0;
-  background:
-    linear-gradient(90deg, rgba(23,240,200,.00) 0%,
-                           rgba(23,240,200,.75) 50%,
-                           rgba(23,240,200,.00) 100%);
-  transform:translateX(calc(var(--err) * 0.7)); /* visualize Δ heading */
-  mix-blend-mode:screen; filter:blur(3px); opacity:.7;
-}
-.alignbar .readout{
-  display:flex; align-items:center; gap:8px; padding:0 10px;
-  font-weight:700; font-variant-numeric:tabular-nums;
-}
+.brand{ font-weight:800; letter-spacing:.3px; font-size:15px; opacity:.9 }
 .btn{
   appearance:none; border:1px solid var(--line);
   background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
@@ -71,9 +46,7 @@ a{color:var(--muted)}
 .spacer{flex:1}
 
 /* ===== Minimap ========================================================== */
-.stage{
-  position:relative; display:grid; place-items:center; overflow:hidden;
-}
+.stage{ position:relative; display:grid; place-items:center; overflow:hidden; }
 .minimap{
   position:relative; width:min(88vmin, 700px); aspect-ratio:1/1;
   border-radius:50%;
@@ -83,11 +56,15 @@ a{color:var(--muted)}
               radial-gradient(90% 90% at 50% 50%, rgba(0,0,0,.0) 60%, rgba(23,240,200,.07) 102%);
 }
 .map-wrap{
-  position:absolute; inset:3%; border-radius:50%;
-  overflow:hidden; filter: drop-shadow(0 20px 30px rgba(0,0,0,.35));
+  position:absolute; inset:3%; border-radius:50%; overflow:hidden;
+  filter: drop-shadow(0 20px 30px rgba(0,0,0,.35));
+  /* give Leaflet a predictable size path */
+  width:94%; height:94%;
 }
 #map{
-  position:absolute; inset:-6%; /* extend beyond crop for rotation */
+  position:absolute; inset:-6%;
+  /* explicit dimensions ensure Leaflet sees a real size immediately */
+  width:112%; height:112%;
   will-change:transform;
 }
 .ring, .ring2{
@@ -100,14 +77,9 @@ a{color:var(--muted)}
   font-weight:800; letter-spacing:1.5px; font-size:10px; color:#b6fff0aa; text-shadow:0 1px 0 #000;
 }
 .cardinals span{ position:absolute }
-.cardinals .N{ top:2%; } .S{ bottom:2% } .E{ right:3% } .W{ left:3% }
+.cardinals .N{ top:2% } .S{ bottom:2% } .E{ right:3% } .W{ left:3% }
 /* Sweep beam */
-.sweep{
-  --rot:0deg;
-  position:absolute; inset:3%;
-  border-radius:50%;
-  overflow:hidden; pointer-events:none; mix-blend-mode:screen;
-}
+.sweep{ position:absolute; inset:3%; border-radius:50%; overflow:hidden; pointer-events:none; mix-blend-mode:screen }
 .sweep::before{
   content:""; position:absolute; inset:-20%;
   background: conic-gradient(from 0deg,
@@ -116,8 +88,6 @@ a{color:var(--muted)}
       rgba(23,240,200,.15) 12deg,
       rgba(23,240,200,.06) 18deg,
       rgba(23,240,200,0) 24deg);
-  transform:rotate(var(--rot));
-  transform-origin:50% 50%;
   animation:spin 4s linear infinite;
   filter:blur(1.6px);
 }
@@ -131,51 +101,35 @@ a{color:var(--muted)}
   transform:translate(-50%,-50%);
   pointer-events:none;
 }
-.ping.flash{
-  animation:ping 0.7s ease-out 1;
-}
+.ping.flash{ animation:ping 0.7s ease-out 1 }
 @keyframes ping{
   0%{ box-shadow:0 0 0 2px rgba(23,240,200,.9), 0 0 20px rgba(23,240,200,.9) }
   100%{ box-shadow:0 0 0 10px rgba(23,240,200,0), 0 0 40px rgba(23,240,200,0) }
 }
 
 /* ===== HUD bottom ======================================================= */
-.hud{
-  display:grid; grid-template-columns: 1fr auto 1fr; align-items:center;
-  gap:12px; padding:10px 14px 20px;
-}
-.stat{
-  display:flex; gap:8px; align-items:baseline; flex-wrap:wrap;
-}
+.hud{ display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap:12px; padding:10px 14px 20px }
+.stat{ display:flex; gap:8px; align-items:baseline; flex-wrap:wrap }
 .k{color:var(--muted); font-weight:700; font-size:12px}
 .v{font-weight:900; font-variant-numeric:tabular-nums}
 .center-controls{ display:flex; gap:10px }
 .badge{ padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:var(--glass2) }
 
 /* ===== Radial Menu ====================================================== */
-.radial{
-  position:fixed; inset:0; display:none; place-items:center; z-index:40;
-  background:rgba(0,0,0,.35); backdrop-filter:blur(3px);
-}
+.radial{ position:fixed; inset:0; display:none; place-items:center; z-index:40; background:rgba(0,0,0,.35); backdrop-filter:blur(3px) }
 .radial.open{ display:grid }
 .radial .ring{
   position:relative; width:min(70vmin,560px); aspect-ratio:1/1; border-radius:50%;
   border:1px solid var(--line2); background:radial-gradient(50% 50% at 50% 50%, rgba(23,240,200,.06), rgba(23,240,200,0) 60%);
   box-shadow:0 0 0 1px rgba(23,240,200,.15) inset, 0 50px 80px rgba(0,0,0,.45);
 }
-.radial .action{
-  position:absolute; transform:translate(-50%,-50%);
-  width:44%; max-width:230px;
-  display:grid; place-items:center; text-align:center; gap:8px;
-}
+.radial .action{ position:absolute; transform:translate(-50%,-50%); width:44%; max-width:230px; display:grid; place-items:center; text-align:center; gap:8px }
 .radial .action .btn{ width:100% }
 .radial .label{font-size:12px; color:var(--muted)}
-.radial .close{
-  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-}
+.radial .close{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%) }
 
 /* ===== Leaflet tweaks =================================================== */
-.leaflet-container{ background:transparent; }
+.leaflet-container{ background:transparent }
 .leaflet-control-attribution, .leaflet-control-zoom{ filter:drop-shadow(0 6px 12px rgba(0,0,0,.35)) }
 .leaflet-tooltip.mini{ background:rgba(0,0,0,.5); border:1px solid var(--line2); color:#dffcf5; border-radius:8px; padding:2px 6px }
 
@@ -194,7 +148,7 @@ a{color:var(--muted)}
   <div class="topbar">
     <div class="brand">AP Alignment — Minimap</div>
     <div class="spacer"></div>
-    <button id="btnMenu" class="btn small ghost" title="Menu (hold)">⚙️</button>
+    <button id="btnMenu" class="btn small ghost" title="Menu">⚙️</button>
   </div>
 
   <!-- Stage -->
@@ -259,8 +213,7 @@ a{color:var(--muted)}
     <div class="action" style="top:86%; left:50%">
       <div class="label">Platform</div>
       <label class="badge" style="display:flex; gap:10px; align-items:center">
-        <input type="checkbox" id="invertAndroid"/>
-        Invert Android heading
+        <input type="checkbox" id="invertAndroid"/> Invert Android heading
       </label>
     </div>
 
@@ -279,6 +232,14 @@ a{color:var(--muted)}
 <script>
 'use strict';
 (function(){
+  const ready = (fn) => {
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(fn, 0);
+    } else {
+      document.addEventListener('DOMContentLoaded', fn, { once: true });
+    }
+  };
+
   /* ===================== utilities ===================== */
   const $ = id => document.getElementById(id);
   const R = d => d * Math.PI/180;
@@ -287,7 +248,7 @@ a{color:var(--muted)}
   const Δ = (a, b) => { let d = N(b) - N(a); if (d > 180) d -= 360; else if (d < -180) d += 360; return d; };
   const blend = (p, n, a) => p == null ? n : N(p + a * Δ(p, n));
   const fix = v => Number(v).toFixed(6);
-  const fmtDist = m => (m < 1000) ? \`\${Math.round(m)} m\` : \`\${(m/1000).toFixed(2)} km\`;
+  const fmtDist = m => (m < 1000) ? `${Math.round(m)} m` : `${(m/1000).toFixed(2)} km`;
   const haversine = (a, b) => {
     const Rm = 6371000, φ1 = R(a.lat), φ2 = R(b.lat), dφ = R(b.lat-a.lat), dλ = R(b.lng-a.lng);
     const s = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
@@ -307,12 +268,12 @@ a{color:var(--muted)}
     if (screen && screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
     const o = window.orientation; return (typeof o === 'number') ? (o % 360 + 360) % 360 : 0;
   };
-  const isAndroid = () => /Android/i.test(navigator.userAgent || '') || /\\bAdr\\b/i.test(navigator.userAgent || '');
+  const isAndroid = () => /Android/i.test(navigator.userAgent || '') || /\bAdr\b/i.test(navigator.userAgent || '');
 
   /* toast */
   function toast(m){ const t=$('toast'), s=$('toastMsg'); if (!t||!s) { alert(m); return; }
     s.textContent=m; t.style.display='block'; }
-  $('toastX').onclick=()=>{ $('toast').style.display='none'; };
+  $('toastX')?.addEventListener('click', ()=>{ $('toast').style.display='none'; });
 
   /* ===================== state ===================== */
   const Store = {
@@ -325,13 +286,10 @@ a{color:var(--muted)}
   };
 
   const App = {
-    S:{
-      follow:true, heading:null, bearing:0, rotate:false, decl:0, compass:false, omega:0, mag:null,
-      dest:null
-    },
+    S:{ follow:true, heading:null, bearing:0, rotate:false, decl:0, compass:false, omega:0, mag:null, dest:null },
     DEF:{ lat:34.9, lng:-119.17, z:16 },
     map:null, last:null, navLine:null, originDot:null, ray:null, accCircle:null,
-    _lastOverlay: null, _compassBound:false, watchId:null,
+    _lastOverlay:null, _compassBound:false, watchId:null,
     _tHUD:0, _tNav:0, _tAlign:0, _lastAlignLL:null, _lastAlignHead:null,
     _aligned:null,_pending:null,_flashName:null,_flashUntil:0,_flashCooldown:new Map(),_flashTarget:null,
     ALIGN:{ ENTER:0.35, EXIT:0.60, DWELL_BASE:60 }, RAY:{ ACTIVE:0.15 }, SCAN:{ FLASH:550, COOLDOWN:650 },
@@ -345,9 +303,16 @@ a{color:var(--muted)}
       if (typeof s.decl==='number') this.S.decl=+s.decl || 0;
 
       this.map = L.map('map',{ zoomControl:false, attributionControl:true, inertia:true });
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{
-        maxZoom:19, attribution:'Tiles © Esri — Sources: Esri, Garmin, USGS, NPS, others'
-      }).addTo(this.map);
+
+      // Primary: Esri Topo; Fallback: OpenTopoMap
+      const esri = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom:19, attribution:'Tiles © Esri — Sources: Esri, Garmin, USGS, NPS, others' }
+      );
+      const otm = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        { maxZoom:17, attribution:'Map data © OpenStreetMap, SRTM — Style © OpenTopoMap (CC-BY-SA)' }
+      );
+      esri.addTo(this.map).on('tileerror', ()=>{ if (!this._fallbackSet){ this._fallbackSet=true; otm.addTo(this.map); } });
 
       this.map.setView([this.DEF.lat, this.DEF.lng], this.DEF.z);
       this.accCircle = L.circle([this.DEF.lat,this.DEF.lng],{radius:0,color:'#4df8ff',weight:1,opacity:.6,fillOpacity:.08}).addTo(this.map);
@@ -356,14 +321,17 @@ a{color:var(--muted)}
       this.applyBearing(this.S.bearing);
       UI.sync(this.S); UI.declInit(this.S.decl);
 
+      // Important: after layout settles, tell Leaflet to measure again
+      setTimeout(()=>this.map.invalidateSize(), 50);
+
       this.loop();
       addEventListener('beforeunload',()=>{ this.persist(); this.stopGPS(); },{once:true});
     },
 
     bind(){
-      $('btnGPS').onclick=()=>this.startGPS();
-      $('btnRotate').onclick=()=>this.toggleRotate();
-      $('btnReset').onclick=()=>this.resetView();
+      $('btnGPS')?.addEventListener('click', ()=>this.startGPS());
+      $('btnRotate')?.addEventListener('click', ()=>this.toggleRotate());
+      $('btnReset')?.addEventListener('click', ()=>this.resetView());
 
       // keyboard
       addEventListener('keydown',e=>{
@@ -376,21 +344,22 @@ a{color:var(--muted)}
 
       // radial menu
       const openRadial = (open)=>{ $('radial').classList.toggle('open', open); $('radial').setAttribute('aria-hidden',(!open).toString()); };
-      $('btnMenu').onpointerdown=()=>openRadial(true);
-      $('radialClose').onclick=()=>openRadial(false);
-      $('radial').onclick=e=>{ if(e.target.id==='radial') openRadial(false); };
-      $('rmGPS').onclick=()=>this.startGPS();
-      $('rmRotate').onclick=()=>this.toggleRotate();
-      $('rmReset').onclick=()=>this.resetView();
+      $('btnMenu')?.addEventListener('click', ()=>openRadial(true));
+      $('radialClose')?.addEventListener('click', ()=>openRadial(false));
+      $('radial')?.addEventListener('click', e=>{ if(e.target.id==='radial') openRadial(false); });
+
+      $('rmGPS')?.addEventListener('click', ()=>this.startGPS());
+      $('rmRotate')?.addEventListener('click', ()=>this.toggleRotate());
+      $('rmReset')?.addEventListener('click', ()=>this.resetView());
 
       // waypoints
-      $('wpAdd').onclick=()=>{
+      $('wpAdd')?.addEventListener('click', ()=>{
         const p = parseCoords($('wpCoords').value);
         if(!p){ toast('Could not parse coordinates.'); return; }
         Waypoints.upsert(($('wpName').value||'').trim(), p.lat, p.lng);
         $('wpName').value=''; $('wpCoords').value='';
-      };
-      $('wpList').addEventListener('click',e=>{
+      });
+      $('wpList')?.addEventListener('click', e=>{
         const t=e.target, idx=t.getAttribute('data-idx'); if (idx==null) return; const i=+idx;
         if(t.hasAttribute('data-go')){
           const w=Waypoints.load()[i]; if(w){ this.S.follow=false; this.S.rotate=false; UI.sync(this.S); this.map.setView([w.lat,w.lng],16); Waypoints.ensureMarker(w.name)?.openPopup(); }
@@ -402,17 +371,19 @@ a{color:var(--muted)}
       });
 
       // declination
-      $('declSlider').addEventListener('input',()=>{ const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; $('declVal').textContent=\`\${v.toFixed(1)}°\`; } },{passive:true});
-      $('declSave').onclick=()=>{
+      $('declSlider')?.addEventListener('input',()=>{
+        const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; $('declVal').textContent=`${v.toFixed(1)}°`; }
+      },{passive:true});
+      $('declSave')?.addEventListener('click', ()=>{
         const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; if(this.S.mag!=null){ this._setHeadingFromOrient(); } this.persist(); UI.updateHUD(); }
-        $('declSave').textContent='Saved ✓'; setTimeout(()=>$('declSave').textContent='Save',900);
-      };
+        $('declSave').textContent='Saved ✓'; setTimeout(()=>{ $('declSave').textContent='Save'; }, 900);
+      });
 
-      // map gestures: keep overlays upright on move
+      // map gestures
       this.map.on('move moveend zoom zoomend zoomanim', ()=>{ this.applyBearing(this.S.bearing); this.refreshRay(); });
       addEventListener('resize',()=>{ this.map.invalidateSize(); this.applyBearing(this.S.bearing); this.refreshRay(); },{passive:true});
 
-      // place pin with long-press / contextmenu
+      // right-click / long-press
       this.map.on('contextmenu', e=>{
         const ll=e.latlng; Pins.drop(ll.lat,ll.lng); UI.flashPing(ll);
       });
@@ -428,7 +399,7 @@ a{color:var(--muted)}
 
     applyBearing(d){
       const pane=this.map.getPane && this.map.getPane('mapPane'); if(!pane) return;
-      const base=(pane.style.transform||'').replace(/rotate\\([^)]*\\)/g,'');
+      const base=(pane.style.transform||'').replace(/rotate\([^)]*\)/g,'');
       pane.style.transformOrigin='50% 50%';
       pane.style.transform=base+` rotate(${-d}deg)`;
       this.uprightOverlays(d);
@@ -437,7 +408,7 @@ a{color:var(--muted)}
       if(this._lastOverlay!=null && Math.abs(Δ(this._lastOverlay,deg))<0.12) return;
       this._lastOverlay=deg;
       const rot=` rotate(${deg}deg)`;
-      const fixEl=el=>{ if(!el||!el.style) return; const base=(el.style.transform||'').replace(/rotate\\([^)]*\\)/g,'').trim(); el.style.transformOrigin='left center'; el.style.transform=base+rot; };
+      const fixEl=el=>{ if(!el||!el.style) return; const base=(el.style.transform||'').replace(/rotate\([^)]*\)/g,'').trim(); el.style.transformOrigin='left center'; el.style.transform=base+rot; };
       this.map.getPanes().popupPane?.querySelectorAll('.leaflet-popup').forEach(fixEl);
       this.map.getPanes().tooltipPane?.querySelectorAll('.leaflet-tooltip').forEach(fixEl);
     },
@@ -481,7 +452,7 @@ a{color:var(--muted)}
 
     candidates(){
       const list=[]; Waypoints.markers.forEach((m,name)=>list.push({name, ll:m.getLatLng()}));
-      if(Pins.pin){const ll=Pins.pin.getLatLng(); const nm=Pins.pin._nm||\`Pin \${fix(ll.lat)},\${fix(ll.lng)}\`; list.push({name:nm, ll});}
+      if(Pins.pin){const ll=Pins.pin.getLatLng(); const nm=Pins.pin._nm||`Pin ${fix(ll.lat)},${fix(ll.lng)}`; list.push({name:nm, ll});}
       return list;
     },
     between(a,b,x){ const ab=Δ(a,b), ax=Δ(a,x); return Math.sign(ab)===Math.sign(ax) && Math.abs(ax)<=Math.abs(ab); },
@@ -517,7 +488,7 @@ a{color:var(--muted)}
 
       const rayTarget=this._aligned || this._flashTarget || instBest;
       const rayErr = rayTarget ? Math.abs(Δ(head, bearing(from, rayTarget.ll))) : Infinity;
-      UI.setNeedle(Δ(head, instBest?.brg ?? head)); // animate alignment bar
+      UI.setNeedle(Δ(head, instBest?.brg ?? head));
       if(rayTarget && rayErr <= this.RAY.ACTIVE){ UI.flashPing(rayTarget.ll); }
 
       const step=Math.abs(Δ(prevHead,head));
@@ -604,7 +575,6 @@ a{color:var(--muted)}
       requestAnimationFrame(()=>this.loop());
     },
 
-    // Cross-platform heading normalization
     _setHeadingFromOrient(){
       const e=this._lastOrientEvent; if(!e) return;
       let heading=null;
@@ -677,37 +647,25 @@ a{color:var(--muted)}
 
     resetView(){
       if(this.S.dest){ this.S.dest=null; this.refreshNav(); UI.updateHUD(); return; }
-      if(this.last){ const {latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude], Math.max(this.map.getZoom(),16)); }
+      if(this.last){ const {latitude,longitude} = this.last.coords; this.map.setView([latitude,longitude], Math.max(this.map.getZoom(),16)); }
       else this.map.setView([this.DEF.lat,this.DEF.lng], this.DEF.z);
       this.applyBearing(this.S.bearing);
     }
   };
 
   const UI = {
-    sync(S){
-      $('btnGPS').classList.toggle('glow', !!App.last);
-      $('btnRotate').classList.toggle('glow', !!S.rotate);
-    },
+    sync(S){ $('btnGPS')?.classList.toggle('glow', !!App.last); $('btnRotate')?.classList.toggle('glow', !!S.rotate); },
     setResetLabel(t){ $('btnReset').textContent = '↺ '+t; },
-    declInit(v){ $('declSlider').value=String(v); $('declVal').textContent=\`\${(+v).toFixed(1)}°\`; },
-    setAlign(name,lock=false,flash=false){
-      $('hudAlign').textContent = name || '—';
-      if (flash) $('hudAlign').parentElement.classList.add('flash');
-      setTimeout(()=>$('hudAlign').parentElement.classList.remove('flash'), 450);
-    },
-    setNeedle(delta){
-      const clamped=Math.max(-45, Math.min(45, delta)); // visual range
-      document.documentElement.style.setProperty('--err', clamped+'deg');
-    },
-    flashPing(ll, strong=false){
+    declInit(v){ $('declSlider').value=String(v); $('declVal').textContent=`${(+v).toFixed(1)}°`; },
+    setAlign(name){ $('hudAlign').textContent = name || '—'; },
+    setNeedle(delta){ const clamped=Math.max(-45, Math.min(45, delta)); document.documentElement.style.setProperty('--err', clamped+'deg'); },
+    flashPing(ll){
       try{
         const pt=App.map.latLngToContainerPoint(ll);
         const mini = document.querySelector('.map-wrap');
-        const rect=mini.getBoundingClientRect();
-        const x = pt.x, y = pt.y;
         const el=document.createElement('div');
         el.className='ping flash';
-        el.style.left = x + 'px'; el.style.top = y + 'px';
+        el.style.left = pt.x + 'px'; el.style.top = pt.y + 'px';
         mini.appendChild(el);
         setTimeout(()=>el.remove(), 700);
       }catch{}
@@ -728,16 +686,16 @@ a{color:var(--muted)}
         const row=document.createElement('div');
         row.style.display='grid'; row.style.gridTemplateColumns='1fr auto auto'; row.style.gap='6px'; row.style.alignItems='center';
         row.style.padding='6px'; row.style.borderBottom='1px solid var(--line)';
-        row.innerHTML=\`<div><b>\${w.name}</b><br/><small style="color:var(--muted)">\${w.lat.toFixed(6)}, \${w.lng.toFixed(6)}</small></div>
-          <button class="btn small" data-idx="\${i}" data-go>Go</button>
-          <button class="btn small" data-idx="\${i}" data-guide>Guide</button>
-          <button class="btn small" style="grid-column:3/4;margin-top:6px" data-idx="\${i}" data-del>Del</button>\`;
+        row.innerHTML=`<div><b>${w.name}</b><br/><small style="color:var(--muted)">${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}</small></div>
+          <button class="btn small" data-idx="${i}" data-go>Go</button>
+          <button class="btn small" data-idx="${i}" data-guide>Guide</button>
+          <button class="btn small" style="grid-column:3/4;margin-top:6px" data-idx="${i}" data-del>Del</button>`;
         el.appendChild(row);
       });
     },
     upsert(name,lat,lng){
       const a=this.load();
-      const nm=(name?.trim()) || \`WP \${Date.now().toString().slice(-5)}\`;
+      const nm=(name?.trim()) || `WP ${Date.now().toString().slice(-5)}`;
       const i=a.findIndex(w=>w.name.toLowerCase()===nm.toLowerCase());
       const e={name:nm,lat,lng}; if(i>=0) a[i]=e; else a.push(e);
       this.save(a); this.render(); this.syncMarkers();
@@ -770,7 +728,7 @@ a{color:var(--muted)}
     drop(lat,lng){
       if(this.pin) App.map.removeLayer(this.pin);
       this.pin=makeDot(lat,lng,12).addTo(App.map);
-      this._nm=\`Pin \${fix(lat)},\${fix(lng)}\`;
+      this._nm=`Pin ${fix(lat)},${fix(lng)}`;
       bindMarker(this.pin, { name:this._nm, lat, lng });
       this.pin.openPopup();
       App.uprightOverlays(App.S.bearing);
@@ -778,11 +736,11 @@ a{color:var(--muted)}
   };
 
   function parseCoords(t){
-    const s=t.trim().replace(/\\s+/g,' ').replace(/[,;]+/g,',');
-    const m=s.match(/^\\s*([+-]?\\d+(\\.\\d+)?)\\s*,\\s*([+-]?\\d+(\\.\\d+)?)\\s*$/i);
+    const s=t.trim().replace(/\s+/g,' ').replace(/[,;]+/g,',');
+    const m=s.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
     if(m){ const lat=+m[1], lng=+m[3]; if(isFinite(lat)&&isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
     const parts=s.split(','); if(parts.length===2){
-      const one=q=>{ const x=q.trim().match(/^([NSEW])?\\s*([+-]?\\d+(\\.\\d+)?)\\s*([NSEW])?$/i); if(!x) return null;
+      const one=q=>{ const x=q.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i); if(!x) return null;
         const h=(x[1]||x[4]||'').toUpperCase(); let v=parseFloat(x[2]);
         if(h==='S'||h==='W') v=-Math.abs(v); if(h==='N'||h==='E') v=Math.abs(v); return {v,h}; };
       const a=one(parts[0]), b=one(parts[1]);
@@ -796,7 +754,7 @@ a{color:var(--muted)}
     m.unbindPopup();
     m.bindPopup(()=>{
       return `<div style="display:grid;gap:8px">
-        <input type="text" value="${name || \`Pin ${fix(lat)},${fix(lng)}\`}" data-name
+        <input type="text" value="${name || `Pin ${fix(lat)},${fix(lng)}`}" data-name
           style="padding:8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink)"/>
         <div style="color:var(--muted);font-size:12px">${fix(lat)}, ${fix(lng)}</div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -812,11 +770,11 @@ a{color:var(--muted)}
       const I=el.querySelector('[data-name]'), C=el.querySelector('[data-copy]'),
             SAV=el.querySelector('[data-save]'), MIN=el.querySelector('[data-min]'), G=el.querySelector('[data-guide]');
       C?.addEventListener('click', async ()=>{
-        const txt=\`\${fix(lat)}, \${fix(lng)}\`;
+        const txt=`${fix(lat)}, ${fix(lng)}`;
         try{ await navigator.clipboard.writeText(txt); C.textContent='Copied'; setTimeout(()=>C.textContent='Copy',900); }
         catch{ prompt('Copy to clipboard:', txt); }
       });
-      SAV?.addEventListener('click', ()=>{ const nm=(I?.value||'').trim()||\`WP \${Date.now().toString().slice(-5)}\`; Waypoints.upsert(nm,lat,lng); m.closePopup(); m._nm=nm; });
+      SAV?.addEventListener('click', ()=>{ const nm=(I?.value||'').trim()||`WP ${Date.now().toString().slice(-5)}`; Waypoints.upsert(nm,lat,lng); m.closePopup(); m._nm=nm; });
       MIN?.addEventListener('click', ()=>{
         const nm=(I?.value || m._nm || 'Pin') || 'Pin';
         m.bindTooltip(nm, { permanent:true, direction:'right', offset:[8,0], className:'mini leaflet-tooltip mini' }).openTooltip();
@@ -828,22 +786,15 @@ a{color:var(--muted)}
     m.on('tooltipopen', ()=>App.uprightOverlays(App.S.bearing));
   }
 
-  /* boot */
-  document.addEventListener('DOMContentLoaded', ()=>{
-    if(!window.L){ toast('Leaflet failed to load.'); return; }
-    App.init(); Waypoints.init();
-
-    // Hook compass enabling when rotate toggles
-    $('btnRotate').addEventListener('click', async ()=>{
-      if(!App.S.rotate){ await App.enableCompass(); }
-    });
-
-    // Initial radial neighbors
-    $('btnMenu').addEventListener('contextmenu', e=>{ e.preventDefault(); });
-
-    // ensure sweep continues (CSS anim already handles)
+  ready(()=>{
+    try{
+      if(!window.L){ toast('Leaflet failed to load.'); return; }
+      App.init(); Waypoints.init();
+    }catch(err){
+      console.error(err);
+      toast((err && err.message) ? err.message : String(err));
+    }
   });
-
 })();
 </script>
 </body>
