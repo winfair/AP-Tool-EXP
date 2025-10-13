@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
 <meta name="theme-color" content="#0b0f12"/>
-<title>AP Alignment — Minimap v3</title>
+<title>AP Alignment — Minimap v3.1</title>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
   integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
@@ -21,7 +21,7 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 110%, #0b0f12 40%, #06080a 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,ui-sans-serif}
 
-/* =========== Top HUD (kept high and below safe-area) =================== */
+/* ===== Top HUD (safe-area aware) ====================================== */
 .app{position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr auto; grid-template-columns:1fr}
 .topbar{
   position:sticky; top:0;
@@ -58,7 +58,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
 .btn.small{ padding:7px 9px; font-size:13px }
 .spacer{flex:0 0 8px}
 
-/* =========== Stage: radar ================================================= */
+/* ===== Stage / Minimap ================================================= */
 .stage{ position:relative; display:grid; place-items:center; overflow:hidden; padding:8px 10px }
 .minimap{
   position:relative; width:min(90vmin, 700px); aspect-ratio:1/1; border-radius:50%;
@@ -82,7 +82,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
 .cardinals span{ position:absolute }
 .cardinals .N{ top:2% } .S{ bottom:2% } .E{ right:3% } .W{ left:3% }
 
-/* heading ray (visual overlay) */
+/* heading ray */
 .ray{ position:absolute; inset:0; border-radius:50%; pointer-events:none; mix-blend-mode:screen }
 .ray::before{
   content:""; position:absolute; left:50%; top:50%; width:2px; height:48%;
@@ -106,7 +106,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
 }
 @keyframes spin{ to{ transform:rotate(360deg) } }
 
-/* pooled pings */
+/* pooled pings + edge indicators */
 .ping{ position:absolute; width:10px; height:10px; border-radius:50%;
   background:radial-gradient(circle, #bffff3, #17f0c8 60%, #17f0c800 62%);
   box-shadow:0 0 24px rgba(23,240,200,.65), 0 0 0 1px rgba(23,240,200,.7) inset;
@@ -118,8 +118,6 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
   0%{ box-shadow:0 0 0 2px rgba(23,240,200,.9), 0 0 20px rgba(23,240,200,.9) }
   100%{ box-shadow:0 0 0 12px rgba(23,240,200,0), 0 0 48px rgba(23,240,200,0) }
 }
-
-/* edge indicators (off-screen waypoints) */
 .edge{
   position:absolute; width:auto; padding:4px 8px; border-radius:999px;
   border:1px solid var(--line2); background:rgba(0,0,0,.55); color:#dffcf5;
@@ -127,11 +125,33 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
   transform:translate(-50%,-50%);
 }
 
-/* bottom HUD kept above browser bars */
+/* ===== Orbital Controls (around radar) ================================ */
+.orbit{
+  position:absolute; left:50%; top:50%; width:86%; height:86%;
+  transform:translate(-50%,-50%);
+  pointer-events:none;  /* children re-enable */
+}
+.orb-btn{
+  --angle:0deg;  /* each button sets its own */
+  position:absolute; left:50%; top:50%; transform:
+    rotate(var(--angle))
+    translate(calc(50% + 6px))  /* push to the perimeter */
+    rotate(calc(-1 * var(--angle)));
+  transform-origin:center;
+  pointer-events:auto;
+}
+.orb-btn .btn{
+  min-width:0; padding:10px; border-radius:12px;
+  display:grid; place-items:center; font-size:16px;
+  backdrop-filter: blur(4px);
+}
+.orb-label{ font-size:10px; font-weight:800; color:var(--muted); text-align:center; margin-top:4px }
+
+/* ===== Bottom HUD (metrics only; safe-area aware) ===================== */
 .hud{
   position:sticky; bottom:0;
   padding: 8px 10px calc(env(safe-area-inset-bottom,0px) + 10px);
-  display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap:10px;
+  display:grid; grid-template-columns: 1fr 1fr; align-items:center; gap:10px;
   background:linear-gradient(0deg,rgba(0,0,0,.45),rgba(0,0,0,.15));
   backdrop-filter: blur(8px);
   border-top:1px solid var(--line2);
@@ -140,11 +160,10 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
 .stat{ display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; min-width:0 }
 .k{color:var(--muted); font-weight:700; font-size:12px}
 .v{font-weight:900; font-variant-numeric:tabular-nums}
-.center-controls{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center }
 .chip{ padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:var(--glass2); font-weight:800 }
 .chip.lock{ border-color:#ff9f43; color:#ffd8a6 }
 
-/* clean bottom sheet (Settings & Waypoints) */
+/* ===== Sheets (settings & waypoints) ================================== */
 .sheet{
   position:fixed; left:0; right:0; bottom:0; transform:translateY(110%);
   background:var(--glass2); border-top:1px solid var(--line2); border-radius:16px 16px 0 0;
@@ -159,15 +178,13 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
 .inline{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
 .input{ padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:rgba(255,255,255,.05); color:var(--ink); font-weight:600 }
 
-/* toast */
+/* toast + leaflet tweaks */
 .toast{
   position:fixed; left:12px; right:12px; top:calc(env(safe-area-inset-top,0px) + 8px); z-index:80;
   background:#2a1d1d; color:#ffdede; border:1px solid #ff6b6b; border-radius:10px;
   padding:10px 36px 10px 12px; font-weight:700; display:none;
 }
 .toast .x{ position:absolute; right:8px; top:6px; background:transparent; border:none; color:#ffdede; font-weight:900; cursor:pointer }
-
-/* leaflet tweaks */
 .leaflet-container{ background:transparent }
 .leaflet-tooltip.mini{ background:rgba(0,0,0,.5); border:1px solid var(--line2); color:#dffcf5; border-radius:8px; padding:2px 6px }
 .leaflet-control-attribution{ filter:drop-shadow(0 6px 12px rgba(0,0,0,.35)) }
@@ -183,6 +200,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
       <div class="readout"><span id="alignText">—</span></div>
     </div>
     <div class="spacer"></div>
+    <!-- quick access still available up top -->
     <button id="btnMenu" class="btn small ghost" title="Settings">⚙️</button>
     <button id="btnWP" class="btn small ghost" title="Waypoints">📍</button>
   </div>
@@ -204,27 +222,50 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
 
       <div class="ray" id="ray"></div>
       <div class="sweep" id="sweep"></div>
+
+      <!-- Orbital controls -->
+      <div class="orbit" aria-hidden="false">
+        <!-- angles are screen degrees (0 = right, 90 = down) but we place them visually around the circle -->
+        <div class="orb-btn" style="--angle:-90deg">
+          <button id="btnGPS" class="btn" title="GPS (L)">📡</button>
+          <div class="orb-label">GPS</div>
+        </div>
+        <div class="orb-btn" style="--angle:-30deg">
+          <button id="btnRotate" class="btn" title="Rotate / Compass (R)">🧭</button>
+          <div class="orb-label">Rotate</div>
+        </div>
+        <div class="orb-btn" style="--angle:30deg">
+          <button id="btnFollow" class="btn" title="Follow (F)">🎯</button>
+          <div class="orb-label">Follow</div>
+        </div>
+        <div class="orb-btn" style="--angle:90deg">
+          <button id="btnReset" class="btn" title="Recenter / Clear Nav (C)">↺</button>
+          <div class="orb-label">Reset</div>
+        </div>
+        <div class="orb-btn" style="--angle:150deg">
+          <button id="btnWP2" class="btn" title="Waypoints">📍</button>
+          <div class="orb-label">WPs</div>
+        </div>
+        <div class="orb-btn" style="--angle:-150deg">
+          <button id="btnMenu2" class="btn" title="Settings">⚙️</button>
+          <div class="orb-label">Settings</div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Bottom HUD -->
+  <!-- Bottom HUD (metrics only) -->
   <div class="hud">
     <div class="stat">
       <span class="k">LAT</span><span id="hudLat" class="v">—</span>
       <span class="k">LNG</span><span id="hudLng" class="v">—</span>
       <span class="k">ACC</span><span id="hudAcc" class="v">— m</span>
     </div>
-    <div class="center-controls">
-      <button id="btnGPS" class="btn" title="Enable GPS (L)">📡 GPS</button>
-      <button id="btnRotate" class="btn" title="Toggle Rotate/Compass (R)">🧭 Rotate</button>
-      <button id="btnFollow" class="btn" title="Toggle Follow (F)">🎯 Follow</button>
-      <button id="btnReset" class="btn" title="Recenter / Clear Nav (C)">↺ Reset</button>
-      <div id="panLock" class="chip" style="display:none">Pan Locked</div>
-    </div>
     <div class="stat" style="justify-self:end">
       <span class="k">HEAD</span><span id="hudHead" class="v">—°</span>
       <span class="k">MAP</span><span id="hudMap" class="v">—°</span>
       <span class="k">DEST</span><span id="hudAlign" class="v">—</span>
+      <div id="panLock" class="chip" style="display:none; margin-left:8px">Pan Locked</div>
     </div>
   </div>
 </div>
@@ -285,7 +326,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
     else document.addEventListener('DOMContentLoaded', fn, { once: true });
   };
 
-  /* utils */
+  /* ===== utilities ===== */
   const $ = id => document.getElementById(id);
   const R = d => d * Math.PI/180;
   const Dg = r => r * 180/Math.PI;
@@ -314,9 +355,9 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
   function toast(m){ const t=$('toast'), s=$('toastMsg'); if (!t||!s) { alert(m); return; } s.textContent=m; t.style.display='block'; }
   $('toastX')?.addEventListener('click', ()=>{ $('toast').style.display='none'; });
 
-  /* storage */
+  /* ===== storage ===== */
   const Store = {
-    stateKey:'minimap.state.v3',
+    stateKey:'minimap.state.v3.1',
     wpKey:'minimap.waypoints.v3',
     loadState(){ try { return JSON.parse(localStorage.getItem(this.stateKey)||'{}'); } catch { return {}; } },
     saveState(s){ try { localStorage.setItem(this.stateKey, JSON.stringify(s)); } catch{} },
@@ -324,7 +365,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
     saveWPs(a){ try { localStorage.setItem(this.wpKey, JSON.stringify(a)); } catch{} }
   };
 
-  /* app */
+  /* ===== app ===== */
   const App = {
     S:{ follow:true, heading:null, bearing:0, rotate:false, decl:0, compass:false, omega:0, mag:null, dest:null, autostart:false },
     DEF:{ lat:34.9, lng:-119.17, z:16 },
@@ -375,11 +416,21 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
     },
 
     bind(){
+      // Main control bindings (now around orbit)
       $('btnGPS')?.addEventListener('click', ()=>this.startGPS());
       $('btnRotate')?.addEventListener('click', ()=>this.toggleRotate());
       $('btnFollow')?.addEventListener('click', ()=>this.setFollow(!this.S.follow));
       $('btnReset')?.addEventListener('click', ()=>this.resetView());
+      // Orbit duplicates open the sheets
+      const openSettings=()=>openSheet($('sheetSettings'), true);
+      const openWPs=()=>{ Waypoints.render(); openSheet($('sheetWP'), true); };
+      $('btnMenu2')?.addEventListener('click', openSettings);
+      $('btnWP2')?.addEventListener('click', openWPs);
+      // Topbar quick buttons still work
+      $('btnMenu')?.addEventListener('click', openSettings);
+      $('btnWP')?.addEventListener('click', openWPs);
 
+      // keyboard
       addEventListener('keydown',e=>{
         const tag=(e.target&&e.target.tagName)||''; if (tag==='INPUT'||tag==='TEXTAREA'||e.metaKey||e.ctrlKey||e.altKey) return;
         const k=(e.key||'').toLowerCase();
@@ -390,17 +441,14 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
       });
 
       /* Sheets */
-      const openSheet=(el,open)=>{ el.classList.toggle('open',open); el.setAttribute('aria-hidden', String(!open)); };
-      $('btnMenu')?.addEventListener('click', ()=>openSheet($('sheetSettings'), true));
+      function openSheet(el,open){ el.classList.toggle('open',open); el.setAttribute('aria-hidden', String(!open)); }
       $('sClose')?.addEventListener('click', ()=>openSheet($('sheetSettings'), false));
-      $('btnWP')?.addEventListener('click', ()=>{ Waypoints.render(); openSheet($('sheetWP'), true); });
       $('wClose')?.addEventListener('click', ()=>openSheet($('sheetWP'), false));
 
       /* settings actions */
       $('sStartGPS')?.addEventListener('click', ()=>this.startGPS());
       $('sToggleRotate')?.addEventListener('click', ()=>this.toggleRotate());
       $('sReset')?.addEventListener('click', ()=>this.resetView());
-
       $('declSlider')?.addEventListener('input',()=>{ const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; $('declVal').textContent=`${v.toFixed(1)}°`; }},{passive:true});
       $('declSave')?.addEventListener('click', ()=>{ const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; this._setHeadingFromOrient(); this.persist(); UI.updateHUD(); } $('declSave').textContent='Saved ✓'; setTimeout(()=>$('declSave').textContent='Save',900); });
       $('autoStart')?.addEventListener('change', e=>{ this.S.autostart=!!e.target.checked; this.persist(); });
@@ -409,7 +457,6 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
       $('wpAdd')?.addEventListener('click', ()=>Waypoints.addViaInputs());
       $('wpUseCenter')?.addEventListener('click', ()=>Waypoints.addMapCenter());
       $('wpUseHere')?.addEventListener('click', ()=>Waypoints.addMyLocation(this.last));
-
       $('wpList')?.addEventListener('click', e=>{
         const t=e.target, idx=t.getAttribute('data-idx'); if(idx==null) return; const i=+idx;
         if(t.hasAttribute('data-go')) Waypoints.go(i);
@@ -438,7 +485,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
 
     toggleRotate(){ (async()=>{ if(!this.S.rotate){ if(!await this.enableCompass()) return; this.S.rotate=true; this.S.follow=true; this._userPanned=false; $('panLock').style.display='none'; } else this.S.rotate=false; UI.sync(this.S); this.applyBearing(this.S.bearing); this.persist(); })(); },
 
-    /* rotate around *current location* (pivot at your GPS point) */
+    /* rotate around current location */
     applyBearing(d){
       const pane=this.map.getPane && this.map.getPane('mapPane'); if(!pane) return;
       let origin='50% 50%';
@@ -677,7 +724,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
     }
   };
 
-  /* UI helpers + edge indicators */
+  /* ===== UI helpers + edge indicators ===== */
   const UI = {
     sync(S){
       $('btnGPS')?.classList.toggle('glow', !!App.last);
@@ -685,7 +732,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
       $('btnFollow')?.classList.toggle('glow', !!S.follow);
       $('autoStart') && ($('autoStart').checked = !!S.autostart);
     },
-    setResetLabel(t){ $('btnReset').textContent = '↺ '+t; },
+    setResetLabel(t){ $('btnReset').title = t; },
     declInit(v){ $('declSlider').value=String(v); $('declVal').textContent=`${(+v).toFixed(1)}°`; },
     setAlign(name){ $('alignText').textContent = name || '—'; },
     setNeedle(delta){ const clamped=clamp(delta,-45,45); $('needle').style.setProperty('--err', clamped+'deg'); },
@@ -695,20 +742,17 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
     updateEdges(){
       const root=$('edgePool'); if(!App.last){ root.innerHTML=''; return; }
       const center=App.map.latLngToContainerPoint([App.last.coords.latitude, App.last.coords.longitude]);
-      const wrap=$('.map-wrap'.slice(1)) || document.querySelector('.map-wrap'); // defensive
-      if(!wrap){ return; }
+      const wrap=document.querySelector('.map-wrap'); if(!wrap){ return; }
       const rect=wrap.getBoundingClientRect();
-      const radius=Math.min(rect.width, rect.height)/2; // visual radar radius
-      const cand = App.candidates(); // waypoints + pin
+      const radius=Math.min(rect.width, rect.height)/2;
+      const cand = App.candidates();
 
       // reuse nodes
       const live = new Set();
-      cand.forEach((c, idx)=>{
+      cand.forEach((c)=>{
         const from=L.latLng(App.last.coords.latitude, App.last.coords.longitude);
         const br=bearing(from,c.ll); const dist=haversine(from,c.ll);
-        // angle relative to current map rotation so labels stay “screen north”
         const angle = R(br - App.S.bearing);
-        // point at edge
         const edgeX = center.x + Math.cos(angle) * (radius*0.94);
         const edgeY = center.y + Math.sin(angle) * (radius*0.94);
 
@@ -719,11 +763,11 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
         el.style.left = edgeX+'px'; el.style.top = edgeY+'px';
         live.add(id);
       });
-      // cleanup unused
       Array.from(root.children).forEach(ch=>{ if(!live.has(ch.id)) ch.remove(); });
     }
   };
 
+  /* ===== Ping pool ===== */
   const PingPool = (() => {
     const pool = []; const root = $('pingPool');
     const get = () => { const free = pool.find(p => !p.busy); if (free) return free;
@@ -733,7 +777,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
     return { flashAt };
   })();
 
-  /* Waypoints manager (with “add from center” and “add from my location”) */
+  /* ===== Waypoints ===== */
   const Waypoints = {
     markers:new Map(),
     init(){ this.render(); this.syncMarkers(); },
@@ -745,8 +789,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
       const nm=($('wpName').value||'').trim();
       const txt=($('wpCoords').value||'').trim();
       if(!txt){ this.addMapCenter(nm); return; }
-      const p=parseCoords(txt);
-      if(!p){ toast('Could not parse coordinates.'); return; }
+      const p=parseCoords(txt); if(!p){ toast('Could not parse coordinates.'); return; }
       this.upsert(nm, p.lat, p.lng);
       $('wpName').value=''; $('wpCoords').value='';
     },
@@ -849,7 +892,6 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
       this.pin=makeDot(lat,lng,12).addTo(App.map);
       this._nm=`Pin ${fix(lat)},${fix(lng)}`;
       bindMarker(this.pin, { name:this._nm, lat, lng });
-      // use *tooltip* by default to avoid popup clipping; edit in sheet instead
       this.pin.bindTooltip(this._nm, { permanent:true, direction:'right', offset:[8,0], className:'mini leaflet-tooltip mini' }).openTooltip();
       App.uprightOverlays(App.S.bearing);
       UI.updateEdges();
@@ -872,7 +914,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
 
   function bindMarker(m,{name,lat,lng}){
     m.unbindPopup();
-    m.bindPopup(()=>{ // compact to reduce clipping
+    m.bindPopup(()=>{
       return `<div style="display:grid;gap:6px">
         <div style="font-weight:800">${name || `Pin ${fix(lat)},${fix(lng)}`}</div>
         <div style="color:var(--muted);font-size:12px">${fix(lat)}, ${fix(lng)}</div>
@@ -896,10 +938,7 @@ html,body{height:100%;margin:0;background:radial-gradient(1200px 1000px at 50% 1
     try{
       if(!window.L){ toast('Leaflet failed to load.'); return; }
       App.init(); Waypoints.init();
-    }catch(err){
-      console.error(err);
-      toast((err && err.message) ? err.message : String(err));
-    }
+    }catch(err){ console.error(err); toast((err && err.message) ? err.message : String(err)); }
   });
 })();
 </script>
