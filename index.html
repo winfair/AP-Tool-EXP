@@ -4,870 +4,476 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
 <meta name="theme-color" content="#0b0f12"/>
-<title>AP Alignment — Minimap Pro / Flow v4</title>
-
+<title>AP Alignment — Oriented Minimap</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
-
 <style>
-:root{
-  --bg:#0b0f12; --ink:#e9f5f0; --muted:#a8cfc0; --brand:#20d7b7; --brand2:#2ac18a;
-  --line:rgba(255,255,255,.10); --line2:rgba(255,255,255,.18);
-  --glass:rgba(12,18,20,.66); --glass2:rgba(12,18,20,.88);
-  --shadow:0 16px 40px rgba(0,0,0,.55);
-}
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;background:linear-gradient(180deg,#0b0f12,#070a0c);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,ui-sans-serif}
-
-/* App grid */
-.app{position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr auto}
-
-/* Topbar */
-.topbar{
-  position:sticky; top:0; z-index:40;
-  padding: calc(env(safe-area-inset-top,0px) + 6px) 10px 6px;
-  display:flex; align-items:center; gap:10px;
-  background:linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,.14));
-  border-bottom:1px solid var(--line2); backdrop-filter: blur(6px)
-}
-.brand{font-weight:800; font-size:13px; letter-spacing:.2px; opacity:.9}
-.alignbar{
-  flex:1; height:26px; border:1px solid var(--line2); border-radius:12px;
-  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
-  display:grid; grid-template-columns:1fr auto; overflow:hidden; min-width:140px
-}
-.alignbar .needle{ --err:0deg; position:relative }
-.alignbar .needle::before{
-  content:""; position:absolute; inset:0;
-  background:linear-gradient(90deg, rgba(32,215,183,0) 0%, rgba(32,215,183,.7) 50%, rgba(32,215,183,0) 100%);
-  transform:translateX(calc(var(--err) * .6)); filter:blur(2.2px); opacity:.6
-}
-.alignbar .readout{ display:flex; align-items:center; padding:0 8px; font-weight:800; font-size:12px }
-.btn{ appearance:none; border:1px solid var(--line); background:var(--glass2); color:var(--ink);
-  border-radius:12px; padding:8px 10px; font-weight:700; cursor:pointer }
-.btn.small{ padding:7px 9px; font-size:13px }
-.btn.icon{ padding:8px; width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:rgba(255,255,255,.03) }
-.btn.on{ border-color:var(--brand); box-shadow:0 0 0 1px rgba(32,215,183,.22) inset }
-.spacer{flex:0 0 8px}
-
-/* Stage / minimap */
-.stage{ display:grid; place-items:center; padding:8px 10px }
-.minimap{
-  position:relative; width:min(92vmin, 720px); aspect-ratio:1; border-radius:50%;
-  box-shadow: 0 10px 26px rgba(0,0,0,.5), 0 0 0 1px var(--line2) inset;
-  background: radial-gradient(60% 60% at 50% 50%, rgba(32,215,183,.05), rgba(32,215,183,.01) 60%, rgba(0,0,0,.0) 62%),
-              radial-gradient(90% 90% at 50% 50%, rgba(0,0,0,.0) 60%, rgba(32,215,183,.05) 102%)
-}
-.map-wrap{ position:absolute; inset:3.5%; width:93%; height:93%; border-radius:50%; overflow:hidden }
-#map{ position:absolute; inset:-6%; width:112%; height:112%; will-change:transform }
-.ring,.ring2{ position:absolute; inset:0; border-radius:50%; pointer-events:none }
-.ring{ border:1px dashed rgba(255,255,255,.12) }
-.ring2{ inset:6%; border:1.5px solid rgba(32,215,183,.12) }
-.cardinals{ position:absolute; inset:0; pointer-events:none; font-weight:800; font-size:10px; color:#bff3e8a6 }
-.cardinals span{ position:absolute } .N{top:2%}.S{bottom:2%}.E{right:3%}.W{left:3%}
-
-/* Mode chip */
-.modechip{
-  position:absolute; left:50%; top:7%; transform:translate(-50%,-50%);
-  display:flex; gap:4px; padding:4px; background:rgba(0,0,0,.5); border:1px solid var(--line2); border-radius:12px;
-  z-index:5
-}
-.modechip button{ border-radius:10px; padding:6px 10px; border:1px solid var(--line); background:rgba(255,255,255,.04); color:var(--ink); font-weight:800; font-size:12px }
-.modechip button.on{ border-color:var(--brand); background:rgba(32,215,183,.16) }
-
-/* Sweep & ray */
-.ray{ position:absolute; inset:0; border-radius:50%; pointer-events:none }
-.ray::before{ content:""; position:absolute; left:50%; top:50%; width:2px; height:47%;
-  background:linear-gradient(180deg, rgba(32,215,183,0), rgba(32,215,183,.82));
-  transform-origin:top center; transform:translate(-50%,-100%) rotate(0deg); opacity:.85 }
-.sweep{ position:absolute; inset:3.5%; border-radius:50%; overflow:hidden; pointer-events:none }
-.sweep::before{
-  content:""; position:absolute; inset:-20%;
-  background: conic-gradient(from 0deg, rgba(32,215,183,0) 0deg, rgba(32,215,183,.08) 10deg, rgba(32,215,183,0) 22deg);
-  animation:spin 5.5s linear infinite; filter:blur(1px)
-}
-@keyframes spin{ to{ transform:rotate(360deg) } }
-
-/* Controls around circle (contextual) */
-.ring-ctrls{ position:absolute; left:50%; top:50%; width:88%; height:88%; transform:translate(-50%,-50%); pointer-events:none }
-.rc{ --a:0deg; position:absolute; left:50%; top:50%;
-  transform: rotate(var(--a)) translate(calc(50% + 4px)) rotate(calc(-1 * var(--a)));
-  pointer-events:auto }
-.rc .btn.icon{ width:40px; height:40px }
-
-/* Quick add floating + */
-.quickadd{
-  position:absolute; right:10%; bottom:10%;
-  display:grid; place-items:center; width:44px; height:44px; border-radius:12px;
-  border:1px solid var(--line2); background:rgba(255,255,255,.06); font-weight:900
-}
-
-/* Pings & edge labels */
-.ping{ position:absolute; width:9px; height:9px; border-radius:50%;
-  background:radial-gradient(circle, #d8fff6, #20d7b7 60%, #20d7b700 62%);
-  box-shadow:0 0 18px rgba(32,215,183,.6), 0 0 0 1px rgba(32,215,183,.7) inset;
-  transform:translate(-50%,-50%); pointer-events:none; opacity:0; transition:opacity .12s ease }
-.ping.show{ opacity:1 } .ping.flash{ animation:ping .6s ease-out 1 }
-@keyframes ping{ 0%{ box-shadow:0 0 0 2px rgba(32,215,183,.9), 0 0 20px rgba(32,215,183,.9) } 100%{ box-shadow:0 0 0 10px rgba(32,215,183,0), 0 0 38px rgba(32,215,183,0) } }
-.edge{ position:absolute; padding:4px 8px; border-radius:10px; border:1px solid var(--line2);
-  background:rgba(0,0,0,.52); color:#e5fbf5; font-weight:800; font-size:11px; pointer-events:auto; user-select:none;
-  transform:translate(-50%,-50%); white-space:nowrap }
-
-/* HUD */
-.hud{
-  position:sticky; bottom:0; z-index:30;
-  padding: 8px 10px calc(env(safe-area-inset-bottom,0px) + 10px);
-  display:grid; grid-template-columns: 1fr 1fr; gap:10px; align-items:center;
-  background:linear-gradient(0deg,rgba(0,0,0,.42),rgba(0,0,0,.14));
-  border-top:1px solid var(--line2); backdrop-filter: blur(6px)
-}
-.stat{ display:flex; gap:10px; align-items:baseline; flex-wrap:wrap }
-.k{ color:var(--muted); font-weight:700; font-size:12px }
-.v{ font-weight:900; font-variant-numeric:tabular-nums }
-.chip{ padding:6px 8px; border-radius:9px; border:1px solid var(--line); background:var(--glass2); font-weight:800 }
-.chip.lock{ border-color:#ff9f43; color:#ffd8a6 }
-
-/* Sheets */
-.sheet{
-  position:fixed; left:0; right:0; bottom:0; transform:translateY(110%); z-index:60;
-  background:var(--glass2); border-top:1px solid var(--line2); border-radius:16px 16px 0 0;
-  padding:14px 12px calc(env(safe-area-inset-bottom,0px) + 14px);
-  box-shadow:0 -24px 48px rgba(0,0,0,.45); transition:transform .22s ease;
-  max-height:78vh; overflow:auto
-}
-.sheet.open{ transform:translateY(0%) }
-.sheet h3{ margin:8px 4px; font-size:13px; letter-spacing:.3px; opacity:.85 }
-.row{ display:grid; gap:8px; margin:8px 0 }
-.inline{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
-.input{ padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:rgba(255,255,255,.05); color:var(--ink); font-weight:600 }
-
-/* Onboarding */
-.start{
-  position:fixed; inset:0; z-index:80; display:none; place-items:center;
-  background:linear-gradient(180deg,rgba(0,0,0,.7),rgba(0,0,0,.6))
-}
-.start .card{
-  width:min(520px,92vw); border:1px solid var(--line2); border-radius:14px; background:var(--glass2);
-  box-shadow:var(--shadow); padding:16px; display:grid; gap:10px
-}
-
-/* Toast & leaflet tweaks */
-.toast{ position:fixed; left:12px; right:12px; top:calc(env(safe-area-inset-top,0px) + 8px); z-index:90;
-  background:#2a1d1d; color:#ffdede; border:1px solid #ff6b6b; border-radius:10px; padding:10px 36px 10px 12px; font-weight:700; display:none }
-.toast .x{ position:absolute; right:8px; top:6px; background:transparent; border:none; color:#ffdede; font-weight:900; cursor:pointer }
-.leaflet-container{ background:transparent }
-.leaflet-tooltip.mini{ background:rgba(0,0,0,.5); border:1px solid var(--line2); color:#dffcf5; border-radius:8px; padding:2px 6px }
-.leaflet-control-attribution{ filter:drop-shadow(0 6px 12px rgba(0,0,0,.35)) }
+:root{--bg:#0b0f12;--ink:#e9f5f0;--muted:#a8cfc0;--brand:#20d7b7;--accent:#2ac18a;--line:rgba(255,255,255,.12);--line2:rgba(255,255,255,.2);}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:#0b0f12;color:var(--ink);font-family:system-ui,-apple-system,Inter,Segoe UI,Roboto,ui-sans-serif}
+.app{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto}
+.top{position:sticky;top:0;z-index:50;display:flex;gap:10px;align-items:center;padding:calc(env(safe-area-inset-top,0px)+6px) 10px 6px;background:linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,.14));border-bottom:1px solid var(--line2);backdrop-filter:blur(6px)}
+.brand{font-weight:800;font-size:13px;letter-spacing:.2px;opacity:.9}
+.alignbar{flex:1;min-width:160px;height:26px;border:1px solid var(--line2);border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));display:grid;grid-template-columns:1fr auto;overflow:hidden}
+.alignbar .needle{--err:0deg;position:relative}
+.alignbar .needle::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(32,215,183,0),rgba(32,215,183,.8) 50%,rgba(32,215,183,0));transform:translateX(calc(var(--err)*.6));filter:blur(2px);opacity:.7}
+.alignbar .txt{display:flex;align-items:center;padding:0 8px;font:800 12px/1 system-ui}
+.btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);border-radius:12px;padding:8px 10px;font-weight:800;cursor:pointer}
+.btn.icon{width:40px;height:40px;display:grid;place-items:center}
+.btn.on{border-color:var(--brand);box-shadow:0 0 0 1px rgba(32,215,183,.22) inset}
+.stage{display:grid;place-items:center;padding:8px 10px}
+.minimap{position:relative;width:min(92vmin,720px);aspect-ratio:1;border-radius:50%;box-shadow:0 8px 24px rgba(0,0,0,.5),0 0 0 1px var(--line) inset;background:radial-gradient(60% 60% at 50% 50%, rgba(32,215,183,.06), rgba(32,215,183,.01) 60%, rgba(0,0,0,.0) 62%)}
+.mapwrap{position:absolute;inset:4%;border-radius:50%;overflow:hidden}
+#map{position:absolute;inset:-6%;width:112%;height:112%}
+.radar{position:absolute;inset:0;border-radius:50%;border:1px dashed rgba(255,255,255,.14);pointer-events:none}
+.radar2{position:absolute;inset:7%;border-radius:50%;border:1.5px solid rgba(32,215,183,.16);pointer-events:none}
+.cardinals{position:absolute;inset:0;pointer-events:none;color:#bff3e8a6;font:800 10px/1 system-ui}
+.cardinals span{position:absolute}.N{top:2%}.S{bottom:2%}.E{right:3%}.W{left:3%}
+.modechip{position:absolute;left:50%;top:8%;transform:translate(-50%,-50%);display:flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.5)}
+.modechip button{border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:800 12px/1 system-ui;padding:6px 10px}
+.modechip button.on{border-color:var(--brand);background:rgba(32,215,183,.16)}
+.quick{position:absolute;right:10%;bottom:10%;width:44px;height:44px;border-radius:12px;border:1px solid var(--line2);background:rgba(255,255,255,.06);font-weight:900}
+.ray{position:absolute;inset:0;border-radius:50%;pointer-events:none}
+.ray::before{content:"";position:absolute;left:50%;top:50%;width:2px;height:47%;background:linear-gradient(180deg,rgba(32,215,183,0),rgba(32,215,183,.9));transform-origin:top center;transform:translate(-50%,-100%) rotate(0deg)}
+.sweep{position:absolute;inset:4%;border-radius:50%;overflow:hidden;pointer-events:none}
+.sweep::before{content:"";position:absolute;inset:-20%;background:conic-gradient(from 0deg,rgba(32,215,183,0) 0deg,rgba(32,215,183,.08) 10deg,rgba(32,215,183,0) 22deg);animation:spin 5.5s linear infinite;filter:blur(1px)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ringctrl{position:absolute;left:50%;top:50%;width:88%;height:88%;transform:translate(-50%,-50%);pointer-events:none}
+.rc{--a:0deg;position:absolute;left:50%;top:50%;transform:rotate(var(--a)) translate(calc(50% + 4px)) rotate(calc(-1*var(--a)));pointer-events:auto}
+.ping{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle,#d8fff6,#20d7b7 60%,#20d7b700 62%);box-shadow:0 0 18px rgba(32,215,183,.65),0 0 0 1px rgba(32,215,183,.7) inset;transform:translate(-50%,-50%);pointer-events:none;opacity:0;transition:opacity .12s}
+.ping.show{opacity:1}.ping.flash{animation:ping .6s ease-out 1}@keyframes ping{0%{box-shadow:0 0 0 2px rgba(32,215,183,.9),0 0 20px rgba(32,215,183,.9)}100%{box-shadow:0 0 0 10px rgba(32,215,183,0),0 0 38px rgba(32,215,183,0)}}
+.edge{position:absolute;padding:4px 8px;border-radius:10px;border:1px solid var(--line2);background:rgba(0,0,0,.52);color:#e5fbf5;font:800 11px/1 system-ui;transform:translate(-50%,-50%);white-space:nowrap;user-select:none}
+.hud{position:sticky;bottom:0;z-index:40;padding:8px 10px calc(env(safe-area-inset-bottom,0px)+10px);display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center;background:linear-gradient(0deg,rgba(0,0,0,.42),rgba(0,0,0,.14));border-top:1px solid var(--line2);backdrop-filter:blur(6px)}
+.stat{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.k{color:var(--muted);font:700 12px/1 system-ui}.v{font-weight:900;font-variant-numeric:tabular-nums}
+.chip{padding:6px 8px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-weight:800}.chip.lock{border-color:#ff9f43;color:#ffd8a6}
+.sheet{position:fixed;left:0;right:0;bottom:0;transform:translateY(110%);z-index:60;background:rgba(12,18,20,.9);border-top:1px solid var(--line2);border-radius:16px 16px 0 0;padding:14px 12px calc(env(safe-area-inset-bottom,0px)+14px);box-shadow:0 -24px 48px rgba(0,0,0,.45);transition:transform .22s;max-height:78vh;overflow:auto}
+.sheet.open{transform:translateY(0%)}.sheet h3{margin:8px 4px;font-size:13px;letter-spacing:.3px;opacity:.85}.row{display:grid;gap:8px;margin:8px 0}.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.input{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font-weight:600}
+.toast{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px)+8px);z-index:90;background:#2a1d1d;color:#ffdede;border:1px solid #ff6b6b;border-radius:10px;padding:10px 36px 10px 12px;font-weight:700;display:none}
+.toast .x{position:absolute;right:8px;top:6px;background:transparent;border:none;color:#ffdede;font-weight:900;cursor:pointer}
+.leaflet-container{background:transparent}.leaflet-control-attribution{filter:drop-shadow(0 6px 12px rgba(0,0,0,.35))}
 </style>
 </head>
 <body>
 <div class="app">
-  <!-- Topbar -->
-  <div class="topbar">
+  <div class="top">
     <div class="brand">AP Alignment</div>
-    <div class="alignbar" aria-live="polite"><div class="needle" id="needle"></div><div class="readout"><span id="alignText">—</span></div></div>
-    <div class="spacer"></div>
-    <button id="btnMenu" class="btn small" title="Settings">⚙︎</button>
-    <button id="btnWP" class="btn small" title="Waypoints">⌖</button>
+    <div class="alignbar"><div id="needle" class="needle"></div><div class="txt" id="alignTxt">—</div></div>
+    <button id="btnSettings" class="btn">⚙︎</button>
+    <button id="btnWP" class="btn">⌖</button>
   </div>
 
-  <!-- Stage -->
   <div class="stage">
-    <div class="minimap" aria-label="Minimap">
-      <div class="ring"></div><div class="ring2"></div>
-
-      <div class="map-wrap">
-        <div id="map" aria-label="Map"></div>
-        <div class="modechip" role="tablist" aria-label="Mode">
-          <button id="modeExplore" role="tab">Explore</button>
-          <button id="modeAlign" role="tab">Align</button>
-          <button id="modeGuide" role="tab">Guide</button>
+    <div class="minimap">
+      <div class="mapwrap">
+        <div id="map"></div>
+        <div class="modechip" role="tablist">
+          <button id="mNorth" class="">North-Up</button>
+          <button id="mTrack" class="on">Track-Up</button>
         </div>
-        <button id="quickAdd" class="quickadd" title="Save Map Center as Waypoint">＋</button>
-
+        <button id="btnQuick" class="btn quick" title="Save map center">＋</button>
         <div id="pingPool"></div>
         <div id="edgePool"></div>
       </div>
-
+      <div class="radar"></div><div class="radar2"></div>
       <div class="cardinals"><span class="N">N</span><span class="S">S</span><span class="E">E</span><span class="W">W</span></div>
       <div class="ray" id="ray"></div>
-      <div class="sweep" id="sweep"></div>
+      <div class="sweep"></div>
 
-      <!-- Contextual ring controls -->
-      <div class="ring-ctrls" id="ringCtrls">
-        <!-- filled by JS per mode -->
+      <div class="ringctrl" id="ring">
+        <div class="rc" style="--a:-45deg"><button id="bGPS" class="btn icon" title="GPS (L)">📡</button></div>
+        <div class="rc" style="--a:45deg"><button id="bRotate" class="btn icon on" title="Toggle mode (R)">🧭</button></div>
+        <div class="rc" style="--a:135deg"><button id="bFollow" class="btn icon on" title="Follow (F)">🎯</button></div>
+        <div class="rc" style="--a:-135deg"><button id="bReset" class="btn icon" title="Reset / Clear (C)">↺</button></div>
       </div>
     </div>
   </div>
 
-  <!-- HUD -->
   <div class="hud">
-    <div class="stat"><span class="k">LAT</span><span id="hudLat" class="v">—</span><span class="k">LNG</span><span id="hudLng" class="v">—</span><span class="k">ACC</span><span id="hudAcc" class="v">— m</span></div>
-    <div class="stat" style="justify-self:end">
-      <span class="k">HEAD</span><span id="hudHead" class="v">—°</span><span class="k">MAP</span><span id="hudMap" class="v">—°</span>
-      <span class="k">DEST</span><span id="hudAlign" class="v">—</span><div id="panLock" class="chip" style="display:none; margin-left:8px">Pan Locked</div>
-    </div>
+    <div class="stat"><span class="k">LAT</span><span id="hLat" class="v">—</span><span class="k">LNG</span><span id="hLng" class="v">—</span><span class="k">ACC</span><span id="hAcc" class="v">— m</span></div>
+    <div class="stat" style="justify-self:end"><span class="k">HEAD</span><span id="hHead" class="v">—°</span><span class="k">MAP</span><span id="hMap" class="v">—°</span><span class="k">DEST</span><span id="hDest" class="v">—</span><div id="lock" class="chip" style="display:none;margin-left:8px">Pan Locked</div></div>
   </div>
 </div>
 
 <!-- Settings -->
-<div id="sheetSettings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sTitle" aria-hidden="true">
-  <h3 id="sTitle">Settings</h3>
+<div id="sheetSettings" class="sheet" aria-hidden="true">
+  <h3>Settings</h3>
   <div class="row"><div class="inline">
-    <label><input type="checkbox" id="invertAndroid"/> Invert Android Heading</label>
-    <label><input type="checkbox" id="autoStart"/> Auto-start GPS + Compass</label>
-    <label><input type="checkbox" id="edgeOnlyOff"/> Show edge pucks only when off-circle</label>
+    <label><input type="checkbox" id="invertAndroid"/> Invert Android heading</label>
+    <label><input type="checkbox" id="autoStart"/> Auto-start GPS & Compass</label>
+    <label><input type="checkbox" id="edgeOffOnly" checked/> Edge pucks only when off-circle</label>
   </div></div>
   <div class="row">
-    <label>Declination (°)</label>
-    <input id="declSlider" type="range" min="-30" max="30" step="0.1" class="input" />
-    <div class="inline">True = Magnetic + <b id="declVal">0.0°</b>
-      <button id="declSave" class="btn small" style="margin-left:auto">Save</button>
-    </div>
+    <label>Declination</label>
+    <input id="decl" type="range" min="-30" max="30" step="0.1" class="input"/>
+    <div class="inline">True = Magnetic + <b id="declVal">0.0°</b><button id="declSave" class="btn" style="margin-left:auto">Save</button></div>
   </div>
-  <div class="row"><button id="sReset" class="btn">Reset</button></div>
   <div class="row" style="text-align:right"><button id="sClose" class="btn">Close</button></div>
 </div>
 
 <!-- Waypoints -->
-<div id="sheetWP" class="sheet" role="dialog" aria-modal="true" aria-labelledby="wTitle" aria-hidden="true">
-  <h3 id="wTitle">Waypoints</h3>
+<div id="sheetWP" class="sheet" aria-hidden="true">
+  <h3>Waypoints</h3>
   <div class="row">
     <div class="inline" style="width:100%">
       <input id="wpName" class="input" placeholder="Name (optional)"/>
       <input id="wpCoords" class="input" placeholder="34.851939,-119.168399  or  34.851939 N, 119.168399 W"/>
       <button id="wpAdd" class="btn">Add / Update</button>
-      <button id="wpUseCenter" class="btn">Use Map Center</button>
-      <button id="wpUseHere" class="btn">Use My Location</button>
+      <button id="wpCenter" class="btn">Use Map Center</button>
+      <button id="wpHere" class="btn">Use My Location</button>
     </div>
-    <div class="inline" style="font-size:12px; color:var(--muted)">Leave coords blank to use Map Center.</div>
   </div>
-  <div id="wpList" class="row" style="max-height:46vh; overflow:auto; border:1px solid var(--line); border-radius:12px; padding:6px"></div>
+  <div id="wpList" class="row" style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:6px"></div>
   <div class="row" style="text-align:right"><button id="wClose" class="btn">Close</button></div>
 </div>
 
-<!-- Onboarding -->
-<div id="start" class="start" aria-hidden="true">
-  <div class="card">
-    <h3 style="margin:0">Welcome to AP Alignment</h3>
-    <div style="color:var(--muted); font-size:13px">
-      • Tap <b>Start</b> to enable GPS and Compass<br/>
-      • <b>Align</b> mode scans and snaps to waypoints / pins as you sweep<br/>
-      • Long-press the map to drop a pin; use <b>＋</b> to save map center<br/>
-      • Double-tap inside the radar to recenter on you
-    </div>
-    <div class="inline" style="justify-content:space-between">
-      <label><input type="checkbox" id="startRemember" checked/> Don’t show again</label>
-      <div class="inline">
-        <button id="startSkip" class="btn">Skip</button>
-        <button id="startGo" class="btn on">Start</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Toast -->
-<div id="toast" class="toast"><button class="x" id="toastX">×</button><span id="toastMsg"></span></div>
+<div id="toast" class="toast"><button id="tx" class="x">×</button><span id="tmsg"></span></div>
 
 <script>
 'use strict';
 (function(){
-  /* ===== short helpers ===== */
-  const ready=(fn)=>{ if(document.readyState==='complete'||document.readyState==='interactive') setTimeout(fn,0); else document.addEventListener('DOMContentLoaded',fn,{once:true}); };
   const $=id=>document.getElementById(id);
+  const ready=fn=>{ if(document.readyState!=='loading') fn(); else document.addEventListener('DOMContentLoaded',fn,{once:true}); };
   const R=d=>d*Math.PI/180, Dg=r=>r*180/Math.PI, N=d=>((d%360)+360)%360;
   const Δ=(a,b)=>{let d=N(b)-N(a); if(d>180)d-=360; else if(d<-180)d+=360; return d;};
   const blend=(p,n,a)=>p==null?n:N(p+a*Δ(p,n));
-  const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
-  const fix=v=>Number(v).toFixed(6);
-  const fmtDist=m=>(m<1000)?`${Math.round(m)} m`:`${(m/1000).toFixed(2)} km`;
+  const fix=v=>Number(v).toFixed(6); const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+  const fmtDist=m=>(m<1000?Math.round(m)+' m':(m/1000).toFixed(2)+' km');
   const haversine=(a,b)=>{const Rm=6371000,φ1=R(a.lat),φ2=R(b.lat),dφ=R(b.lat-a.lat),dλ=R(b.lng-a.lng);const s=Math.sin(dφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;return 2*Rm*Math.asin(Math.min(1,Math.sqrt(s)));};
   const bearing=(a,b)=>{const φ1=R(a.lat),φ2=R(b.lat),λ1=R(a.lng),λ2=R(b.lng);const y=Math.sin(λ2-λ1)*Math.cos(φ2);const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);return N(Dg(Math.atan2(y,x)));};
   const DotIcon=s=>L.divIcon({className:'ping',iconSize:[s,s],iconAnchor:[s/2,s/2]});
-  const makeDot=(lat,lng,size=9)=>L.marker([lat,lng],{icon:DotIcon(size),riseOnHover:true});
-  const getScreenAngle=()=> (screen&&screen.orientation&&typeof screen.orientation.angle==='number') ? screen.orientation.angle : (typeof window.orientation==='number'? (window.orientation%360+360)%360 : 0);
+  const makeDot=(lat,lng,s=9)=>L.marker([lat,lng],{icon:DotIcon(s),riseOnHover:true});
+  const screenAngle=()=> (screen&&screen.orientation&&typeof screen.orientation.angle==='number')?screen.orientation.angle:(typeof window.orientation==='number'?(window.orientation%360+360)%360:0);
   const isAndroid=()=>/Android/i.test(navigator.userAgent||'')||/\bAdr\b/i.test(navigator.userAgent||'');
-  function toast(m){ const t=$('toast'),s=$('toastMsg'); if(!t||!s){ alert(m); return; } s.textContent=m; t.style.display='block'; }
-  $('toastX')?.addEventListener('click',()=>{$('toast').style.display='none';});
+  const toast=m=>{const t=$('toast'),s=$('tmsg'); if(!t||!s){alert(m);return;} s.textContent=m; t.style.display='block';}; $('tx')?.addEventListener('click',()=>$('toast').style.display='none');
 
-  /* ===== storage ===== */
-  const Store={ key:'minimap.state.v4', wpKey:'minimap.waypoints.v3',
-    load(){ try{return JSON.parse(localStorage.getItem(this.key)||'{}')}catch{return{}} },
-    save(s){ try{localStorage.setItem(this.key,JSON.stringify(s))}catch{} },
-    loadWPs(){ try{return JSON.parse(localStorage.getItem(this.wpKey)||'[]')}catch{return[]} },
-    saveWPs(a){ try{localStorage.setItem(this.wpKey,JSON.stringify(a))}catch{} }
-  };
+  const Store={k:'orient.v1',w:'wps.v3',load(){try{return JSON.parse(localStorage.getItem(this.k)||'{}')}catch{return{}}},save(s){try{localStorage.setItem(this.k,JSON.stringify(s))}catch{}},lw(){try{return JSON.parse(localStorage.getItem(this.w)||'[]')}catch{return[]}},sw(a){try{localStorage.setItem(this.w,JSON.stringify(a))}catch{} }};
 
-  /* ===== App ===== */
   const App={
-    Mode:{ EXPLORE:'EXPLORE', ALIGN:'ALIGN', GUIDE:'GUIDE' },
-    S:{ follow:true, heading:null, bearing:0, rotate:false, decl:0, compass:false, omega:0, mag:null, dest:null, autostart:false, edgeOnlyOff:true },
-    mode:'EXPLORE',
-    DEF:{lat:34.9,lng:-119.17,z:16},
-    map:null,last:null,navLine:null,originDot:null,rayLine:null,accCircle:null,
-    _lastOverlay:null,_compassBound:false,watchId:null,_tHUD:0,_tNav:0,_tAlign:0,_lastAlignLL:null,_lastAlignHead:null,
-    _aligned:null,_pending:null,_flashName:null,_flashUntil:0,_flashCooldown:new Map(),_flashTarget:null,
-    ALIGN:{ENTER:0.35,EXIT:0.60,DWELL_BASE:60},RAY:{ACTIVE:0.15},SCAN:{FLASH:520,COOLDOWN:650},
-    WARMUP_MS:2000,_compassStartTs:null,DEAD_ZONE:0.5,MAX_STEP:5,_lastOrientEvent:null,_userPanned:false,_fallbackSet:false,
+    // HeadingMode: trackUp rotates map so your forward = up; northUp keeps map static and rotates ray only.
+    mode:'trackUp', // 'trackUp' | 'northUp'
+    S:{follow:true,rotate:true,decl:0,heading:null,mapBearing:0,compass:false,edgeOffOnly:true,autostart:false},
+    DEF:{lat:34.9,lng:-119.17,z:16}, map:null,last:null,acc:null,ray:null,origin:null,nav:null,
+    _orient:null,_warmTs:null,DEAD:0.5,MAX:5,_tHUD:0,_tNav:0,_tAlign:0,_lastLL:null,_lastHead:null,_aligned:null,_pend:null,
+    _flashName:null,_flashUntil:0,_cool:new Map(),ALIGN:{ENTER:.35,EXIT:.6,DWELL:60},RAY:{ACTIVE:.15},
 
     init(){
       const s=Store.load(); Object.assign(this.S,{
-        follow: s.follow ?? true, rotate: s.rotate ?? false, bearing: Number.isFinite(s.bearing)?N(s.bearing):0,
-        decl: s.decl ?? 0, autostart: s.autostart ?? false, edgeOnlyOff: s.edgeOnlyOff ?? true
+        follow: s.follow ?? true, rotate: s.rotate ?? true, decl: s.decl ?? 0,
+        edgeOffOnly: s.edgeOffOnly ?? true, autostart: s.autostart ?? false
       });
-      if(location.hash.includes('first=1')) localStorage.removeItem('seen.v1');
+      if(s.mode) this.mode=s.mode;
 
-      // Map & layers
       this.map=L.map('map',{zoomControl:false,attributionControl:true,inertia:true});
-      const esri=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri — Sources: Esri, Garmin, USGS, NPS, others'});
-      const otm=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'Data © OSM, SRTM — Style © OpenTopoMap (CC-BY-SA)'});
-      esri.addTo(this.map).on('tileerror',()=>{ if(!this._fallbackSet){ this._fallbackSet=true; otm.addTo(this.map); }});
+      const topo=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri, USGS, NPS'});
+      const otm=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap, © OSM'});
+      topo.addTo(this.map).on('tileerror',()=>otm.addTo(this.map));
       this.map.setView([this.DEF.lat,this.DEF.lng],this.DEF.z);
-      this.accCircle=L.circle([this.DEF.lat,this.DEF.lng],{radius:0,color:'#4df8ff',weight:1,opacity:.6,fillOpacity:.08}).addTo(this.map);
+      this.acc=L.circle([this.DEF.lat,this.DEF.lng],{radius:0,color:'#4df8ff',weight:1,opacity:.6,fillOpacity:.08}).addTo(this.map);
 
-      // Interactions
       this.bind();
-      UI.sync(this.S); UI.declInit(this.S.decl);
-      setTimeout(()=>this.map.invalidateSize(),60);
-
-      // Start sheet (only once)
-      Start.init(this);
-
-      if(this.S.autostart && localStorage.getItem('seen.v1')==='1'){ this.startGPS(); this.enableCompass().then(ok=>{ if(ok){ this.setMode(this.Mode.ALIGN); this.S.rotate=true; UI.sync(this.S);} }); }
-
       this.loop();
-      addEventListener('beforeunload',()=>{ this.persist(); this.stopGPS(); },{once:true});
+      if(this.S.autostart){ this.startGPS(); this.enableCompass(); }
+      setTimeout(()=>this.map.invalidateSize(),80);
     },
 
-    /* ===== mode/state ===== */
-    setMode(m){
-      if(!m || m===this.mode) return;
-      this.mode=m;
-      // rotate on in Align; allowed off in Explore; Guide auto-enables nav visuals
-      if(m===this.Mode.ALIGN){ this.enableCompass().then(ok=>{ if(ok){ this.S.rotate=true; this.S.follow=true; this._userPanned=false; $('panLock').style.display='none'; UI.sync(this.S); } }); }
-      if(m===this.Mode.EXPLORE){ /* no-op */ }
-      if(m===this.Mode.GUIDE && !this.S.dest){ UI.setAlign('Pick a destination'); }
-      UI.reflectMode(m);
-      UI.updateEdges();
-      this.persist();
-    },
-
-    persist(){ Store.save({ follow:this.S.follow, rotate:this.S.rotate, bearing:this.S.bearing, decl:this.S.decl, autostart:this.S.autostart, edgeOnlyOff:this.S.edgeOnlyOff }); },
-
-    /* ===== controls & map ===== */
     bind(){
-      const openSheet=(el,open)=>{ el.classList.toggle('open',open); el.setAttribute('aria-hidden',String(!open)); };
-
-      $('btnMenu')?.addEventListener('click',()=>openSheet($('sheetSettings'),true));
-      $('btnWP')?.addEventListener('click',()=>{ Waypoints.render(); openSheet($('sheetWP'),true); });
-      $('sClose')?.addEventListener('click',()=>openSheet($('sheetSettings'),false));
-      $('wClose')?.addEventListener('click',()=>openSheet($('sheetWP'),false));
+      // sheets
+      const open=(el,b)=>{ el.classList.toggle('open',b); el.setAttribute('aria-hidden',String(!b)); };
+      $('btnSettings').onclick=()=>open($('sheetSettings'),true);
+      $('sClose').onclick=()=>open($('sheetSettings'),false);
+      $('btnWP').onclick=()=>{ WP.render(); open($('sheetWP'),true); };
+      $('wClose').onclick=()=>open($('sheetWP'),false);
 
       // settings
-      $('declSlider')?.addEventListener('input',()=>{ const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; $('declVal').textContent=`${v.toFixed(1)}°`; }},{passive:true});
-      $('declSave')?.addEventListener('click',()=>{ const v=parseFloat($('declSlider').value); if(Number.isFinite(v)){ this.S.decl=v; this._setHeadingFromOrient(); this.persist(); UI.updateHUD(); } $('declSave').textContent='Saved ✓'; setTimeout(()=>$('declSave').textContent='Save',900); });
-      $('autoStart')?.addEventListener('change',e=>{ this.S.autostart=!!e.target.checked; this.persist(); });
-      $('edgeOnlyOff')?.addEventListener('change',e=>{ this.S.edgeOnlyOff=!!e.target.checked; UI.updateEdges(); this.persist(); });
-      $('sReset')?.addEventListener('click',()=>this.resetView());
+      $('decl').oninput=()=>{ const v=parseFloat($('decl').value)||0; this.S.decl=v; $('declVal').textContent=v.toFixed(1)+'°'; };
+      $('declSave').onclick=()=>{ this.persist(); $('declSave').textContent='Saved ✓'; setTimeout(()=>$('declSave').textContent='Save',900); };
+      $('edgeOffOnly').onchange=e=>{ this.S.edgeOffOnly=e.target.checked; this.persist(); UI.updateEdges(); };
+      $('autoStart').onchange=e=>{ this.S.autostart=e.target.checked; this.persist(); };
 
-      // mode chip
-      $('modeExplore').addEventListener('click',()=>this.setMode(this.Mode.EXPLORE));
-      $('modeAlign').addEventListener('click',()=>this.setMode(this.Mode.ALIGN));
-      $('modeGuide').addEventListener('click',()=>this.setMode(this.Mode.GUIDE));
+      // modes
+      const setNorth=()=>{ this.mode='northUp'; $('mNorth').classList.add('on'); $('mTrack').classList.remove('on'); this.applyMapBearing(0,true); this.persist(); };
+      const setTrack=()=>{ this.mode='trackUp'; $('mTrack').classList.add('on'); $('mNorth').classList.remove('on'); this.persist(); };
+      $('mNorth').onclick=setNorth; $('mTrack').onclick=setTrack;
+
+      // ring buttons
+      $('bGPS').onclick=()=>this.startGPS();
+      $('bRotate').onclick=()=>{ if(this.mode==='trackUp') setNorth(); else setTrack(); };
+      $('bFollow').onclick=()=>this.toggleFollow();
+      $('bReset').onclick=()=>this.reset();
 
       // quick add
-      $('quickAdd').addEventListener('click',()=>Waypoints.addMapCenter(($('wpName').value||'').trim()));
+      $('btnQuick').onclick=()=>WP.addCenter(($('wpName').value||'').trim());
 
-      // ring controls populated by UI.reflectMode()
-
-      // waypoints
-      $('wpAdd')?.addEventListener('click',()=>Waypoints.addViaInputs());
-      $('wpUseCenter')?.addEventListener('click',()=>Waypoints.addMapCenter());
-      $('wpUseHere')?.addEventListener('click',()=>Waypoints.addMyLocation(this.last));
-      $('wpList')?.addEventListener('click',e=>{
-        const t=e.target, idx=t.getAttribute('data-idx'); if(idx==null) return; const i=+idx;
-        if(t.hasAttribute('data-go')) Waypoints.go(i);
-        else if(t.hasAttribute('data-guide')) Waypoints.guide(i);
-        else if(t.hasAttribute('data-edit')) Waypoints.edit(i);
-        else if(t.hasAttribute('data-save')) Waypoints.saveEdit(i);
-        else if(t.hasAttribute('data-cancel')) Waypoints.render();
-        else if(t.hasAttribute('data-del')) Waypoints.del(i);
-      });
-
-      // keyboard
-      addEventListener('keydown',e=>{
-        const tag=(e.target&&e.target.tagName)||''; if(tag==='INPUT'||tag==='TEXTAREA'||e.metaKey||e.ctrlKey||e.altKey) return;
-        const k=(e.key||'').toLowerCase();
-        if(k==='l') this.startGPS();
-        else if(k==='r') this.toggleRotate();
-        else if(k==='c') this.resetView();
-        else if(k==='f') this.setFollow(!this.S.follow);
-      });
+      // waypoint sheet
+      $('wpAdd').onclick=()=>WP.addFromInputs();
+      $('wpCenter').onclick=()=>WP.addCenter();
+      $('wpHere').onclick=()=>WP.addHere(this.last);
+      $('wpList').addEventListener('click',WP.onListClick);
 
       // gestures
-      let tapTs=0;
-      $('.map-wrap').addEventListener('pointerdown',e=>{
-        // double-tap to recenter
-        const now=performance.now();
-        if(now - tapTs < 350){ if(this.last) this.centerOnLast(true); }
-        tapTs=now;
-      },{passive:true});
-
-      // long-press to drop pin
-      (function bindLongPress(ctx){
-        let timer=null, start=null;
-        const wrap=document.querySelector('.map-wrap');
-        const begin=(e)=>{
-          start={x:e.clientX,y:e.clientY}; timer=setTimeout(()=>{ timer=null;
-            const r=wrap.getBoundingClientRect();
-            const pt=L.point(e.clientX - r.left, e.clientY - r.top);
-            const ll=ctx.map.containerPointToLatLng(pt);
-            Pins.drop(ll.lat,ll.lng); UI.flashPing(ll,true);
-          }, 420);
-        };
-        const move=(e)=>{ if(!timer||!start) return; if(Math.hypot(e.clientX-start.x,e.clientY-start.y)>8){ clearTimeout(timer); timer=null; } };
+      const wrap=document.querySelector('.mapwrap'); let t=0;
+      wrap.addEventListener('pointerdown',e=>{ const now=performance.now(); if(now-t<350 && this.last) this.centerOnUser(true); t=now; },{passive:true});
+      // long press drop
+      (()=>{
+        let timer=null,start=null;
+        const begin=e=>{ start={x:e.clientX,y:e.clientY}; timer=setTimeout(()=>{ timer=null;
+          const r=wrap.getBoundingClientRect(); const pt=L.point(e.clientX-r.left,e.clientY-r.top);
+          const ll=this.map.containerPointToLatLng(pt); Pin.drop(ll.lat,ll.lng); UI.pingLL(ll,true);
+        },420); };
+        const move=e=>{ if(!timer||!start) return; if(Math.hypot(e.clientX-start.x,e.clientY-start.y)>8){ clearTimeout(timer); timer=null; } };
         const end=()=>{ if(timer){ clearTimeout(timer); timer=null; } };
         wrap.addEventListener('pointerdown',begin,{passive:true});
         wrap.addEventListener('pointermove',move,{passive:true});
         wrap.addEventListener('pointerup',end,{passive:true});
         wrap.addEventListener('pointercancel',end,{passive:true});
         wrap.addEventListener('pointerleave',end,{passive:true});
-      })(this);
-
-      // pan lock
-      const panLock=$('panLock'); const showLock=v=>{ panLock.style.display=v?'inline-flex':'none'; panLock.classList.toggle('lock',v); };
-      this.map.on('movestart',()=>{ this._userPanned=true; showLock(true); });
-      this.map.on('moveend',()=>{ if(this.S.follow && this.last && !this._userPanned) this.centerOnLast(false); });
+      })();
 
       // map events
-      this.map.on('move moveend zoom zoomend zoomanim',()=>{ this.applyBearing(this.S.bearing); this.refreshRay(); UI.updateEdges(); });
-      this.map.on('drag',()=>{ this._userPanned=true; $('panLock').style.display='inline-flex'; });
-      addEventListener('resize',()=>{ this.map.invalidateSize(); this.applyBearing(this.S.bearing); this.refreshRay(); UI.updateEdges(); },{passive:true});
+      const lock=$('lock'); const showLock=v=>{ lock.style.display=v?'inline-flex':'none'; lock.classList.toggle('lock',v); };
+      this.map.on('movestart',()=>{ this._panned=true; showLock(true); });
+      this.map.on('moveend',()=>{ if(this.S.follow && this.last && !this._panned) this.centerOnUser(false); });
 
-      // contextmenu (secondary)
-      this.map.on('contextmenu',e=>{ const ll=e.latlng; Pins.drop(ll.lat,ll.lng); UI.flashPing(ll,true); });
+      this.map.on('move zoom zoomend',()=>{ this.applyMapBearing(this.S.mapBearing,false); UI.updateEdges(); this.refreshRay(); });
+      addEventListener('resize',()=>{ this.map.invalidateSize(); this.applyMapBearing(this.S.mapBearing,false); UI.updateEdges(); this.refreshRay(); },{passive:true});
+
+      // orientation
+      addEventListener('deviceorientationabsolute',e=>this.onOrient(e),true);
+      addEventListener('deviceorientation',e=>this.onOrient(e),true);
+
+      // keys
+      addEventListener('keydown',e=>{
+        if(/INPUT|TEXTAREA/.test(e.target.tagName)) return;
+        const k=(e.key||'').toLowerCase();
+        if(k==='l') this.startGPS();
+        else if(k==='r'){ if(this.mode==='trackUp') $('mNorth').click(); else $('mTrack').click(); }
+        else if(k==='f') this.toggleFollow();
+        else if(k==='c') this.reset();
+      });
     },
 
-    setFollow(v){ this.S.follow=!!v; if(this.S.follow){ this._userPanned=false; $('panLock').style.display='none'; if(this.last) this.centerOnLast(false); } UI.sync(this.S); this.persist(); },
-    centerOnLast(animate=true){ const {latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude],Math.max(this.map.getZoom(),16),{animate}); },
-    toggleRotate(){ (async()=>{ if(!this.S.rotate){ if(!await this.enableCompass()) return; this.S.rotate=true; this.S.follow=true; this._userPanned=false; $('panLock').style.display='none'; } else this.S.rotate=false; UI.sync(this.S); this.applyBearing(this.S.bearing); this.persist(); })(); },
+    persist(){ Store.save({follow:this.S.follow,rotate:this.S.rotate,decl:this.S.decl,edgeOffOnly:this.S.edgeOffOnly,autostart:this.S.autostart,mode:this.mode}); },
 
-    applyBearing(d){
-      const pane=this.map.getPane&&this.map.getPane('mapPane'); if(!pane) return;
+    centerOnUser(anim){ const {latitude,longitude}=this.last.coords; this.map.setView([latitude,longitude],Math.max(this.map.getZoom(),16),{animate:!!anim}); },
+    toggleFollow(){ this.S.follow=!this.S.follow; $('bFollow').classList.toggle('on',this.S.follow); if(this.S.follow&&this.last){ this._panned=false; $('lock').style.display='none'; this.centerOnUser(false); } this.persist(); },
+
+    // ----- ORIENTATION CORE -----
+    // Compute display heading (deg): iOS uses webkitCompassHeading (already true heading); Android uses 360 - alpha + screen angle.
+    computeHeading(e){
+      let h=null;
+      if(typeof e.webkitCompassHeading==='number' && Number.isFinite(e.webkitCompassHeading)) h=e.webkitCompassHeading;
+      else if(typeof e.alpha==='number' && Number.isFinite(e.alpha)){ h=(360 - e.alpha + screenAngle())%360; }
+      if(h==null) return null;
+      if(isAndroid() && $('invertAndroid')?.checked) h=(360-h)%360;
+      h=(h + (this.S.decl||0))%360; if(h<0) h+=360; return h;
+    },
+
+    onOrient(e){
+      const h=this.computeHeading(e); if(h==null) return;
+      if(this._warmTs==null) this._warmTs=performance.now();
+      if(this.S.heading==null) this.S.heading=h;
+      else{
+        const diff=((h - this.S.heading + 540)%360)-180;
+        if(Math.abs(diff)>=this.DEAD) this.S.heading=(this.S.heading + Math.sign(diff)*Math.min(Math.abs(diff),this.MAX) + 360)%360;
+      }
+    },
+
+    applyMapBearing(b,force){
+      // rotate mapPane around USER point
+      const pane=this.map.getPane('mapPane'); if(!pane) return;
       let origin='50% 50%';
       if(this.last){ const p=this.map.latLngToContainerPoint([this.last.coords.latitude,this.last.coords.longitude]); origin=`${p.x}px ${p.y}px`; }
       const base=(pane.style.transform||'').replace(/rotate\([^)]*\)/g,'');
-      pane.style.transformOrigin=origin; pane.style.transform=base+` rotate(${-d}deg)`;
-      this.uprightOverlays(d);
-      const rayEl=$('ray'); const ang=this.S.rotate?d:(this.S.heading??0);
-      rayEl.firstElementChild && (rayEl.firstElementChild.style.transform=`translate(-50%,-100%) rotate(${-ang}deg)`);
-    },
-    uprightOverlays(deg){
-      if(this._lastOverlay!=null && Math.abs(Δ(this._lastOverlay,deg))<0.12) return; this._lastOverlay=deg;
-      const rot=` rotate(${deg}deg)`;
-      const fixEl=el=>{ if(!el||!el.style) return; const base=(el.style.transform||'').replace(/rotate\([^)]*\)/g,'').trim(); el.style.transformOrigin='left center'; el.style.transform=base+rot; };
+      pane.style.transformOrigin=origin; pane.style.transform=base+` rotate(${-b}deg)`;
+      // keep popups upright
+      const rot=` rotate(${b}deg)`; const fixEl=el=>{ const base=(el.style.transform||'').replace(/rotate\([^)]*\)/g,''); el.style.transformOrigin='left center'; el.style.transform=base+rot; };
       this.map.getPanes().popupPane?.querySelectorAll('.leaflet-popup').forEach(fixEl);
       this.map.getPanes().tooltipPane?.querySelectorAll('.leaflet-tooltip').forEach(fixEl);
+      if(force) this.refreshRay();
     },
 
     refreshRay(){
-      if(!this.last){ this.rayLine?.setLatLngs([]); return; }
+      if(!this.last) return;
       const originLL=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
-      if(!this.originDot){ this.originDot=L.circleMarker(originLL,{radius:3,color:'#20d7b7',weight:2,fillColor:'#20d7b7',fillOpacity:1,interactive:false}).addTo(this.map); }
-      else this.originDot.setLatLng(originLL).bringToFront();
+      if(!this.origin) this.origin=L.circleMarker(originLL,{radius:3,color:'#20d7b7',weight:2,fillColor:'#20d7b7',fillOpacity:1,interactive:false}).addTo(this.map);
+      else this.origin.setLatLng(originLL).bringToFront();
+
       if(this.S.heading==null) return;
-      if(!this.rayLine){ this.rayLine=L.polyline([], {color:'#20d7b7', weight:3, opacity:.95, interactive:false}).addTo(this.map); }
-      this.rayLine.setLatLngs([originLL, this._dest(originLL, this.S.heading, this._rayLen())]).bringToFront();
-    },
-    _rayLen(){ const s=this.map.getSize(); return Math.max(Math.hypot(s.x,s.y)*this._mpp()*1.35+200,3000); },
-    _mpp(){ const s=this.map.getSize(); const a=this.map.containerPointToLatLng(L.point(s.x/2,s.y/2)); const b=this.map.containerPointToLatLng(L.point(s.x/2+1,s.y/2)); return this.map.distance(a,b)||1; },
-    _dest(ll,b,dm){ const br=R(b),dr=dm/6371000,lat1=R(ll.lat),lon1=R(ll.lng); const lat2=Math.asin(Math.sin(lat1)*Math.cos(dr)+Math.cos(lat1)*Math.sin(dr)*Math.cos(br)); const lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1),Math.cos(dr)-Math.sin(lat1)*Math.sin(lat2)); return L.latLng(Dg(lat2),Dg(lon2)); },
+      const len=(()=>{ const s=this.map.getSize(); const a=this.map.containerPointToLatLng(L.point(s.x/2,s.y/2)); const b=this.map.containerPointToLatLng(L.point(s.x/2+1,s.y/2)); const m=this.map.distance(a,b)||1; return Math.max(Math.hypot(s.x,s.y)*m*1.35+200,3000); })();
+      const dest=(ll,brg,dm)=>{const br=R(brg),dr=dm/6371000,lat1=R(ll.lat),lon1=R(ll.lng);const lat2=Math.asin(Math.sin(lat1)*Math.cos(dr)+Math.cos(lat1)*Math.sin(dr)*Math.cos(br));const lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat1),Math.cos(dr)-Math.sin(lat1)*Math.sin(lat2));return L.latLng(Dg(lat2),Dg(lon2));};
+      if(!this.ray) this.ray=L.polyline([], {color:'#20d7b7',weight:3,opacity:.95,interactive:false}).addTo(this.map);
+      this.ray.setLatLngs([originLL, dest(originLL,this.S.heading,len)]).bringToFront();
 
-    refreshNav(){
-      if(!this.S.dest || !this.last){ this.navLine?.setLatLngs([]); return; }
-      const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
-      const to=L.latLng(this.S.dest.lat,this.S.dest.lng);
-      if(!this.navLine){ this.navLine=L.polyline([], {color:'#2ac18a',weight:3,opacity:.95,interactive:false,dashArray:'6 6'}).addTo(this.map); }
-      this.navLine.setLatLngs([from,to]).bringToFront();
-      const b=bearing(from,to); const d=haversine(from,to); const err=this.S.heading==null?null:Δ(this.S.heading,b);
-      this._navState={b,d,err};
-      if(this.S.heading!=null){ const on=Math.abs(err)<.5; this.navLine.setStyle(on?{color:'#ff4444',weight:4,opacity:1}:{color:'#2ac18a',weight:3,opacity:.95}); }
-    },
-
-    candidates(){
-      const list=[]; Waypoints.markers.forEach((m,name)=>list.push({name,ll:m.getLatLng()}));
-      if(Pins.pin){ const ll=Pins.pin.getLatLng(); const nm=Pins.pin._nm||`Pin ${fix(ll.lat)},${fix(ll.lng)}`; list.push({name:nm,ll}); }
-      return list;
-    },
-    between(a,b,x){ const ab=Δ(a,b),ax=Δ(a,x); return Math.sign(ab)===Math.sign(ax) && Math.abs(ax)<=Math.abs(ab); },
-
-    checkAnyAlignment(){
-      const now=performance.now();
-      if(!this.last || this.S.heading==null){ this._pending=null; if(!(this._flashName && now<(this._flashUntil||0))){ this._aligned=null; this._flashName=null; this._flashUntil=0; this._flashTarget=null; UI.setAlign('—'); UI.setNeedle(0); } return; }
-      if(this._compassStartTs!=null && (now-this._compassStartTs)<this.WARMUP_MS) return;
-      if(now - this._tAlign < 30) return; this._tAlign=now;
-
-      const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
-      const head=this.S.heading;
-      const prevHead=this._lastAlignHead ?? head;
-      const movedLL=!this._lastAlignLL || this.map.distance(this._lastAlignLL,from)>1.8;
-      const movedHead=this._lastAlignHead==null || Math.abs(Δ(this._lastAlignHead,head))>0.06;
-      if(!movedLL && !movedHead) return;
-      this._lastAlignLL=from; this._lastAlignHead=head;
-
-      const cand=this.candidates(); if(cand.length===0){ UI.setAlign('—'); return; }
-
-      let instBest=null,instErr=Infinity,instDist=Infinity;
-      for(const c of cand){ const br=bearing(from,c.ll), err=Math.abs(Δ(head,br)), dist=haversine(from,c.ll);
-        if(err<instErr-1e-6 || (Math.abs(err-instErr)<1e-6 && dist<instDist)){ instBest={...c,brg:br}; instErr=err; instDist=dist; } }
-
-      const rayTarget=this._aligned || this._flashTarget || instBest;
-      const rayErr=rayTarget?Math.abs(Δ(head,bearing(from,rayTarget.ll))):Infinity;
-      UI.setNeedle(Δ(head,instBest?.brg ?? head));
-      if(rayTarget && rayErr<=this.RAY.ACTIVE && this.mode===this.Mode.ALIGN){ UI.flashPing(rayTarget.ll); }
-
-      const step=Math.abs(Δ(prevHead,head));
-      const dwell=Math.max(0,this.ALIGN.DWELL_BASE-0.6*(this.S.omega||0));
-      const enter=this.ALIGN.ENTER, exit=this.ALIGN.EXIT;
-
-      if(this._aligned){
-        const e=Math.abs(Δ(head,bearing(from,this._aligned.ll)));
-        if(e<=exit){ UI.setAlign(this._aligned.name); return; }
-        this._aligned=null;
-      }
-      if(instBest && instErr<=enter){
-        if(this._pending && this._pending.name===instBest.name){
-          if(now-this._pending.since>=dwell){
-            this._aligned={name:instBest.name,ll:instBest.ll,err:instErr,dist:instDist};
-            this._pending=null; this._flashName=null; this._flashUntil=0; this._flashTarget=null;
-            UI.setAlign(this._aligned.name,true); UI.flashPing(this._aligned.ll,true);
-          }
-        }else{ this._pending={name:instBest.name,since:now}; }
-      }else{ this._pending=null; }
-
-      let flashPick=null,flashErr=Infinity;
-      if(step<=35){
-        for(const c of cand){
-          const br=bearing(from,c.ll);
-          if(this.between(prevHead,head,br)){ const e=Math.abs(Δ(head,br)); if(e<flashErr){ flashErr=e; flashPick=c; } }
-        }
-      }
-      if(flashPick && this.mode===this.Mode.ALIGN){
-        const lastFire=this._flashCooldown.get(flashPick.name)||0;
-        if(now-lastFire>this.SCAN.COOLDOWN){
-          this._flashCooldown.set(flashPick.name,now);
-          this._flashName=flashPick.name; this._flashUntil=now+this.SCAN.FLASH; this._flashTarget={name:flashPick.name,ll:flashPick.ll};
-          UI.setAlign(flashPick.name,false,true); UI.flashPing(flashPick.ll);
-        }
-      }
-      if(this._flashName && now>this._flashUntil){ this._flashName=null; this._flashUntil=0; this._flashTarget=null; UI.setAlign('—'); }
+      // UI needle: error vs best target is handled later; here we orient the sweep ray overlay visual
+      const rayEl=$('ray'); const visual = (this.mode==='trackUp') ? this.S.mapBearing : this.S.heading;
+      rayEl.firstElementChild && (rayEl.firstElementChild.style.transform=`translate(-50%,-100%) rotate(${-visual}deg)`);
     },
 
     updateHUD(){
       const now=performance.now(); if(now-this._tHUD<120) return; this._tHUD=now;
-      $('hudLat').textContent=this.last?.coords?.latitude?.toFixed(6) ?? '—';
-      $('hudLng').textContent=this.last?.coords?.longitude?.toFixed(6) ?? '—';
-      $('hudAcc').textContent=(this.last?.coords?.accuracy?Math.round(this.last.coords.accuracy):'—')+' m';
-      $('hudHead').textContent=this.S.heading!=null?this.S.heading.toFixed(2)+'°':'—°';
-      $('hudMap').textContent=N(-this.S.bearing).toFixed(2)+'°';
+      $('hLat').textContent=this.last?.coords?.latitude?.toFixed(6) ?? '—';
+      $('hLng').textContent=this.last?.coords?.longitude?.toFixed(6) ?? '—';
+      $('hAcc').textContent=(this.last?.coords?.accuracy?Math.round(this.last.coords.accuracy):'—')+' m';
+      $('hHead').textContent=this.S.heading!=null?this.S.heading.toFixed(1)+'°':'—°';
+      $('hMap').textContent=N(-this.S.mapBearing).toFixed(1)+'°';
       if(this.S.dest && this.last){
         const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
         const to=L.latLng(this.S.dest.lat,this.S.dest.lng);
-        const b=bearing(from,to), d=haversine(from,to);
-        const steer=(this.S.heading!=null)?Δ(this.S.heading,b).toFixed(2):'—';
-        $('hudAlign').textContent=`${this.S.dest.name||'Dest'}  ${fmtDist(d)}  brg ${b.toFixed(1)}°  Δ ${steer}°`;
-      } else $('hudAlign').textContent='—';
+        const br=bearing(from,to), d=haversine(from,to);
+        const steer=(this.S.heading!=null)?Δ(this.S.heading,br).toFixed(1):'—';
+        $('hDest').textContent=`${this.S.dest.name||'Dest'}  ${fmtDist(d)}  brg ${br.toFixed(1)}°  Δ ${steer}°`;
+      } else $('hDest').textContent='—';
     },
 
-    loop(){
-      // rotation target depends on mode/flag
-      const tgt = (this.S.rotate ? (this.S.heading ?? 0) : 0);
-      const err = Math.abs(Δ(this.S.bearing, tgt));
-      const aRot = 0.12 + 0.32 * Math.min(1, (this.S.omega || 0) / 240);
-      this.S.bearing = err < 0.08 ? this.S.bearing : blend(this.S.bearing, tgt, aRot);
-
-      this.applyBearing(this.S.bearing);
-      this.refreshRay();
-
-      const now=performance.now();
-      if(now-this._tNav>60){ this._tNav=now; this.refreshNav(); }
-      if(this.mode!==this.Mode.EXPLORE) this.checkAnyAlignment();
-      this.updateHUD();
-      UI.updateEdges();
-
-      requestAnimationFrame(()=>this.loop());
-    },
-
-    _setHeadingFromOrient(){
-      const e=this._lastOrientEvent; if(!e) return;
-      let heading=null;
-      if(typeof e.webkitCompassHeading==='number' && Number.isFinite(e.webkitCompassHeading)) heading=e.webkitCompassHeading;
-      else if(typeof e.alpha==='number' && Number.isFinite(e.alpha)){ const flip=360-e.alpha, ang=getScreenAngle(); heading=(flip+ang)%360; }
-      else return;
-      if(isAndroid() && ($('invertAndroid')?.checked)) heading=(360-heading)%360;
-      heading=(heading+(this.S.decl||0))%360; if(heading<0) heading+=360;
-
-      if(this._compassStartTs==null) this._compassStartTs=performance.now();
-      if(this.S.heading==null) this.S.heading=heading;
-      else{ const diff=((heading-this.S.heading+540)%360)-180; if(Math.abs(diff)>=this.DEAD_ZONE) this.S.heading=(this.S.heading+Math.sign(diff)*Math.min(Math.abs(diff),this.MAX_STEP)+360)%360; }
-      this.S.mag=e.alpha ?? null;
-    },
-    onOrient(e){ if(e.absolute===true || e.type==='deviceorientationabsolute' || typeof e.webkitCompassHeading==='number') this._lastOrientEvent=e; else if(!this._lastOrientEvent) this._lastOrientEvent=e; this._setHeadingFromOrient(); },
-    async enableCompass(){
-      if(this.S.compass) return true;
-      try{
-        if(location.protocol!=='https:' && location.hostname!=='localhost'){ toast('Compass requires HTTPS.'); return false; }
-        if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
-          const perm=await DeviceOrientationEvent.requestPermission(); if(perm!=='granted'){ toast('Compass permission denied.'); return false; }
-        }
-        if(!this._compassBound){ addEventListener('deviceorientationabsolute',e=>this.onOrient(e),true); addEventListener('deviceorientation',e=>this.onOrient(e),true); this._compassBound=true; }
-        this.S.compass=true; return true;
-      }catch(err){ toast('Compass access failed.'); console.error(err); return false; }
+    checkAlignment(){
+      if(!this.last || this.S.heading==null) { $('needle').style.setProperty('--err','0deg'); $('alignTxt').textContent='—'; return; }
+      const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
+      const cand=UI.candidates();
+      if(!cand.length){ $('needle').style.setProperty('--err','0deg'); $('alignTxt').textContent='—'; return; }
+      let best=null, bestErr=Infinity, bestDist=Infinity;
+      for(const c of cand){ const br=bearing(from,c.ll); const err=Math.abs(Δ(this.S.heading,br)); const dist=haversine(from,c.ll);
+        if(err<bestErr-1e-6 || (Math.abs(err-bestErr)<1e-6 && dist<bestDist)){ best={...c,br}, bestErr=err, bestDist=dist; } }
+      $('needle').style.setProperty('--err', clamp(Δ(this.S.heading,best.br),-45,45)+'deg');
+      $('alignTxt').textContent=best.name;
     },
 
     startGPS(){
       if(!('geolocation' in navigator)){ toast('Geolocation not supported.'); return; }
-      if(this.watchId!=null) return;
+      if(this._gps) return;
       let prev=null;
-      this.watchId=navigator.geolocation.watchPosition(p=>{
+      this._gps=navigator.geolocation.watchPosition(p=>{
         const old=prev; prev=p; this.last=p;
-        const {latitude,longitude,accuracy}=p.coords;
-        this.accCircle.setLatLng([latitude,longitude]).setRadius(Math.max(accuracy||0,0));
-        if(this.S.follow && !this._userPanned){ this.centerOnLast(false); }
-        if(old && Number.isFinite(p.coords.speed) && p.coords.speed>=1 && this.S.rotate && this.S.heading==null){
-          const prevLL=L.latLng(old.coords.latitude,old.coords.longitude);
-          const currLL=L.latLng(p.coords.latitude,p.coords.longitude);
-          this.S.heading=bearing(prevLL,currLL);
-        }
-      }, e=>{ toast('Unable to get location: '+e.message); console.error(e); }, { enableHighAccuracy:true, maximumAge:2000, timeout:15000 });
+        this.acc.setLatLng([p.coords.latitude,p.coords.longitude]).setRadius(Math.max(p.coords.accuracy||0,0));
+        if(this.S.follow) this.centerOnUser(false);
+      },err=>toast('GPS error: '+err.message),{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
     },
-    stopGPS(){ if(this.watchId!=null && 'geolocation' in navigator){ navigator.geolocation.clearWatch(this.watchId); this.watchId=null; } },
 
-    resetView(){
-      if(this.S.dest){ this.S.dest=null; this.refreshNav(); UI.updateHUD(); UI.updateEdges(); return; }
-      if(this.last){ this.centerOnLast(true); } else { this.map.setView([this.DEF.lat,this.DEF.lng],this.DEF.z); }
-      this.applyBearing(this.S.bearing); this._userPanned=false; $('panLock').style.display='none';
-    }
-  };
+    enableCompass(){
+      if(this.S.compass) return true;
+      if(location.protocol!=='https:' && location.hostname!=='localhost'){ toast('Compass requires HTTPS.'); return false; }
+      if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+        DeviceOrientationEvent.requestPermission().then(p=>{ if(p==='granted') this.S.compass=true; else toast('Compass permission denied.'); });
+      } else { this.S.compass=true; }
+      return this.S.compass;
+    },
 
-  /* ===== Start (onboarding) ===== */
-  const Start={
-    init(app){
-      const seen=localStorage.getItem('seen.v1')==='1';
-      const el=$('start'); if(!el) return;
-      const open=()=>{ el.style.display='grid'; el.setAttribute('aria-hidden','false'); };
-      const close=()=>{ el.style.display='none'; el.setAttribute('aria-hidden','true'); };
+    // reset / follow / main loop
+    reset(){ if(this.S.dest){ this.S.dest=null; UI.updateEdges(); if(this.nav) this.nav.setLatLngs([]); $('hDest').textContent='—'; return; } if(this.last) this.centerOnUser(true); else this.map.setView([this.DEF.lat,this.DEF.lng],this.DEF.z); },
 
-      $('startGo').onclick=async()=>{
-        app.startGPS();
-        const ok=await app.enableCompass();
-        app.setMode(app.Mode.ALIGN);
-        app.S.rotate=!!ok; UI.sync(app.S);
-        if($('startRemember').checked) localStorage.setItem('seen.v1','1');
-        close();
-      };
-      $('startSkip').onclick=()=>{ app.setMode(app.Mode.EXPLORE); if($('startRemember').checked) localStorage.setItem('seen.v1','1'); close(); };
+    loop(){
+      // compute target map bearing
+      const tgt = (this.mode==='trackUp' && this.S.heading!=null) ? this.S.heading : 0;
+      const err=Math.abs(Δ(this.S.mapBearing,tgt));
+      const a=0.15; // smoothing
+      this.S.mapBearing = err<0.08 ? this.S.mapBearing : blend(this.S.mapBearing,tgt,a);
+      this.applyMapBearing(this.S.mapBearing,false);
+      this.refreshRay();
 
-      if(!seen) open();
-    }
-  };
-
-  /* ===== UI helpers ===== */
-  const UI={
-    sync(S){ $('autoStart') && ($('autoStart').checked=!!S.autostart); $('edgeOnlyOff') && ($('edgeOnlyOff').checked=!!S.edgeOnlyOff); },
-    declInit(v){ $('declSlider').value=String(v); $('declVal').textContent=`${(+v).toFixed(1)}°`; },
-    setAlign(name){ $('alignText').textContent=name||'—'; },
-    setNeedle(delta){ $('needle').style.setProperty('--err', clamp(delta,-45,45)+'deg'); },
-
-    reflectMode(m){
-      // highlight chip
-      ['modeExplore','modeAlign','modeGuide'].forEach(id=>$(id).classList.remove('on'));
-      if(m==='EXPLORE') $('modeExplore').classList.add('on');
-      if(m==='ALIGN') $('modeAlign').classList.add('on');
-      if(m==='GUIDE') $('modeGuide').classList.add('on');
-
-      // rebuild ring controls
-      const ring=$('ringCtrls'); ring.innerHTML='';
-      const add=(angle, id, label, handler, on=false)=>{
-        const d=document.createElement('div'); d.className='rc'; d.style.setProperty('--a', angle+'deg');
-        const b=document.createElement('button'); b.className='btn icon'; b.id=id; b.textContent=label; if(on) b.classList.add('on'); b.onclick=handler;
-        d.appendChild(b); ring.appendChild(d);
-      };
-      if(m==='EXPLORE'){
-        add(-45,'btnGPS','📡',()=>App.startGPS());
-        add(45,'btnRotate','🧭',()=>App.toggleRotate(), App.S.rotate);
-        add(135,'btnFollow','🎯',()=>App.setFollow(!App.S.follow), App.S.follow);
-        add(-135,'btnReset','↺',()=>App.resetView());
-      } else if(m==='ALIGN'){
-        add(-45,'btnGPS','📡',()=>App.startGPS());
-        add(45,'btnRotate','🧭',()=>App.toggleRotate(), App.S.rotate);
-        add(135,'btnFollow','🎯',()=>App.setFollow(!App.S.follow), App.S.follow);
-        add(-135,'btnClear','⌫',()=>{ App.S.dest=null; App._aligned=null; App.refreshNav(); this.setAlign('—'); this.updateEdges(); });
-      } else { // GUIDE
-        add(-45,'btnGPS','📡',()=>App.startGPS());
-        add(45,'btnRotate','🧭',()=>App.toggleRotate(), App.S.rotate);
-        add(135,'btnFollow','🎯',()=>App.setFollow(!App.S.follow), App.S.follow);
-        add(-135,'btnReset','↺',()=>App.resetView());
+      // guide line
+      if(this.S.dest && this.last){
+        const from=L.latLng(this.last.coords.latitude,this.last.coords.longitude);
+        const to=L.latLng(this.S.dest.lat,this.S.dest.lng);
+        if(!this.nav) this.nav=L.polyline([from,to],{color:'#2ac18a',weight:3,opacity:.95,dashArray:'6 6'}).addTo(this.map);
+        this.nav.setLatLngs([from,to]).bringToFront();
       }
+
+      this.updateHUD();
+      this.checkAlignment();
+      UI.updateEdges();
+      requestAnimationFrame(()=>this.loop());
+    }
+  };
+
+  const UI={
+    candidates(){
+      const list=[]; WP.markers.forEach((m,name)=>list.push({name,ll:m.getLatLng()}));
+      if(Pin.pin){ const ll=Pin.pin.getLatLng(); list.push({name:Pin.pin._nm||`Pin ${fix(ll.lat)},${fix(ll.lng)}`, ll}); }
+      return list;
     },
-
-    flashPing(ll,strong=false){ try{ const pt=App.map.latLngToContainerPoint(ll); PingPool.flashAt(pt.x,pt.y,strong);}catch{} },
-
     updateEdges(){
-      const root=$('edgePool'); if(!App.last){ root.innerHTML=''; return; }
-      const wrap=document.querySelector('.map-wrap'); if(!wrap) return;
-      const rect=wrap.getBoundingClientRect();
-      const radius=Math.min(rect.width,rect.height)/2;
-      const center=App.map.latLngToContainerPoint([App.last.coords.latitude,App.last.coords.longitude]);
+      if(!App.last) return;
+      const root=$('edgePool'); const wrap=document.querySelector('.mapwrap'); const rect=wrap.getBoundingClientRect();
+      const radius=Math.min(rect.width,rect.height)/2; const center=App.map.latLngToContainerPoint([App.last.coords.latitude,App.last.coords.longitude]);
       const live=new Set();
-
-      App.candidates().forEach(c=>{
+      this.candidates().forEach(c=>{
         const from=L.latLng(App.last.coords.latitude,App.last.coords.longitude);
         const pt=App.map.latLngToContainerPoint(c.ll);
-        const dx=pt.x-center.x, dy=pt.y-center.y;
-        const distPx=Math.hypot(dx,dy);
+        const dx=pt.x-center.x, dy=pt.y-center.y; const distPx=Math.hypot(dx,dy);
         const br=bearing(from,c.ll), dist=haversine(from,c.ll);
-
-        const outside = distPx > radius*0.90;
-        if(App.S.edgeOnlyOff && !outside){ const rm=document.getElementById('edge-'+c.name); if(rm) rm.remove(); return; }
-
-        const angle=R(br - App.S.bearing);
-        const edgeX=center.x + Math.cos(angle) * (radius*0.95);
-        const edgeY=center.y + Math.sin(angle) * (radius*0.95);
-        const id='edge-'+c.name;
-        let el=document.getElementById(id);
+        const outside = distPx > radius*0.9;
+        if(App.S.edgeOffOnly && !outside){ const rm=$('edge-'+c.name); rm&&rm.remove(); return; }
+        const angle=R(br - App.S.mapBearing);
+        const x=center.x + Math.cos(angle)*radius*0.95, y=center.y + Math.sin(angle)*radius*0.95;
+        const id='edge-'+c.name; let el=$(id);
         if(!el){ el=document.createElement('div'); el.id=id; el.className='edge';
-          el.addEventListener('pointerdown',(e)=>{ // long-press -> set dest
-            const t=setTimeout(()=>{ App.S.dest={ lat:c.ll.lat, lng:c.ll.lng, name:c.name }; App.setMode(App.Mode.GUIDE); App.refreshNav(); App.updateHUD(); }, 420);
+          // long-press to set as destination
+          el.addEventListener('pointerdown',e=>{ const t=setTimeout(()=>{ App.S.dest={lat:c.ll.lat,lng:c.ll.lng,name:c.name}; },420);
             const cancel=()=>{ clearTimeout(t); el.removeEventListener('pointerup',cancel); el.removeEventListener('pointerleave',cancel); };
-            el.addEventListener('pointerup',cancel,{once:true}); el.addEventListener('pointerleave',cancel,{once:true});
-          });
+            el.addEventListener('pointerup',cancel,{once:true}); el.addEventListener('pointerleave',cancel,{once:true});});
           root.appendChild(el);
         }
         el.textContent=`${c.name} • ${dist<1000?Math.round(dist)+'m':(dist/1000).toFixed(1)+'km'}`;
-        el.style.left=edgeX+'px'; el.style.top=edgeY+'px';
+        el.style.left=x+'px'; el.style.top=y+'px';
         live.add(id);
       });
       Array.from(root.children).forEach(ch=>{ if(!live.has(ch.id)) ch.remove(); });
-    }
-  };
-
-  /* ===== Pings ===== */
-  const PingPool=(()=>{ const pool=[]; const root=$('pingPool');
-    const get=()=>{ const free=pool.find(p=>!p.busy); if(free) return free;
-      const el=document.createElement('div'); el.className='ping'; root.appendChild(el);
-      const item={el,busy:false}; pool.push(item); return item; };
-    function flashAt(x,y,strong){ const it=get(); it.busy=true; const el=it.el; el.style.left=x+'px'; el.style.top=y+'px'; el.classList.add('show'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(()=>{ el.classList.remove('show'); it.busy=false; }, strong?750:600); }
-    return { flashAt };
-  })();
-
-  /* ===== Waypoints ===== */
-  const Waypoints={
-    markers:new Map(),
-    init(){ this.render(); this.syncMarkers(); },
-    load(){ return Store.loadWPs(); },
-    save(a){ Store.saveWPs(a); },
-    ensureMarker(name){ return this.markers.get(name)||null; },
-
-    addViaInputs(){ const nm=($('wpName').value||'').trim(); const txt=($('wpCoords').value||'').trim();
-      if(!txt){ this.addMapCenter(nm); return; } const p=parseCoords(txt);
-      if(!p){ toast('Could not parse coordinates.'); return; }
-      this.upsert(nm,p.lat,p.lng); $('wpName').value=''; $('wpCoords').value=''; },
-    addMapCenter(name){ const ll=App.map.getCenter(); this.upsert((name||$('wpName').value||'').trim(), ll.lat, ll.lng); $('wpName').value=''; $('wpCoords').value=''; },
-    addMyLocation(last){ if(!last){ toast('No GPS fix yet.'); return; } const {latitude,longitude}=last.coords; this.upsert(($('wpName').value||'').trim(), latitude, longitude); $('wpName').value=''; $('wpCoords').value=''; },
-
-    render(){
-      const el=$('wpList'); if(!el) return; el.innerHTML='';
-      this.load().forEach((w,i)=>{
-        const row=document.createElement('div');
-        row.style.display='grid'; row.style.gridTemplateColumns='1fr auto auto auto auto'; row.style.gap='6px'; row.style.alignItems='center';
-        row.style.padding='6px'; row.style.borderBottom='1px solid var(--line)';
-        row.innerHTML=`<div><b>${w.name}</b><br/><small style="color:var(--muted)">${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}</small></div>
-          <button class="btn small" data-idx="${i}" data-go>Go</button>
-          <button class="btn small" data-idx="${i}" data-guide>Guide</button>
-          <button class="btn small" data-idx="${i}" data-edit>Edit</button>
-          <button class="btn small" data-idx="${i}" data-del>Del</button>`;
-        el.appendChild(row);
-      });
-      UI.updateEdges();
     },
-    go(i){ const w=this.load()[i]; if(!w) return; App.S.follow=false; App.S.rotate=false; App.setMode(App.Mode.EXPLORE); App.map.setView([w.lat,w.lng],16); const m=this.ensureMarker(w.name); if(m){ m.openPopup(); } },
-    guide(i){ const w=this.load()[i]; if(!w) return; App.S.dest={lat:w.lat,lng:w.lng,name:w.name}; App.setMode(App.Mode.GUIDE); App.refreshNav(); App.updateHUD(); UI.updateEdges(); },
-    edit(i){ const el=$('wpList'); const a=this.load(); const w=a[i]; if(!w) return; const row=el.children[i]; if(!row) return;
-      row.innerHTML=`<div style="display:grid;gap:6px">
-        <input data-e-name class="input" value="${w.name}"/>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <input data-e-lat class="input" value="${w.lat.toFixed(6)}"/>
-          <input data-e-lng class="input" value="${w.lng.toFixed(6)}"/></div></div>
-        <button class="btn small" data-idx="${i}" data-save>Save</button>
-        <button class="btn small" data-idx="${i}" data-cancel>Cancel</button>`; },
-    saveEdit(i){ const a=this.load(); const w=a[i]; if(!w) return; const el=$('wpList'); const row=el.children[i]; if(!row) return;
-      const nm=(row.querySelector('[data-e-name]')?.value||'').trim()||w.name;
-      const lat=parseFloat(row.querySelector('[data-e-lat]')?.value||''); const lng=parseFloat(row.querySelector('[data-e-lng]')?.value||'');
-      if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180){ toast('Invalid coordinates.'); return; }
-      a[i]={name:nm,lat,lng}; this.save(a); this.render(); this.syncMarkers(); },
-    upsert(name,lat,lng){
-      const a=this.load(); const nm=(name?.trim())||`WP ${Date.now().toString().slice(-5)}`; const i=a.findIndex(w=>w.name.toLowerCase()===nm.toLowerCase());
-      const e={name:nm,lat,lng}; if(i>=0) a[i]=e; else a.push(e); this.save(a); this.render(); this.syncMarkers(); },
-    del(i){ const a=this.load(); const [rm]=a.splice(i,1); this.save(a); this.render(); if(rm && this.markers.has(rm.name)){ App.map.removeLayer(this.markers.get(rm.name)); this.markers.delete(rm.name); } },
-    syncMarkers(){
-      const a=this.load();
-      a.forEach(w=>{
-        if(!this.markers.has(w.name)){ const m=makeDot(w.lat,w.lng,9).addTo(App.map); bindMarker(m,{name:w.name,lat:w.lat,lng:w.lng}); this.markers.set(w.name,m); }
-        else{ const m=this.markers.get(w.name); m.setLatLng([w.lat,w.lng]).setIcon(DotIcon(9)); bindMarker(m,{name:w.name,lat:w.lat,lng:w.lng}); }
-      });
-      Array.from(this.markers.keys()).forEach(n=>{ if(!this.load().some(w=>w.name===n)){ App.map.removeLayer(this.markers.get(n)); this.markers.delete(n); } });
-      UI.updateEdges();
-    }
+    pingLL(ll,strong){ try{ const pt=App.map.latLngToContainerPoint(ll); Ping.flash(pt.x,pt.y,strong); }catch{} }
   };
 
-  const Pins={ pin:null,_nm:null,
-    drop(lat,lng){ if(this.pin) App.map.removeLayer(this.pin); this.pin=makeDot(lat,lng,10).addTo(App.map);
-      this._nm=`Pin ${fix(lat)},${fix(lng)}`; bindMarker(this.pin,{name:this._nm,lat,lng});
-      this.pin.bindTooltip(this._nm,{permanent:true,direction:'right',offset:[8,0],className:'mini leaflet-tooltip mini'}).openTooltip();
-      App.uprightOverlays(App.S.bearing); UI.updateEdges(); }
+  const Ping=(()=>{ const pool=[]; const root=$('pingPool'); const get=()=>{ const f=pool.find(p=>!p.busy); if(f) return f; const el=document.createElement('div'); el.className='ping'; root.appendChild(el); const it={el,busy:false}; pool.push(it); return it; }; return{flash(x,y,strong){ const it=get(); it.busy=true; const el=it.el; el.style.left=x+'px'; el.style.top=y+'px'; el.classList.add('show'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(()=>{ el.classList.remove('show'); it.busy=false; }, strong?750:600); }}})();
+
+  const WP={
+    markers:new Map(),
+    list(){ return Store.lw(); }, save(a){ Store.sw(a); },
+    onListClick(e){ const t=e.target, i=+t.getAttribute('data-i'); if(Number.isNaN(i)) return;
+      if(t.hasAttribute('data-go')) WP.go(i);
+      else if(t.hasAttribute('data-guide')) WP.guide(i);
+      else if(t.hasAttribute('data-edit')) WP.edit(i);
+      else if(t.hasAttribute('data-save')) WP.saveEdit(i);
+      else if(t.hasAttribute('data-del')) WP.del(i);
+      else if(t.hasAttribute('data-cancel')) WP.render();
+    },
+    render(){ const el=$('wpList'); el.innerHTML=''; WP.list().forEach((w,i)=>{ const row=document.createElement('div'); row.style.display='grid'; row.style.gridTemplateColumns='1fr auto auto auto auto'; row.style.gap='6px'; row.style.alignItems='center'; row.style.padding='6px'; row.style.borderBottom='1px solid var(--line)'; row.innerHTML=`<div><b>${w.name}</b><br/><small style="color:var(--muted)">${w.lat.toFixed(6)}, ${w.lng.toFixed(6)}</small></div><button class="btn" data-i="${i}" data-go>Go</button><button class="btn" data-i="${i}" data-guide>Guide</button><button class="btn" data-i="${i}" data-edit>Edit</button><button class="btn" data-i="${i}" data-del>Del</button>`; el.appendChild(row); }); UI.updateEdges(); WP.syncMarkers(); },
+    addFromInputs(){ const nm=($('wpName').value||'').trim(); const txt=($('wpCoords').value||'').trim(); if(!txt){ WP.addCenter(nm); return; } const p=parseCoords(txt); if(!p){ toast('Could not parse coordinates.'); return; } WP.upsert(nm,p.lat,p.lng); $('wpName').value=''; $('wpCoords').value=''; },
+    addCenter(name){ const ll=App.map.getCenter(); WP.upsert((name||$('wpName').value||'').trim(), ll.lat, ll.lng); $('wpName').value=''; $('wpCoords').value=''; },
+    addHere(last){ if(!last){ toast('No GPS fix yet.'); return; } WP.upsert(($('wpName').value||'').trim(), last.coords.latitude, last.coords.longitude); $('wpName').value=''; $('wpCoords').value=''; },
+    upsert(name,lat,lng){ const a=WP.list(); const nm=name||`WP ${Date.now().toString().slice(-5)}`; const ix=a.findIndex(w=>w.name.toLowerCase()===nm.toLowerCase()); const e={name:nm,lat,lng}; if(ix>=0)a[ix]=e; else a.push(e); WP.save(a); WP.render(); },
+    go(i){ const w=WP.list()[i]; if(!w) return; App.S.follow=false; $('bFollow').classList.remove('on'); App.map.setView([w.lat,w.lng],16); const m=WP.ensure(w.name); m&&m.openPopup(); },
+    guide(i){ const w=WP.list()[i]; if(!w) return; App.S.dest={lat:w.lat,lng:w.lng,name:w.name}; },
+    edit(i){ const a=WP.list(); const w=a[i]; const el=$('wpList').children[i]; el.innerHTML=`<div style="display:grid;gap:6px"><input class="input" data-n value="${w.name}"/><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input class="input" data-la value="${w.lat.toFixed(6)}"/><input class="input" data-lo value="${w.lng.toFixed(6)}"/></div></div><button class="btn" data-i="${i}" data-save>Save</button><button class="btn" data-i="${i}" data-cancel>Cancel</button>`; },
+    saveEdit(i){ const a=WP.list(); const el=$('wpList').children[i]; const nm=(el.querySelector('[data-n]').value||'').trim()||a[i].name; const lat=parseFloat(el.querySelector('[data-la]').value); const lng=parseFloat(el.querySelector('[data-lo]').value); if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180) { toast('Invalid coordinates.'); return; } a[i]={name:nm,lat,lng}; WP.save(a); WP.render(); },
+    del(i){ const a=WP.list(); const [rm]=a.splice(i,1); WP.save(a); WP.render(); if(rm && WP.markers.has(rm.name)){ App.map.removeLayer(WP.markers.get(rm.name)); WP.markers.delete(rm.name); } },
+    ensure(name){ return WP.markers.get(name)||null; },
+    syncMarkers(){ const a=WP.list(); a.forEach(w=>{ if(!WP.markers.has(w.name)){ const m=makeDot(w.lat,w.lng,9).addTo(App.map); bindMarker(m,{name:w.name,lat:w.lat,lng:w.lng}); WP.markers.set(w.name,m); } else { const m=WP.markers.get(w.name); m.setLatLng([w.lat,w.lng]); bindMarker(m,{name:w.name,lat:w.lat,lng:w.lng}); } }); Array.from(WP.markers.keys()).forEach(n=>{ if(!WP.list().some(w=>w.name===n)){ App.map.removeLayer(WP.markers.get(n)); WP.markers.delete(n); } }); }
   };
+
+  const Pin={pin:null,_nm:null,drop(lat,lng){ if(this.pin) App.map.removeLayer(this.pin); this.pin=makeDot(lat,lng,10).addTo(App.map); this._nm=`Pin ${fix(lat)},${fix(lng)}`; bindMarker(this.pin,{name:this._nm,lat,lng}); }};
+
+  function bindMarker(m,{name,lat,lng}){
+    m.unbindPopup();
+    m.bindPopup(()=>`<div style="display:grid;gap:6px"><div style="font-weight:800">${name||`Pin ${fix(lat)},${fix(lng)}`}</div><div style="color:var(--muted);font-size:12px">${fix(lat)}, ${fix(lng)}</div><div style="display:flex;gap:6px;justify-content:flex-end"><button class="btn" data-copy>Copy</button><button class="btn" data-guide>Guide</button></div></div>`,
+      {className:'floating-popup',autoClose:true,closeButton:true,offset:[0,-6]})
+    .off('popupopen').on('popupopen',()=>{
+      const el=m.getPopup().getElement(); const C=el.querySelector('[data-copy]'), G=el.querySelector('[data-guide]');
+      C.onclick=async()=>{ const txt=`${fix(lat)}, ${fix(lng)}`; try{ await navigator.clipboard.writeText(txt); C.textContent='Copied'; setTimeout(()=>C.textContent='Copy',900);}catch{ prompt('Copy to clipboard:',txt);} };
+      G.onclick=()=>{ App.S.dest={lat,lng,name:name||'Dest'}; m.closePopup(); };
+      App.applyMapBearing(App.S.mapBearing,false);
+    });
+  }
 
   function parseCoords(t){
     const s=t.trim().replace(/\s+/g,' ').replace(/[,;]+/g,',');
     const m=s.match(/^\s*([+-]?\d+(\.\d+)?)\s*,\s*([+-]?\d+(\.\d+)?)\s*$/i);
-    if(m){ const lat=+m[1],lng=+m[3]; if(isFinite(lat)&&isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
+    if(m){ const lat=+m[1],lng=+m[3]; if(Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
     const parts=s.split(','); if(parts.length===2){
-      const one=q=>{ const x=q.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i); if(!x) return null; const h=(x[1]||x[4]||'').toUpperCase(); let v=parseFloat(x[2]);
-        if(h==='S'||h==='W') v=-Math.abs(v); if(h==='N'||h==='E') v=Math.abs(v); return {v,h}; };
-      const a=one(parts[0]), b=one(parts[1]);
-      if(a&&b){ const lat=(a.h==='N'||a.h==='S')?a.v:b.v; const lng=(a.h==='E'||a.h==='W')?a.v:b.v; if(Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
+      const one=q=>{ const x=q.trim().match(/^([NSEW])?\s*([+-]?\d+(\.\d+)?)\s*([NSEW])?$/i); if(!x) return null; const h=(x[1]||x[4]||'').toUpperCase(); let v=parseFloat(x[2]); if(h==='S'||h==='W') v=-Math.abs(v); if(h==='N'||h==='E') v=Math.abs(v); return {v,h}; };
+      const a=one(parts[0]),b=one(parts[1]); if(a&&b){ const lat=(a.h==='N'||a.h==='S')?a.v:b.v; const lng=(a.h==='E'||a.h==='W')?a.v:b.v; if(Math.abs(lat)<=90&&Math.abs(lng)<=180) return {lat,lng}; }
     }
     return null;
   }
 
-  function bindMarker(m,{name,lat,lng}){
-    m.unbindPopup();
-    m.bindPopup(()=>`<div style="display:grid;gap:6px">
-      <div style="font-weight:800">${name||`Pin ${fix(lat)},${fix(lng)}`}</div>
-      <div style="color:var(--muted);font-size:12px">${fix(lat)}, ${fix(lng)}</div>
-      <div style="display:flex;gap:6px;justify-content:flex-end">
-        <button class="btn small" data-copy>Copy</button>
-        <button class="btn small" data-guide>Guide</button>
-      </div></div>`,
-      { className:'floating-popup', autoClose:true, closeButton:true, offset:[0,-6] })
-    .off('popupopen').on('popupopen',()=>{
-      const el=m.getPopup().getElement(); if(!el) return;
-      const C=el.querySelector('[data-copy]'), G=el.querySelector('[data-guide]');
-      C?.addEventListener('click',async()=>{ const txt=`${fix(lat)}, ${fix(lng)}`; try{ await navigator.clipboard.writeText(txt); C.textContent='Copied'; setTimeout(()=>C.textContent='Copy',900);}catch{ prompt('Copy to clipboard:',txt);} });
-      G?.addEventListener('click',()=>{ App.S.dest={lat,lng,name:(name||'Dest')}; App.setMode(App.Mode.GUIDE); App.refreshNav(); App.updateHUD(); m.closePopup(); });
-      App.uprightOverlays(App.S.bearing);
-    });
-    m.on('tooltipopen',()=>App.uprightOverlays(App.S.bearing));
-  }
+  ready(()=>{ if(!window.L){ toast('Leaflet failed to load.'); return; } App.init(); WP.render(); $('decl').value=App.S.decl; $('declVal').textContent=App.S.decl.toFixed(1)+'°'; $('autoStart').checked=!!App.S.autostart; $('edgeOffOnly').checked=!!App.S.edgeOffOnly; });
 
-  ready(()=>{ try{
-    if(!window.L){ toast('Leaflet failed to load.'); return; }
-    App.init(); Waypoints.init();
-
-    // default mode UI
-    UI.reflectMode(App.Mode.EXPLORE);
-  }catch(err){ console.error(err); toast((err&&err.message)?err.message:String(err)); }});
 })();
 </script>
 </body>
