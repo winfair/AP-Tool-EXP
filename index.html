@@ -7,278 +7,260 @@
 <style>
 :root{
   --bg:#0b0f12; --ink:#e9f5f0; --muted:#a8cfc0; --accent:#20d7b7; --warn:#ffb020; --bad:#ff5a69; --good:#38e27d;
-  --line:rgba(255,255,255,.12); --panel:#10171d; --chip:#121c23;
+  --line:rgba(255,255,255,.12); --panel:#10171d; --chip:#121c23; --backdrop:rgba(3,6,8,.6);
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;overscroll-behavior:none}
 button,input,select,textarea{font:inherit}
 a{color:var(--accent);text-decoration:none}
-.app{display:flex;flex-direction:column;min-height:100vh}
-.topbar{
-  display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem;border-bottom:1px solid var(--line);
-  position:sticky;top:0;background:linear-gradient(180deg,var(--bg),rgba(11,15,18,.9));
-  z-index:3
-}
-.title{font-weight:700;letter-spacing:.5px;margin-right:auto}
-.chips{display:flex;gap:.4rem;flex-wrap:wrap}
-.chip{
-  background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:.25rem .6rem;display:flex;align-items:center;gap:.35rem
-}
-.chip input{width:5ch;background:transparent;border:none;outline:none;color:var(--ink);text-align:right}
-.status{padding:.4rem .8rem;color:var(--muted);border-bottom:1px solid var(--line);font-size:.9rem}
-
-.main{display:grid;grid-template-columns:1fr auto;gap:.8rem;padding:.8rem;flex:1;min-height:0}
-.left{display:grid;grid-template-columns:1fr 160px;gap:.8rem;align-items:center}
-@media (max-width:920px){ .main{grid-template-columns:1fr} .left{grid-template-columns:1fr} }
-
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.8rem}
-
-.compassWrap{aspect-ratio:1/1;display:grid;place-items:center;position:relative}
+.app{height:100svh;display:flex;flex-direction:column}
+.safe{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+/* Top status bar */
+.top{height:42px;display:flex;align-items:center;gap:.6rem;padding:.4rem .8rem;border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--bg),rgba(11,15,18,.92));}
+.badge{background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:.25rem .5rem;color:var(--muted);font-size:.85rem;white-space:nowrap}
+.top .grow{margin-left:auto;display:flex;gap:.4rem;align-items:center}
+.btn{background:#17242c;border:1px solid var(--line);color:var(--ink);padding:.5rem .8rem;border-radius:10px;cursor:pointer}
+.btn.small{padding:.35rem .6rem;font-size:.9rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* Main canvas area */
+.main{position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:.6rem .6rem}
+.stage{position:relative;width:100%;height:100%;display:grid;grid-template-columns:1fr;grid-template-rows:1fr;place-items:center}
+.compassWrap{position:relative;width:100%;max-width:clamp(260px,90vw,560px);aspect-ratio:1/1;display:grid;place-items:center}
 .compass{
-  width:100%;max-width:520px;aspect-ratio:1/1;border-radius:50%;
+  width:100%;aspect-ratio:1/1;border-radius:50%;
   background:radial-gradient(120% 120% at 50% 0%, #1a232b 0%, #11171d 60%, #0b1015 100%);
-  box-shadow:inset 0 0 0 2px rgba(255,255,255,.06), inset 0 20px 50px rgba(0,0,0,.5);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.06), inset 0 20px 50px rgba(0,0,0,.55);
   position:relative;transform:perspective(900px) rotateX(18deg);border:1px solid var(--line);
 }
 .tick{position:absolute;left:50%;top:50%;transform-origin:0% 0%}
 .tickLine{width:48%;height:1px;background:rgba(255,255,255,.25);transform-origin:left center}
 .tickTxt{position:absolute;right:6%;top:-10px;font-size:.8rem;color:var(--muted)}
-.arrow{
-  position:absolute;left:50%;top:50%;width:0;height:0;transform-origin:50% calc(100% - 18px);
-  filter:drop-shadow(0 2px 2px rgba(0,0,0,.6));
-}
-.arrow svg{width:44%;height:auto;transform:translate(-50%,-72%)} /* dial-scaled */
-.centerReadout{
-  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotateX(-18deg);
-  text-align:center;user-select:none
-}
-.big{font-size:2.1rem;font-weight:700}
-.mid{color:var(--muted)}
-.delta{font-weight:700}
+.arrow{position:absolute;left:50%;top:50%;width:0;height:0;transform-origin:50% calc(100% - 18px);filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))}
+.arrow svg{width:44%;height:auto;transform:translate(-50%,-72%)}
+.centerReadout{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotateX(-18deg);text-align:center;user-select:none}
+.big{font-size:clamp(20px,5.6vw,34px);font-weight:800}
+.mid{color:var(--muted);font-size:clamp(12px,3.6vw,16px)}
+.delta{font-weight:800}
 .delta.good{color:var(--good)} .delta.warn{color:var(--warn)} .delta.bad{color:var(--bad)}
-
-.sideStack{display:flex;flex-direction:column;gap:.8rem}
-
-.elevCard .barWrap{height:280px;position:relative}
-@media (max-width:920px){ .elevCard .barWrap{height:200px} }
-.bar{position:absolute;left:50%;top:0;bottom:0;width:8px;background:#15222b;border-radius:6px;border:1px solid var(--line);transform:translateX(-50%)}
+.targetChip{position:absolute;left:10%;top:12%;transform:rotateX(-18deg);background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:.25rem .6rem;color:var(--muted);font-size:.85rem}
+.mapCard{position:absolute;left:4%;bottom:6%;width:36%;min-width:140px;aspect-ratio:4/3;background:#091117;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.mapCanvas{width:100%;height:100%}
+.mapMeta{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.55));font-size:.8rem;color:#d1e7f7;padding:.25rem .4rem}
+/* Elevation bar (right edge) */
+.elevBar{position:absolute;right:4%;top:8%;bottom:14%;width:12px;min-height:120px;background:#15222b;border:1px solid var(--line);border-radius:10px}
 .mark{position:absolute;left:50%;width:18px;height:2px;background:rgba(255,255,255,.25);transform:translateX(-50%)}
 .targetDot{position:absolute;left:50%;width:12px;height:12px;background:var(--accent);border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px rgba(32,215,183,.25)}
 .currTri{position:absolute;left:50%;transform:translate(-50%,-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:12px solid #fff}
-
-.legend{display:flex;justify-content:space-between;margin-top:.5rem;font-size:.9rem}
-
-.mapCanvas{width:100%;height:280px;border-radius:10px;border:1px solid var(--line);background:#091117}
-@media (max-width:920px){ .mapCanvas{height:220px} }
-
-.controls{display:flex;gap:.5rem;flex-wrap:wrap;padding:.8rem;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.btn{
-  background:#17242c;border:1px solid var(--line);color:var(--ink);padding:.55rem .9rem;border-radius:10px;cursor:pointer
-}
-.btn.primary{background:var(--accent);color:#071012;border-color:transparent;font-weight:700}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-
-.drawer{padding:.8rem}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
-@media (max-width:720px){ .grid{grid-template-columns:1fr} }
-.field{display:flex;flex-direction:column;gap:.25rem}
+.elevLegend{position:absolute;right:2%;bottom:8%;font-size:.85rem;color:var(--muted)}
+/* Bottom action row */
+.actions{height:64px;display:flex;align-items:center;justify-content:space-around;padding:.3rem .6rem;border-top:1px solid var(--line);background:linear-gradient(180deg,rgba(11,15,18,.92),var(--bg))}
+.fab{min-width:64px;height:44px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.1rem;background:#14222a;border:1px solid var(--line);color:var(--ink)}
+.fab span{font-size:11px;color:var(--muted)}
+/* Floating menus (sheets/popovers) */
+.backdrop{position:fixed;inset:0;background:var(--backdrop);display:none}
+.sheet{position:fixed;left:env(safe-area-inset-left);right:env(safe-area-inset-right);bottom:0;max-height:88svh;height:auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;border:1px solid var(--line);transform:translateY(100%);transition:transform .2s ease-out;display:flex;flex-direction:column}
+.sheet.open{transform:translateY(0)}
+.backdrop.show{display:block}
+.sheetHdr{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;border-bottom:1px solid var(--line)}
+.sheetHdr .title{font-weight:800}
+.sheetBody{padding:.8rem;overflow:auto}
+.row{display:flex;gap:.5rem;flex-wrap:wrap}
+.pill{background:#0f1a20;border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:.25rem;min-width:46%}
 .field label{color:var(--muted);font-size:.9rem}
-.field input, .field select, .field textarea{
-  background:#0e171d;border:1px solid var(--line);border-radius:10px;padding:.5rem .6rem;color:var(--ink)
-}
-.small{font-size:.85rem;color:var(--muted)}
-.kv{display:flex;gap:.8rem;flex-wrap:wrap}
-.kv .pill{background:#0f1a20;border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;color:var(--muted)}
+.field input,.field select,.field textarea{background:#0e171d;border:1px solid var(--line);border-radius:10px;padding:.5rem .6rem;color:var(--ink)}
 hr.sep{border:none;border-top:1px solid var(--line);margin:1rem 0}
-
-.badge{display:inline-block;padding:.1rem .4rem;border-radius:6px;background:#132028;border:1px solid var(--line);color:var(--muted);font-size:.8rem}
-
-footer{padding:.9rem;color:var(--muted);font-size:.85rem;text-align:center;border-top:1px solid var(--line)}
+.tabbar{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tabbar button{flex:1;padding:.45rem .6rem;background:#0f1820;border:none;color:var(--muted)}
+.tabbar button.active{background:#17242c;color:var(--ink);font-weight:700}
+.closeX{margin-left:auto}
+.largeText .big{font-size:clamp(26px,7vw,40px)}
+.largeText .mid{font-size:clamp(14px,4.5vw,18px)}
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="topbar">
-    <div class="title">AZ ALIGN</div>
-    <div class="chips">
-      <div class="chip">Mode
-        <select id="modeSelect">
-          <option value="true">True</option>
-          <option value="mag">Magnetic</option>
-        </select>
-      </div>
-      <div class="chip">Decl
-        <input id="declInput" type="number" step="0.1" value="0">°
-      </div>
-      <div class="chip">K
-        <input id="kInput" type="number" step="0.01" value="1.333">
-      </div>
-      <div class="chip">Freq
-        <input id="freqInput" type="number" step="0.1" value="5.8">GHz
-      </div>
-      <button class="btn" id="startBtn">Start Sensors</button>
+  <!-- Top status -->
+  <div class="top safe">
+    <div class="badge" id="gpsBadge">GPS —</div>
+    <div class="badge" id="magBadge">Mag —</div>
+    <div class="badge" id="hzBadge">Hz —</div>
+    <div class="badge" id="statusBadge">Idle</div>
+    <div class="grow">
+      <button class="btn small" id="startBtn">Start</button>
     </div>
   </div>
-  <div class="status" id="statusLine">Idle. Grant permissions to start.</div>
 
-  <div class="main">
-    <div class="left">
-      <!-- Compass -->
-      <div class="card compassWrap">
-        <div class="compass" id="compass">
-          <!-- ticks via JS -->
-          <div class="arrow" id="arrow">
-            <svg viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg">
-              <!-- opaque white 3D-ish pointer -->
-              <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="#ffffff" stop-opacity="0.92"/>
-                <stop offset="1" stop-color="#bcd2d9" stop-opacity="0.92"/>
-              </linearGradient></defs>
-              <path d="M100 15 L140 200 L100 175 L60 200 Z" fill="url(#g)" stroke="rgba(0,0,0,.25)" stroke-width="2"/>
-              <circle cx="100" cy="205" r="18" fill="#0e171d" stroke="rgba(255,255,255,.2)" stroke-width="2"/>
-            </svg>
-          </div>
-          <div class="centerReadout">
-            <div class="big"><span id="headingNum">—</span>° <span id="headingCard">---</span></div>
-            <div class="mid">ΔAz: <span id="deltaAz" class="delta">—</span> · ΔEl: <span id="deltaEl" class="delta">—</span></div>
-          </div>
+  <!-- Main stage -->
+  <div class="main safe">
+    <div class="stage" id="stage">
+      <div class="compassWrap">
+        <div class="compass" id="compass"></div>
+        <div class="targetChip" id="targetChip">Target: Az —°, El —°</div>
+        <div class="centerReadout">
+          <div class="big"><span id="headingNum">—</span>° <span id="headingCard">---</span></div>
+          <div class="mid">ΔAz: <span id="deltaAz" class="delta">—</span> · ΔEl: <span id="deltaEl" class="delta">—</span></div>
         </div>
-      </div>
-
-      <!-- Side stack: Elevation + Map -->
-      <div class="sideStack">
-        <div class="card elevCard">
-          <div class="kv">
-            <div class="pill">Target El: <span id="targetElLbl">—</span>°</div>
-            <div class="pill">Pitch: <span id="pitchLbl">—</span>°</div>
-            <div class="pill">Dist: <span id="distLbl">—</span> km</div>
-          </div>
-          <div class="barWrap">
-            <div class="bar"></div>
-            <!-- 0..60° markers -->
-            <div class="mark" style="top:10%"></div>
-            <div class="mark" style="top:30%"></div>
-            <div class="mark" style="top:50%"></div>
-            <div class="mark" style="top:70%"></div>
-            <div class="mark" style="top:90%"></div>
-            <div class="targetDot" id="elTargetDot" style="top:50%"></div>
-            <div class="currTri" id="elCurrTri" style="top:50%"></div>
-          </div>
-          <div class="legend"><span>60°</span><span>0°</span></div>
-          <div class="small">Bar shows elevation aim (target dot) vs your device pitch (triangle).</div>
-        </div>
-
-        <div class="card">
+        <div class="mapCard" id="mapCard">
           <canvas id="mapCanvas" class="mapCanvas"></canvas>
-          <div class="kv" style="margin-top:.5rem">
-            <div class="pill">You: <span id="youLbl">—</span></div>
-            <div class="pill">Target: <span id="tgtLbl">—</span></div>
-            <div class="pill">Bearing: <span id="bearingLbl">—</span>°</div>
-          </div>
+          <div class="mapMeta"><span id="distLbl">— km</span> · <span id="bearingLbl">—°</span></div>
         </div>
-      </div>
-    </div>
-
-    <!-- Right panel with quick actions -->
-    <div class="card">
-      <div class="controls">
-        <button class="btn" id="btnPaste">Paste Vendor Az/El</button>
-        <button class="btn" id="btnSetTarget">Set Target</button>
-        <button class="btn" id="btnSave">Save Preset</button>
-        <select id="presetSelect" class="btn"></select>
-      </div>
-
-      <div class="drawer">
-        <div class="grid">
-          <div class="field">
-            <label>Mode</label>
-            <select id="targetMode">
-              <option value="azEl">A) Enter Heading (Az) & Elevation (El)</option>
-              <option value="coords">B) Enter Coordinates & Heights</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Tolerances</label>
-            <div class="kv">
-              <span class="pill">Az ± <input id="tolAz" type="number" step="0.1" value="2" style="width:4ch">°</span>
-              <span class="pill">El ± <input id="tolEl" type="number" step="0.1" value="1" style="width:4ch">°</span>
-              <span class="pill">EMA α <input id="alpha" type="number" step="0.05" min="0" max="1" value="0.2" style="width:5ch"></span>
-            </div>
-          </div>
-
-          <!-- A) Precomputed -->
-          <div class="field" id="azElFields">
-            <label>Precomputed (from vendor)</label>
-            <div class="kv">
-              <span class="pill">Az <input id="azInput" type="number" step="0.1" value="0" style="width:6ch">°</span>
-              <span class="pill">El <input id="elInput" type="number" step="0.1" value="0" style="width:6ch">°</span>
-            </div>
-          </div>
-
-          <!-- B) Coordinates & heights -->
-          <div class="field" id="coordFields" style="display:none">
-            <label>Coordinates & Heights (AGL = mast height above ground)</label>
-            <div class="small">A = your site · B = target site</div>
-            <div class="grid" style="margin-top:.4rem">
-              <div class="field">
-                <label>A (You)</label>
-                <div class="kv">
-                  <span class="pill">lat <input id="alat" type="number" step="0.000001" style="width:9ch"></span>
-                  <span class="pill">lon <input id="alon" type="number" step="0.000001" style="width:9ch"></span>
-                  <span class="pill">ground m <input id="aGround" type="number" step="0.1" style="width:7ch"></span>
-                  <span class="pill">AGL m <input id="aAGL" type="number" step="0.1" value="3" style="width:6ch"></span>
-                </div>
-              </div>
-              <div class="field">
-                <label>B (Target)</label>
-                <div class="kv">
-                  <span class="pill">lat <input id="blat" type="number" step="0.000001" style="width:9ch"></span>
-                  <span class="pill">lon <input id="blon" type="number" step="0.000001" style="width:9ch"></span>
-                  <span class="pill">ground m <input id="bGround" type="number" step="0.1" style="width:7ch"></span>
-                  <span class="pill">AGL m <input id="bAGL" type="number" step="0.1" value="3" style="width:6ch"></span>
-                </div>
-              </div>
-            </div>
-            <div class="kv" style="margin-top:.4rem">
-              <button class="btn primary" id="btnCompute">Compute</button>
-              <span class="pill">Computed Az: <span id="computedAz">—</span>°</span>
-              <span class="pill">Computed El: <span id="computedEl">—</span>°</span>
-              <span class="pill">F1@mid: <span id="f1Lbl">—</span> m</span>
-              <span class="pill">Drop: <span id="dropLbl">—</span> m</span>
-            </div>
-          </div>
+        <div class="elevBar" id="elevBar">
+          <div class="mark" style="top:10%"></div>
+          <div class="mark" style="top:30%"></div>
+          <div class="mark" style="top:50%"></div>
+          <div class="mark" style="top:70%"></div>
+          <div class="mark" style="top:90%"></div>
+          <div class="targetDot" id="elTargetDot" style="top:50%"></div>
+          <div class="currTri" id="elCurrTri" style="top:50%"></div>
         </div>
-
-        <hr class="sep"/>
-
-        <div class="grid">
-          <div class="field">
-            <label>Paste Vendor Line (quick fill)</label>
-            <textarea id="pasteBox" rows="3" placeholder="Example:
-latA,lonA,AGL_A,groundA; latB,lonB,AGL_B,groundB; heading°, elevation°"></textarea>
-            <div class="kv" style="margin-top:.4rem">
-              <button class="btn" id="btnParse">Parse</button>
-              <span class="small">Parses flexible formats; unknowns ignored.</span>
-            </div>
-          </div>
-          <div class="field">
-            <label>Diagnostics</label>
-            <div class="small">
-              GPS: <span id="gpsInfo">—</span><br/>
-              Mag field: <span id="magLbl">—</span> · Sample: <span id="hzLbl">—</span> Hz<br/>
-              Orientation mode: <span id="oriMode">—</span>
-            </div>
-          </div>
-        </div>
+        <div class="elevLegend">0–60°</div>
       </div>
     </div>
   </div>
 
-  <footer>Works best on HTTPS (iOS/Android). Keep device away from steel/strong magnets. Pitch for elevation assumes phone held on the antenna’s boresight.</footer>
+  <!-- Bottom actions -->
+  <div class="actions safe">
+    <button class="fab" id="fabTarget">🎯<span>Target</span></button>
+    <button class="fab" id="fabSensors">🧭<span>Sensors</span></button>
+    <button class="fab" id="fabOptions">⚙️<span>Options</span></button>
+    <button class="fab" id="fabPresets">⭐<span>Presets</span></button>
+  </div>
+</div>
+
+<!-- Backdrop -->
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Target Sheet -->
+<div class="sheet" id="sheetTarget" role="dialog" aria-modal="true">
+  <div class="sheetHdr"><div class="title">Target</div><button class="btn small closeX" data-close="sheetTarget">Close</button></div>
+  <div class="sheetBody">
+    <div class="tabbar" id="targetTabs">
+      <button data-tab="azEl" class="active">Az & El</button>
+      <button data-tab="coords">Coords</button>
+    </div>
+
+    <div id="tabAzEl" style="margin-top:.8rem">
+      <div class="row">
+        <div class="field"><label>Azimuth (°)</label><input id="azInput" type="number" step="0.1" value="0"></div>
+        <div class="field"><label>Elevation (°)</label><input id="elInput" type="number" step="0.1" value="0"></div>
+      </div>
+      <div class="row" style="margin-top:.5rem">
+        <button class="btn" id="btnSetTargetAzEl">Set target</button>
+        <button class="btn" id="btnPaste">Paste</button>
+      </div>
+      <div class="field" style="margin-top:.5rem">
+        <label>Paste vendor line (optional)</label>
+        <textarea id="pasteBox" rows="3" placeholder="latA,lonA,AGL_A,groundA; latB,lonB,AGL_B,groundB; heading°, elevation°"></textarea>
+        <div class="row" style="margin-top:.4rem">
+          <button class="btn" id="btnParse">Parse</button>
+          <span class="pill">Flexible parser; unknowns ignored.</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabCoords" style="display:none;margin-top:.8rem">
+      <div class="row">
+        <div class="field"><label>A (You) lat</label><input id="alat" type="number" step="0.000001"></div>
+        <div class="field"><label>A lon</label><input id="alon" type="number" step="0.000001"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>A ground elev (m)</label><input id="aGround" type="number" step="0.1"></div>
+        <div class="field"><label>A mast AGL (m)</label><input id="aAGL" type="number" step="0.1" value="3"></div>
+      </div>
+      <hr class="sep"/>
+      <div class="row">
+        <div class="field"><label>B (Target) lat</label><input id="blat" type="number" step="0.000001"></div>
+        <div class="field"><label>B lon</label><input id="blon" type="number" step="0.000001"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>B ground elev (m)</label><input id="bGround" type="number" step="0.1"></div>
+        <div class="field"><label>B mast AGL (m)</label><input id="bAGL" type="number" step="0.1" value="3"></div>
+      </div>
+      <div class="row" style="margin-top:.6rem">
+        <button class="btn" id="btnCompute">Compute</button>
+        <span class="pill">Az: <span id="computedAz">—</span>°</span>
+        <span class="pill">El: <span id="computedEl">—</span>°</span>
+        <span class="pill">F1@mid: <span id="f1Lbl">—</span></span>
+        <span class="pill">Drop: <span id="dropLbl">—</span> m</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sensors Sheet -->
+<div class="sheet" id="sheetSensors">
+  <div class="sheetHdr"><div class="title">Sensors</div><button class="btn small closeX" data-close="sheetSensors">Close</button></div>
+  <div class="sheetBody">
+    <div class="row">
+      <div class="field"><label>Mode</label>
+        <select id="modeSelect"><option value="true">True</option><option value="mag">Magnetic</option></select>
+      </div>
+      <div class="field"><label>Declination (°)</label><input id="declInput" type="number" step="0.1" value="0"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Az offset (°)</label><input id="azOffset" type="number" step="0.1" value="0"></div>
+      <div class="field"><label>El offset (°)</label><input id="elOffset" type="number" step="0.1" value="0"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Az smoothing α</label><input id="alphaAz" type="number" step="0.05" min="0" max="1" value="0.2"></div>
+      <div class="field"><label>El smoothing α</label><input id="alphaEl" type="number" step="0.05" min="0" max="1" value="0.2"></div>
+    </div>
+    <hr class="sep"/>
+    <div class="row">
+      <span class="pill">Orientation: <span id="oriMode">—</span></span>
+      <span class="pill">Field: <span id="magLbl">—</span></span>
+      <span class="pill">Sample: <span id="hzLbl">—</span> Hz</span>
+    </div>
+  </div>
+</div>
+
+<!-- Options Sheet -->
+<div class="sheet" id="sheetOptions">
+  <div class="sheetHdr"><div class="title">Options</div><button class="btn small closeX" data-close="sheetOptions">Close</button></div>
+  <div class="sheetBody">
+    <div class="row">
+      <div class="field"><label>Az tolerance (°)</label><input id="tolAz" type="number" step="0.1" value="2"></div>
+      <div class="field"><label>El tolerance (°)</label><input id="tolEl" type="number" step="0.1" value="1"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Units</label>
+        <select id="unitSelect"><option value="metric" selected>Metric (m, km)</option><option value="imperial">Imperial (ft, mi)</option></select>
+      </div>
+      <div class="field"><label>Frequency (GHz)</label><input id="freqInput" type="number" step="0.1" value="5.8"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>K factor</label><input id="kInput" type="number" step="0.01" value="1.333"></div>
+      <div class="field"><label>Fresnel warn level</label>
+        <select id="fresnelWarn"><option value="0.6">60%</option><option value="0.8">80%</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <label class="pill"><input id="largeText" type="checkbox" style="accent-color:var(--accent)"> Large Text</label>
+      <label class="pill"><input id="haptics" type="checkbox" checked style="accent-color:var(--accent)"> Haptics</label>
+    </div>
+  </div>
+</div>
+
+<!-- Presets Sheet -->
+<div class="sheet" id="sheetPresets">
+  <div class="sheetHdr"><div class="title">Presets</div><button class="btn small closeX" data-close="sheetPresets">Close</button></div>
+  <div class="sheetBody">
+    <div class="row">
+      <select id="presetSelect" style="flex:1"><option value="">Select preset…</option></select>
+      <button class="btn" id="btnLoadPreset">Load</button>
+    </div>
+    <div class="row" style="margin-top:.6rem">
+      <button class="btn" id="btnSavePreset">Save current…</button>
+      <button class="btn" id="btnExport">Export JSON</button>
+      <button class="btn" id="btnImport">Import JSON</button>
+    </div>
+    <textarea id="jsonBox" rows="6" placeholder="Preset JSON will appear here for export/import" style="margin-top:.6rem;width:100%"></textarea>
+  </div>
 </div>
 
 <script>
-/* ---------- Utilities ---------- */
+/* ===== Utilities ===== */
 const toRad = d => d*Math.PI/180;
 const toDeg = r => r*180/Math.PI;
 const clamp = (v,min,max)=>Math.min(max,Math.max(min,v));
@@ -287,15 +269,12 @@ const cardinals = deg => {
   const dirs=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
   return dirs[Math.round(wrap360(deg)/22.5)%16];
 };
-const shortestAngle = (target,heading) => {
-  let d = ((target - heading + 540) % 360) - 180;
-  return d;
-};
+const shortestAngle = (t,h)=>(((t - h + 540) % 360) - 180);
 const haversine = (a,b) => {
   const R=6371000;
   const φ1=toRad(a.lat), φ2=toRad(b.lat), dφ=toRad(b.lat-a.lat), dλ=toRad(b.lon-a.lon);
   const s = Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
-  return 2*R*Math.asin(Math.sqrt(s)); // meters on sphere
+  return 2*R*Math.asin(Math.sqrt(s)); // meters
 };
 const bearing = (a,b) => {
   const φ1=toRad(a.lat), φ2=toRad(b.lat), Δλ=toRad(b.lon-a.lon);
@@ -303,54 +282,58 @@ const bearing = (a,b) => {
   const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
   return wrap360(toDeg(Math.atan2(y,x)));
 };
-const earthDrop = (D, K=1.333) => { const Reff = K*6371000; return (D*D)/(2*Reff); }; // meters
-const aimElevation = (A,B,D,K=1.333) => {
-  const hA = (A.ground??0)+(A.agl??0);
-  const hB = (B.ground??0)+(B.agl??0);
-  const drop = earthDrop(D,K);
-  const dh = (hB - hA) - drop;
-  return {el: toDeg(Math.atan2(dh, D)), drop};
+const earthDrop = (D,K=1.333)=> (D*D)/(2*(K*6371000)); // meters
+const aimElevation = (A,B,D,K=1.333)=>{
+  const hA=(A.ground??0)+(A.agl??0); const hB=(B.ground??0)+(B.agl??0);
+  const drop = earthDrop(D,K); const dh = (hB - hA) - drop;
+  return {el: toDeg(Math.atan2(dh,D)), drop};
 };
-const fresnelF1mid = (D_km,f_GHz)=> 17.32*Math.sqrt((D_km/2)*(D_km/2)/(f_GHz*D_km)); // simplified at midpoint
-/* ---------- State ---------- */
+const fresnelF1mid = (D_km,f_GHz)=> 17.32*Math.sqrt((D_km/2)*(D_km/2)/(f_GHz*D_km));
+/* Unit helpers */
+const mToFt = m=> m*3.28084; const kmToMi = km=> km*0.621371;
+function fmtDist(km){ return (state.units==="metric")? `${km.toFixed(2)} km`:`${kmToMi(km).toFixed(2)} mi`; }
+function fmtF1(m){ return (state.units==="metric")? `${m.toFixed(2)} m`:`${mToFt(m).toFixed(1)} ft`; }
+
+/* ===== State ===== */
 const state = {
-  running:false,
-  mode:"true",
-  decl:0,
-  K:1.333,
-  freq:5.8,
-  tolAz:2, tolEl:1,
-  alpha:0.2,
-  heading:null, pitch:null, roll:null, field:null,
+  running:false, units:"metric",
+  mode:"true", decl:0,
+  azOffset:0, elOffset:0,
+  alphaAz:0.2, alphaEl:0.2,
+  K:1.333, freq:5.8, fresnelWarn:0.6,
+  tolAz:2, tolEl:1, haptics:true, largeText:false,
+  heading:null, pitch:null, field:null, oriMode:"auto",
   ema:{heading:null,pitch:null},
-  oriMode:"auto",
   you:{lat:null,lon:null,acc:null}, youAge:"—",
   target:{has:false, az:null, el:null, distKm:null, a:null, b:null},
   lastTick:0, hz:0, smp:0, t0:performance.now(),
   screenOrient:()=> (screen.orientation && screen.orientation.angle)|| window.orientation || 0
 };
-/* ---------- DOM ---------- */
-const $ = sel => document.querySelector(sel);
-const statusLine = $("#statusLine");
-const headingNum = $("#headingNum"), headingCard=$("#headingCard");
-const deltaAzEl = { az: $("#deltaAz"), el: $("#deltaEl") };
-const arrow = $("#arrow"), compass = $("#compass");
-const targetElLbl=$("#targetElLbl"), pitchLbl=$("#pitchLbl"), distLbl=$("#distLbl");
+
+/* ===== DOM ===== */
+const $=s=>document.querySelector(s);
+const compass=$("#compass"), headingNum=$("#headingNum"), headingCard=$("#headingCard");
+const deltaAz=$("#deltaAz"), deltaEl=$("#deltaEl"), targetChip=$("#targetChip");
+const mapCanvas=$("#mapCanvas"), mctx=mapCanvas.getContext("2d");
+const distLbl=$("#distLbl"), bearingLbl=$("#bearingLbl");
 const elTargetDot=$("#elTargetDot"), elCurrTri=$("#elCurrTri");
-const mapCanvas = $("#mapCanvas"), mctx = mapCanvas.getContext("2d");
-const youLbl=$("#youLbl"), tgtLbl=$("#tgtLbl"), bearingLbl=$("#bearingLbl");
-const gpsInfo=$("#gpsInfo"), magLbl=$("#magLbl"), hzLbl=$("#hzLbl"), oriMode=$("#oriMode");
-const presetSelect=$("#presetSelect");
-/* ---------- UI Init ---------- */
+const gpsBadge=$("#gpsBadge"), magBadge=$("#magBadge"), hzBadge=$("#hzBadge"), statusBadge=$("#statusBadge");
+
+/* ===== Build compass ticks & arrow ===== */
 function buildTicks(){
+  const arrow=document.createElement("div"); arrow.className="arrow"; arrow.id="arrow";
+  const svg=`<svg viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.92"/><stop offset="1" stop-color="#bcd2d9" stop-opacity="0.92"/></linearGradient></defs>
+    <path d="M100 15 L140 200 L100 175 L60 200 Z" fill="url(#g)" stroke="rgba(0,0,0,.25)" stroke-width="2"/>
+    <circle cx="100" cy="205" r="18" fill="#0e171d" stroke="rgba(255,255,255,.2)" stroke-width="2"/>
+  </svg>`;
+  arrow.innerHTML=svg; compass.appendChild(arrow);
+
   for(let d=0; d<360; d+=5){
-    const t = document.createElement("div");
-    t.className="tick";
+    const t=document.createElement("div"); t.className="tick";
     t.style.transform=`rotate(${d}deg) translate(-50%,-50%)`;
-    const line = document.createElement("div");
-    line.className="tickLine";
-    line.style.opacity = (d%10===0)?1:0.5;
-    line.style.height = (d%30===0)? "2px":"1px";
+    const line=document.createElement("div"); line.className="tickLine";
+    line.style.opacity=(d%10===0)?1:0.5; line.style.height=(d%30===0)?"2px":"1px";
     t.appendChild(line);
     if(d%30===0){
       const txt=document.createElement("div"); txt.className="tickTxt";
@@ -361,91 +344,153 @@ function buildTicks(){
   }
 }
 buildTicks();
-/* ---------- Permissions & Sensors ---------- */
+const arrowEl = $("#arrow");
+
+/* ===== Render loop ===== */
+function colorForDelta(x,t){ const ax=Math.abs(x); return (ax<=t)?'good':(ax<=t*2.5)?'warn':'bad'; }
+function moveElMarkers(targetEl, currEl){
+  const mapY = v => (10 + (60 - clamp(v,0,60))*(80/60)); // 10%..90%
+  elTargetDot.style.top = mapY(targetEl)+"%";
+  elCurrTri.style.top = mapY(currEl)+"%";
+}
+function render(){
+  // Headings
+  if(state.heading!=null){ headingNum.textContent=state.heading.toFixed(1); headingCard.textContent=cardinals(state.heading); }
+  // Rotate arrow
+  arrowEl.style.transform = `translate(-50%,-50%) rotate(${state.heading||0}deg)`;
+  // Deltas
+  const tAz=state.tolAz, tEl=state.tolEl;
+  if(state.target.has && state.heading!=null){
+    const dAz = shortestAngle(state.target.az, state.heading);
+    deltaAz.textContent = (dAz>0?"+":"")+dAz.toFixed(1)+"°";
+    deltaAz.className = "delta " + colorForDelta(dAz,tAz);
+
+    const currPitch = (state.pitch??0) + state.elOffset;
+    if(state.target.el!=null){
+      const dEl = (state.target.el - currPitch);
+      deltaEl.textContent = (dEl>0?"+":"")+dEl.toFixed(1)+"°";
+      deltaEl.className = "delta " + colorForDelta(dEl,tEl);
+      moveElMarkers(state.target.el, currPitch);
+      // Haptics on both lock
+      const t=Date.now();
+      if(Math.abs(dAz)<=tAz && Math.abs(dEl)<=tEl && state.haptics && (t - state.lastTick > 800)){
+        if(navigator.vibrate) navigator.vibrate(30);
+        state.lastTick=t;
+      }
+    }
+  }
+  // Badges
+  hzBadge.textContent = "Hz " + state.hz.toFixed(0);
+  $("#hzLbl") && ($("#hzLbl").textContent = state.hz.toFixed(0));
+  $("#oriMode") && ($("#oriMode").textContent = state.oriMode);
+  $("#magLbl") && ($("#magLbl").textContent = state.field? "ok":"—");
+}
+
+/* ===== Map canvas ===== */
+function updateMap(){
+  const cw = mapCanvas.clientWidth, ch = mapCanvas.clientHeight;
+  mapCanvas.width = cw*devicePixelRatio; mapCanvas.height = ch*devicePixelRatio;
+  mctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  mctx.clearRect(0,0,cw,ch);
+  mctx.fillStyle="#0b1319"; mctx.fillRect(0,0,cw,ch);
+  mctx.strokeStyle="rgba(255,255,255,.08)"; mctx.strokeRect(0,0,cw,ch);
+
+  const you=state.you, tgt=state.target;
+  if(you.lat==null || !tgt.has || !tgt.b){ distLbl.textContent="— km"; bearingLbl.textContent="—°"; return; }
+
+  const A={lat:you.lat,lon:you.lon}, B={lat:tgt.b.lat,lon:tgt.b.lon};
+  const Dm=haversine(A,B); const brg=bearing(A,B);
+  distLbl.textContent = fmtDist(Dm/1000); bearingLbl.textContent=brg.toFixed(1);
+
+  const φ0=toRad((A.lat+B.lat)/2), kx=Math.cos(φ0);
+  const X=lon=>(lon-A.lon)*kx, Y=lat=>(lat-A.lat);
+  const P={X:X(A.lon),Y:Y(A.lat)}, Q={X:X(B.lon),Y:Y(B.lat)};
+  const minX=Math.min(P.X,Q.X), maxX=Math.max(P.X,Q.X);
+  const minY=Math.min(P.Y,Q.Y), maxY=Math.max(P.Y,Q.Y);
+  const pad=0.12, w=(maxX-minX)||1e-6, h=(maxY-minY)||1e-6;
+  const s=Math.min((1-2*pad)/w,(1-2*pad)/h);
+  const ox= - (minX + w/2)*s*cw + cw/2, oy= - (minY + h/2)*s*ch + ch/2;
+  const tXY=p=>({x:p.X*s*cw+ox, y:p.Y*s*ch+oy});
+  const p=tXY(P), q=tXY(Q);
+
+  // Line
+  mctx.lineWidth=2; mctx.strokeStyle="rgba(255,255,255,.25)";
+  mctx.beginPath(); mctx.moveTo(p.x,p.y); mctx.lineTo(q.x,q.y); mctx.stroke();
+  // You
+  mctx.fillStyle="#9ad3ff"; mctx.beginPath(); mctx.arc(p.x,p.y,5,0,Math.PI*2); mctx.fill();
+  // Target
+  mctx.fillStyle="#ffcc66"; mctx.beginPath(); mctx.arc(q.x,q.y,5,0,Math.PI*2); mctx.fill();
+}
+window.addEventListener("resize", updateMap);
+
+/* ===== Sensors ===== */
 async function startSensors(){
   try{
     // Geolocation
     if(navigator.geolocation){
       navigator.geolocation.watchPosition(pos=>{
         const {latitude,longitude,accuracy} = pos.coords;
-        state.you = {lat:latitude, lon:longitude, acc:accuracy};
-        state.youAge = ((Date.now()-pos.timestamp)/1000).toFixed(0)+"s";
+        state.you={lat:latitude,lon:longitude,acc:accuracy};
+        gpsBadge.textContent = `GPS ±${Math.round(accuracy)} m`;
         updateMap();
-        gpsInfo.textContent = `${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${Math.round(accuracy)} m, ${state.youAge})`;
-      },err=>{
-        gpsInfo.textContent = "Denied/Unavailable";
-      },{enableHighAccuracy:true, maximumAge:1000, timeout:8000});
-    } else {
-      gpsInfo.textContent = "Not supported";
-    }
+      },err=>{ gpsBadge.textContent="GPS denied"; },{enableHighAccuracy:true, maximumAge:1000, timeout:8000});
+    } else gpsBadge.textContent="GPS n/a";
 
-    // Device Orientation permissions (iOS requires gesture)
+    // Motion permission (iOS)
     if (typeof DeviceOrientationEvent !== "undefined" &&
         typeof DeviceOrientationEvent.requestPermission === "function") {
       const res = await DeviceOrientationEvent.requestPermission();
       if (res !== "granted") throw new Error("Motion permission denied");
     }
     window.addEventListener("deviceorientation", onOrientation, true);
-
-    // Some Androids expose absolute heading via webkitCompassHeading
-    state.running = true;
-    statusLine.textContent = "Sensors running.";
-  }catch(e){
-    statusLine.textContent = "Sensor start failed: " + e.message;
-  }
+    state.running=true; statusBadge.textContent="Running";
+  }catch(e){ statusBadge.textContent="Start failed: "+e.message; }
 }
 function onOrientation(e){
-  // Estimate heading
   let heading;
-  if (typeof e.webkitCompassHeading === "number") {
-    heading = e.webkitCompassHeading; // already magnetic 0..360 (iOS Safari)
-    state.oriMode = "webkitCompassHeading";
-  } else if (typeof e.alpha === "number") {
-    // alpha: 0 at device facing magnetic north, increasing clockwise — commonly
-    // Normalize for screen orientation (portrait assumed primary)
-    let alpha = e.alpha;
-    const so = state.screenOrient();
-    // Adjust alpha by screen rotation
-    if (so === 90) alpha += 90;
-    else if (so === -90 || so === 270) alpha -= 90;
-    else if (so === 180) alpha += 180;
-    heading = 360 - (alpha % 360); // compass-like
-    state.oriMode = "alpha-derived";
+  if (typeof e.webkitCompassHeading === "number"){
+    heading = e.webkitCompassHeading; state.oriMode="webkitCompassHeading";
+  } else if (typeof e.alpha === "number"){
+    let alpha=e.alpha, so=state.screenOrient();
+    if (so===90) alpha+=90; else if (so===-90 || so===270) alpha-=90; else if (so===180) alpha+=180;
+    heading = 360 - (alpha%360); state.oriMode="alpha-derived";
   }
-  if (heading != null){
-    // Declination: convert to True if needed
-    const decl = parseFloat($("#declInput").value)||0;
-    const mode = $("#modeSelect").value;
-    if(mode === "true") heading = wrap360(heading + decl);
-    // EMA
-    const a = parseFloat($("#alpha").value)||0.2;
+  if (heading!=null){
+    // convert to True if requested
+    const decl=parseFloat($("#declInput").value)||0;
+    const mode=$("#modeSelect").value;
+    if(mode==="true") heading = wrap360(heading + decl);
+    // az offset
+    heading = wrap360(heading + (parseFloat($("#azOffset").value)||0));
+    // EMA Az
+    const a = parseFloat($("#alphaAz").value)||0.2;
     state.ema.heading = (state.ema.heading==null)? heading : (state.ema.heading*(1-a) + heading*a);
     state.heading = wrap360(state.ema.heading);
   }
-  // Pitch (front-back tilt) best effort
-  let pitch;
-  if (typeof e.beta === "number") {
-    pitch = clamp(e.beta, -90, 90); // portrait assumption
-    const a = parseFloat($("#alpha").value)||0.2;
+  // Pitch
+  if (typeof e.beta === "number"){
+    let pitch = clamp(e.beta,-90,90) + (parseFloat($("#elOffset").value)||0);
+    const a = parseFloat($("#alphaEl").value)||0.2;
     state.ema.pitch = (state.ema.pitch==null)? pitch : (state.ema.pitch*(1-a) + pitch*a);
     state.pitch = state.ema.pitch;
   }
-  // Field strength (some browsers expose)
-  if (typeof e.webkitCompassAccuracy === "number") {
-    state.field = 1/(e.webkitCompassAccuracy+1);
+  // Basic field hint if available
+  if (typeof e.webkitCompassAccuracy === "number"){
+    const acc=e.webkitCompassAccuracy;
+    state.field = 1/(acc+1);
+    magBadge.textContent = (acc<20)? "Mag OK":"Mag noisy";
   }
-  state.smp++; const now = performance.now();
-  if(now - state.t0 > 1000){ state.hz = state.smp; state.smp=0; state.t0=now; }
+  state.smp++; const now=performance.now();
+  if(now - state.t0 > 1000){ state.hz=state.smp; state.smp=0; state.t0=now; }
   render();
 }
-/* ---------- Target logic ---------- */
-function setTargetAzEl(az, el, distKm=null){
-  state.target.has = true;
-  state.target.az = wrap360(az);
-  state.target.el = el;
-  if(distKm!=null) state.target.distKm = distKm;
-  targetElLbl.textContent = (el!=null)? el.toFixed(1):"—";
-  distLbl.textContent = (state.target.distKm!=null)? state.target.distKm.toFixed(2):"—";
+
+/* ===== Target / compute ===== */
+function setTargetAzEl(az,el,distKm=null){
+  state.target.has=true; state.target.az=wrap360(az); state.target.el=el;
+  if(distKm!=null) state.target.distKm=distKm;
+  targetChip.textContent = `Target: Az ${state.target.az.toFixed(1)}°, El ${state.target.el.toFixed(1)}°`;
+  render();
 }
 function computeFromCoords(){
   const alat=parseFloat($("#alat").value), alon=parseFloat($("#alon").value);
@@ -453,216 +498,112 @@ function computeFromCoords(){
   const aAGL=parseFloat($("#aAGL").value)||0, bAGL=parseFloat($("#bAGL").value)||0;
   const aGround=parseFloat($("#aGround").value)||0, bGround=parseFloat($("#bGround").value)||0;
   if([alat,alon,blat,blon].some(v=>Number.isNaN(v))) return;
-  const A={lat:alat,lon:alon,agl:aAGL,ground:aGround};
-  const B={lat:blat,lon:blon,agl:bAGL,ground:bGround};
-  const Dm = haversine(A,B);
-  const az = bearing(A,B);
+  const A={lat:alat,lon:alon,agl:aAGL,ground:aGround}, B={lat:blat,lon:blon,agl:bAGL,ground:bGround};
+  const Dm=haversine(A,B); const az=bearing(A,B);
   const K=parseFloat($("#kInput").value)||1.333;
-  const {el,drop} = aimElevation(A,B,Dm,K);
+  const {el,drop}=aimElevation(A,B,Dm,K);
   const fGHz=parseFloat($("#freqInput").value)||5.8;
-  const f1 = fresnelF1mid(Dm/1000,fGHz);
-  $("#computedAz").textContent = az.toFixed(1);
-  $("#computedEl").textContent = el.toFixed(2);
-  $("#f1Lbl").textContent = f1.toFixed(2);
-  $("#dropLbl").textContent = drop.toFixed(2);
-  state.target.a=A; state.target.b=B;
-  setTargetAzEl(az, el, Dm/1000);
-  updateMap();
+  const f1=fresnelF1mid(Dm/1000,fGHz);
+  $("#computedAz").textContent=az.toFixed(1); $("#computedEl").textContent=el.toFixed(2);
+  $("#f1Lbl").textContent=fmtF1(f1); $("#dropLbl").textContent=drop.toFixed(2);
+  state.target.a=A; state.target.b=B; setTargetAzEl(az,el,Dm/1000); updateMap();
 }
-/* ---------- Rendering ---------- */
-function colorForDelta(x, tol){ const ax=Math.abs(x); return (ax<=tol)?'good':(ax<=tol*2.5)?'warn':'bad'; }
-function render(){
-  // Text readouts
-  if(state.heading!=null){
-    headingNum.textContent = state.heading.toFixed(1);
-    headingCard.textContent = cardinals(state.heading);
-  }
-  if(state.pitch!=null) pitchLbl.textContent = state.pitch.toFixed(1);
 
-  // Arrow rotation (show current heading and target marker as arrow orientation)
-  let arrowRot = state.heading||0;
-  arrow.style.transform = `translate(-50%,-50%) rotate(${arrowRot}deg)`;
+/* ===== Floating menu plumbing ===== */
+const backdrop=$("#backdrop");
+function openSheet(id){ backdrop.classList.add("show"); $("#"+id).classList.add("open"); }
+function closeSheet(id){ $("#"+id).classList.remove("open"); setTimeout(()=>{ if(!document.querySelector(".sheet.open")) backdrop.classList.remove("show"); },150); }
+backdrop.addEventListener("click", ()=>document.querySelectorAll(".sheet.open").forEach(s=>s.classList.remove("open")) || backdrop.classList.remove("show"));
+document.querySelectorAll(".closeX").forEach(b=>b.addEventListener("click", e=>closeSheet(e.currentTarget.dataset.close)));
 
-  // Deltas
-  const tolAz=parseFloat($("#tolAz").value)||2;
-  const tolEl=parseFloat($("#tolEl").value)||1;
-  if(state.target.has && state.heading!=null){
-    const dAz = shortestAngle(state.target.az, state.heading);
-    deltaAzEl.az.textContent = (dAz>0?"+":"") + dAz.toFixed(1)+"°";
-    deltaAzEl.az.className = "delta " + colorForDelta(dAz, tolAz);
+/* Tabs in Target sheet */
+const targetTabs=$("#targetTabs");
+targetTabs.addEventListener("click", e=>{
+  if(e.target.tagName!=="BUTTON") return;
+  targetTabs.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+  e.target.classList.add("active");
+  const tab=e.target.dataset.tab;
+  $("#tabAzEl").style.display = (tab==="azEl")?"block":"none";
+  $("#tabCoords").style.display = (tab==="coords")?"block":"none";
+});
 
-    // Elevation delta uses device pitch (positive up)
-    if(state.pitch!=null && state.target.el!=null){
-      const dEl = (state.target.el - state.pitch);
-      deltaAzEl.el.textContent = (dEl>0?"+":"")+dEl.toFixed(1)+"°";
-      deltaAzEl.el.className = "delta " + colorForDelta(dEl, tolEl);
-
-      moveElMarkers(state.target.el, state.pitch);
-
-      // Haptics when both lock
-      const t = Date.now();
-      if(Math.abs(dAz)<=tolAz && Math.abs(dEl)<=tolEl && (t - state.lastTick > 800)){
-        if(navigator.vibrate) navigator.vibrate(30);
-        state.lastTick = t;
-      }
-    }
-  }
-  // Status footer bits
-  magLbl.textContent = state.field? "ok":"—";
-  hzLbl.textContent = state.hz.toFixed(0);
-  oriMode.textContent = state.oriMode;
-}
-function moveElMarkers(targetEl, currEl){
-  // Map 0..60° (clamped) to 90%..10% vertical (top=0)
-  const mapY = v => (10 + (60 - clamp(v,0,60))*(80/60));
-  elTargetDot.style.top = mapY(targetEl)+"%";
-  elCurrTri.style.top = mapY(currEl)+"%";
-}
-/* ---------- Map canvas ---------- */
-function updateMap(){
-  const cw = mapCanvas.clientWidth, ch = mapCanvas.clientHeight;
-  mapCanvas.width = cw*devicePixelRatio; mapCanvas.height = ch*devicePixelRatio;
-  mctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
-  mctx.clearRect(0,0,cw,ch);
-  // Frame
-  mctx.fillStyle="#0b1319"; mctx.fillRect(0,0,cw,ch);
-  mctx.strokeStyle="rgba(255,255,255,.08)"; mctx.strokeRect(0,0,cw,ch);
-
-  const you = state.you, tgt = state.target;
-  if(you.lat==null){ youLbl.textContent="—"; return; }
-  youLbl.textContent = `${you.lat.toFixed(5)}, ${you.lon.toFixed(5)}`;
-  if(!tgt.has || !tgt.b){ tgtLbl.textContent="—"; return; }
-  tgtLbl.textContent = `${tgt.b.lat.toFixed(5)}, ${tgt.b.lon.toFixed(5)}`;
-
-  const A={lat:you.lat,lon:you.lon}, B={lat:tgt.b.lat,lon:tgt.b.lon};
-  const Dm = haversine(A,B); const brg = bearing(A,B);
-  bearingLbl.textContent = brg.toFixed(1);
-  distLbl.textContent = (Dm/1000).toFixed(2);
-
-  // Simple local projection (equirect around mid)
-  const φ0 = toRad((A.lat+B.lat)/2);
-  const kx = Math.cos(φ0);
-  const x = (lon)=> (lon - A.lon)*kx;
-  const y = (lat)=> (lat - A.lat);
-  const pts = [{lat:A.lat,lon:A.lon},{lat:B.lat,lon:B.lon}].map(p=>({X:x(p.lon),Y:y(p.lat)}));
-  const minX=Math.min(...pts.map(p=>p.X)), maxX=Math.max(...pts.map(p=>p.X));
-  const minY=Math.min(...pts.map(p=>p.Y)), maxY=Math.max(...pts.map(p=>p.Y));
-  const pad=20/cw; // padding in normalized units
-  const w=maxX-minX||1e-6, h=maxY-minY||1e-6;
-  const sx=(1-2*pad)/w, sy=(1-2*pad)/h, s=Math.min(sx,sy);
-  const ox = - (minX + w/2)*s*cw + cw/2, oy = - (minY + h/2)*s*ch + ch/2;
-
-  function tXY(p){ return {x:p.X*s*cw + ox, y:p.Y*s*ch + oy}; }
-  const P=tXY(pts[0]), Q=tXY(pts[1]);
-
-  // Bearing ray & line
-  mctx.lineWidth=2;
-  mctx.strokeStyle="rgba(255,255,255,.25)";
-  mctx.beginPath(); mctx.moveTo(P.x,P.y); mctx.lineTo(Q.x,Q.y); mctx.stroke();
-
-  // You
-  mctx.fillStyle="#9ad3ff"; mctx.beginPath(); mctx.arc(P.x,P.y,6,0,Math.PI*2); mctx.fill();
-  // Target
-  mctx.fillStyle="#ffcc66"; mctx.beginPath(); mctx.arc(Q.x,Q.y,6,0,Math.PI*2); mctx.fill();
-  // Arrow head on direction
-  const ang = Math.atan2(Q.y-P.y, Q.x-P.x);
-  mctx.fillStyle="rgba(255,255,255,.6)";
-  mctx.beginPath();
-  mctx.moveTo(Q.x, Q.y);
-  mctx.lineTo(Q.x-12*Math.cos(ang-0.3), Q.y-12*Math.sin(ang-0.3));
-  mctx.lineTo(Q.x-12*Math.cos(ang+0.3), Q.y-12*Math.sin(ang+0.3));
-  mctx.closePath(); mctx.fill();
-}
-/* ---------- Controls ---------- */
+/* ===== Controls ===== */
 $("#startBtn").addEventListener("click", startSensors);
-$("#modeSelect").addEventListener("change", ()=>{ render(); });
-$("#declInput").addEventListener("input", ()=>{ render(); });
-$("#kInput").addEventListener("input", ()=>{ state.K=parseFloat($("#kInput").value)||1.333; if(state.target.a&&state.target.b) computeFromCoords(); });
-$("#freqInput").addEventListener("input", ()=>{ state.freq=parseFloat($("#freqInput").value)||5.8; if(state.target.a&&state.target.b) computeFromCoords(); });
-$("#tolAz").addEventListener("input", render);
-$("#tolEl").addEventListener("input", render);
-$("#alpha").addEventListener("input", ()=>{ state.ema.heading=null; state.ema.pitch=null; });
+$("#fabTarget").addEventListener("click", ()=>openSheet("sheetTarget"));
+$("#fabSensors").addEventListener("click", ()=>openSheet("sheetSensors"));
+$("#fabOptions").addEventListener("click", ()=>openSheet("sheetOptions"));
+$("#fabPresets").addEventListener("click", ()=>openSheet("sheetPresets"));
 
-$("#targetMode").addEventListener("change", e=>{
-  const mode=e.target.value;
-  $("#azElFields").style.display = (mode==="azEl")?"block":"none";
-  $("#coordFields").style.display = (mode==="coords")?"block":"none";
+$("#btnSetTargetAzEl").addEventListener("click", ()=>{
+  const az=parseFloat($("#azInput").value), el=parseFloat($("#elInput").value);
+  if(isFinite(az) && isFinite(el)) setTargetAzEl(az,el);
 });
-
-$("#btnCompute").addEventListener("click", e=>{
-  computeFromCoords();
-  statusLine.textContent = "Computed target from coordinates.";
-});
-$("#btnSetTarget").addEventListener("click", ()=>{
-  const mode=$("#targetMode").value;
-  if(mode==="azEl"){
-    const az=parseFloat($("#azInput").value), el=parseFloat($("#elInput").value);
-    if(isFinite(az) && isFinite(el)){ setTargetAzEl(az, el); statusLine.textContent="Target set (precomputed)."; }
-  } else computeFromCoords();
-});
-
 $("#btnPaste").addEventListener("click", async ()=>{
-  try{
-    const text = await navigator.clipboard.readText();
-    $("#pasteBox").value = text || $("#pasteBox").value;
-  }catch(e){ /* ignore */ }
+  try{ const t=await navigator.clipboard.readText(); $("#pasteBox").value=t || $("#pasteBox").value; }catch(e){}
 });
 $("#btnParse").addEventListener("click", ()=>{
-  const t = $("#pasteBox").value.trim();
-  if(!t) return;
-  // Very forgiving parser
-  const nums = t.match(/-?\d+(\.\d+)?/g)?.map(Number) || [];
-  // Try to map: latA,lonA,AGL_A,groundA, latB,lonB,AGL_B,groundB, heading, elevation
+  const t=$("#pasteBox").value.trim(); if(!t) return;
+  const nums=t.match(/-?\d+(\.\d+)?/g)?.map(Number)||[];
   if(nums.length>=10){
     $("#alat").value=nums[0]; $("#alon").value=nums[1]; $("#aAGL").value=nums[2]; $("#aGround").value=nums[3];
     $("#blat").value=nums[4]; $("#blon").value=nums[5]; $("#bAGL").value=nums[6]; $("#bGround").value=nums[7];
     $("#azInput").value=nums[8]; $("#elInput").value=nums[9];
-    statusLine.textContent="Parsed A/B + Az/El.";
-  } else if(nums.length>=2){
-    $("#azInput").value=nums[0]; $("#elInput").value=nums[1];
-    statusLine.textContent="Parsed Az/El.";
-  } else {
-    statusLine.textContent="Could not parse numbers.";
-  }
+  } else if(nums.length>=2){ $("#azInput").value=nums[0]; $("#elInput").value=nums[1]; }
 });
 
-$("#btnSave").addEventListener("click", ()=>{
-  const name = prompt("Preset name?");
-  if(!name) return;
-  const preset = {
-    mode: $("#targetMode").value,
-    az: parseFloat($("#azInput").value),
-    el: parseFloat($("#elInput").value),
-    A:{lat:parseFloat($("#alat").value),lon:parseFloat($("#alon").value),agl:parseFloat($("#aAGL").value),ground:parseFloat($("#aGround").value)},
-    B:{lat:parseFloat($("#blat").value),lon:parseFloat($("#blon").value),agl:parseFloat($("#bAGL").value),ground:parseFloat($("#bGround").value)},
-    k: parseFloat($("#kInput").value), f: parseFloat($("#freqInput").value), decl: parseFloat($("#declInput").value)
-  };
-  const store = JSON.parse(localStorage.getItem("azalign_presets")||"{}");
-  store[name]=preset; localStorage.setItem("azalign_presets", JSON.stringify(store));
-  refreshPresets(); statusLine.textContent = "Preset saved.";
-});
-presetSelect.addEventListener("change", ()=>{
-  const key=presetSelect.value; if(!key) return;
-  const store = JSON.parse(localStorage.getItem("azalign_presets")||"{}");
-  const p = store[key]; if(!p) return;
-  $("#targetMode").value=p.mode; $("#targetMode").dispatchEvent(new Event("change"));
-  $("#azInput").value = p.az??0; $("#elInput").value=p.el??0;
-  if(p.A){ $("#alat").value=p.A.lat??""; $("#alon").value=p.A.lon??""; $("#aAGL").value=p.A.agl??""; $("#aGround").value=p.A.ground??""; }
-  if(p.B){ $("#blat").value=p.B.lat??""; $("#blon").value=p.B.lon??""; $("#bAGL").value=p.B.agl??""; $("#bGround").value=p.B.ground??""; }
-  $("#kInput").value=p.k??1.333; $("#freqInput").value=p.f??5.8; $("#declInput").value=p.decl??0;
-  statusLine.textContent = "Preset loaded. Click Set Target or Compute.";
-});
+$("#btnCompute").addEventListener("click", computeFromCoords);
+
+/* Sensors sheet bindings */
+$("#modeSelect").addEventListener("change", ()=>render());
+["declInput","azOffset","elOffset","alphaAz","alphaEl"].forEach(id=>$("#"+id).addEventListener("input", ()=>{ state.ema.heading=null; state.ema.pitch=null; render(); }));
+
+/* Options sheet bindings */
+$("#tolAz").addEventListener("input", e=>state.tolAz=parseFloat(e.target.value)||2);
+$("#tolEl").addEventListener("input", e=>state.tolEl=parseFloat(e.target.value)||1);
+$("#freqInput").addEventListener("input", e=>{ state.freq=parseFloat(e.target.value)||5.8; if(state.target.a&&state.target.b) computeFromCoords(); });
+$("#kInput").addEventListener("input", e=>{ state.K=parseFloat(e.target.value)||1.333; if(state.target.a&&state.target.b) computeFromCoords(); });
+$("#fresnelWarn").addEventListener("change", e=>state.fresnelWarn=parseFloat(e.target.value)||0.6);
+$("#unitSelect").addEventListener("change", e=>{ state.units=e.target.value; updateMap(); });
+$("#largeText").addEventListener("change", e=>document.body.classList.toggle("largeText", e.target.checked));
+$("#haptics").addEventListener("change", e=>state.haptics=e.target.checked);
+
+/* Presets */
 function refreshPresets(){
   const store = JSON.parse(localStorage.getItem("azalign_presets")||"{}");
-  presetSelect.innerHTML = `<option value="">Presets</option>` + Object.keys(store).map(k=>`<option>${k}</option>`).join("");
+  $("#presetSelect").innerHTML = `<option value="">Select preset…</option>` + Object.keys(store).map(k=>`<option>${k}</option>`).join("");
 }
+$("#btnSavePreset").addEventListener("click", ()=>{
+  const name=prompt("Preset name?"); if(!name) return;
+  const preset={
+    az:parseFloat($("#azInput").value), el:parseFloat($("#elInput").value),
+    A:{lat:parseFloat($("#alat").value),lon:parseFloat($("#alon").value),agl:parseFloat($("#aAGL").value),ground:parseFloat($("#aGround").value)},
+    B:{lat:parseFloat($("#blat").value),lon:parseFloat($("#blon").value),agl:parseFloat($("#bAGL").value),ground:parseFloat($("#bGround").value)},
+    k:parseFloat($("#kInput").value), f:parseFloat($("#freqInput").value),
+    decl:parseFloat($("#declInput").value), mode:$("#modeSelect").value,
+    units:state.units, tolAz:state.tolAz, tolEl:state.tolEl
+  };
+  const store=JSON.parse(localStorage.getItem("azalign_presets")||"{}"); store[name]=preset;
+  localStorage.setItem("azalign_presets", JSON.stringify(store)); refreshPresets();
+});
+$("#btnLoadPreset").addEventListener("click", ()=>{
+  const key=$("#presetSelect").value; if(!key) return;
+  const store=JSON.parse(localStorage.getItem("azalign_presets")||"{}"); const p=store[key]; if(!p) return;
+  $("#azInput").value=p.az??0; $("#elInput").value=p.el??0;
+  if(p.A){ $("#alat").value=p.A.lat??""; $("#alon").value=p.A.lon??""; $("#aAGL").value=p.A.agl??""; $("#aGround").value=p.A.ground??""; }
+  if(p.B){ $("#blat").value=p.B.lat??""; $("#blon").value=p.B.lon??""; $("#bAGL").value=p.B.agl??""; $("#bGround").value=p.B.ground??""; }
+  $("#kInput").value=p.k??1.333; $("#freqInput").value=p.f??5.8; $("#declInput").value=p.decl??0; $("#modeSelect").value=p.mode??"true";
+  state.units=p.units||"metric"; $("#unitSelect").value=state.units; state.tolAz=p.tolAz??2; state.tolEl=p.tolEl??1;
+  refreshPresets(); render(); updateMap();
+});
+$("#btnExport").addEventListener("click", ()=>{ $("#jsonBox").value = localStorage.getItem("azalign_presets")||"{}"; });
+$("#btnImport").addEventListener("click", ()=>{
+  try{ const obj=JSON.parse($("#jsonBox").value||"{}"); localStorage.setItem("azalign_presets", JSON.stringify(obj)); refreshPresets(); alert("Imported."); }catch{ alert("Invalid JSON"); }
+});
 refreshPresets();
 
-/* ---------- Resize handlers ---------- */
-window.addEventListener("resize", updateMap);
-
-/* ---------- Kick ---------- */
-statusLine.textContent = "Ready. Tap ‘Start Sensors’, then set a target.";
+/* Init */
+statusBadge.textContent="Ready";
+updateMap();
 </script>
 </body>
 </html>
