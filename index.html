@@ -3,307 +3,130 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Geo Azimuth Alignment Tool</title>
+  <title>3D Compass with Tilt</title>
   <style>
-    body, html {
+    body {
       margin: 0;
-      padding: 0;
+      height: 100vh;
+      background: radial-gradient(#001, #000);
+      color: #fff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #permissionBtn {
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+
+    .compass-container {
+      perspective: 1000px;
+      width: 220px;
+      height: 220px;
+    }
+
+    .compass {
       width: 100%;
       height: 100%;
-      overflow: hidden;
-      background: #000;
-      color: #0f0;
-      font-family: monospace;
+      border: 4px solid #0ff;
+      border-radius: 50%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.2s ease-out;
     }
-    #map {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 0;
-    }
-    canvas#overlay {
-      position: absolute;
-      top: 0; left: 0;
-      pointer-events: none;
-      z-index: 20;
-    }
-    #ui {
-      position: absolute;
-      top: 10px; left: 10px;
-      width: 260px;
-      background: rgba(0,0,0,0.85);
-      border: 1px solid #0f0;
-      padding: 12px;
-      z-index: 30;
-    }
-    #ui h3 {
-      margin: 0 0 8px;
-      color: #0f0;
-    }
-    #ui input, #ui button {
-      width: 100%;
-      margin: 4px 0;
-      padding: 6px;
-      background: #001100;
-      border: 1px solid #0f0;
-      color: #0f0;
-      box-sizing: border-box;
-    }
-    #ui button {
-      cursor: pointer;
-    }
-    #ui label {
-      display: block;
-      margin-top: 8px;
-    }
-    #status {
-      margin-top: 8px;
-      font-size: 0.9em;
-    }
-    #status div {
-      margin-bottom: 4px;
-    }
-    #status span {
-      display: inline-block;
-      width: 100px;
-    }
-    #btnRequestPerm {
-      margin-top: 8px;
-      background: #003300;
-      border: 1px solid #0f0;
-    }
-  </style>
 
-  <link 
-    rel="stylesheet" 
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
+    .needle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 90px;
+      transform: translate(-50%, -100%);
+      background: linear-gradient(to bottom, red 50%, white 50%);
+      border-radius: 5px;
+      transform-origin: bottom center;
+      box-shadow: 0 0 10px red;
+    }
+
+    .label {
+      position: absolute;
+      width: 100%;
+      text-align: center;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+
+    .north { transform: rotate(0deg) translateY(-90px); }
+    .east  { transform: rotate(90deg) translateY(-90px); }
+    .south { transform: rotate(180deg) translateY(-90px); }
+    .west  { transform: rotate(270deg) translateY(-90px); }
+  </style>
 </head>
 <body>
-  <div id="map"></div>
-  <canvas id="overlay"></canvas>
 
-  <div id="ui">
-    <h3>Alignment Tool</h3>
-    <label>Current Lat, Lon:</label>
-    <input type="number" step="0.000001" id="currentLat" placeholder="Lat">
-    <input type="number" step="0.000001" id="currentLon" placeholder="Lon">
+  <button id="permissionBtn">Enable Compass</button>
 
-    <label>Target Lat, Lon:</label>
-    <input type="number" step="0.000001" id="targetLat" placeholder="Lat">
-    <input type="number" step="0.000001" id="targetLon" placeholder="Lon">
-
-    <button id="btnSet">Set Target & Compute</button>
-    <button id="btnRequestPerm">Enable Orientation</button>
-
-    <div id="status">
-      <div>Azimuth: <span id="azimuthDisplay">—</span></div>
-      <div>Device Heading: <span id="deviceHeading">—</span></div>
-      <div>Offset: <span id="offsetDeg">—</span></div>
+  <div class="compass-container">
+    <div class="compass" id="compass">
+      <div class="needle"></div>
+      <div class="label north">N</div>
+      <div class="label east">E</div>
+      <div class="label south">S</div>
+      <div class="label west">W</div>
     </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin="">
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.154/build/three.min.js"></script>
-
   <script>
-    // ————— Map / Topo / Hillshade / Elevation setup —————
-
-    const map = L.map('map').setView([0, 0], 2);
-
-    // Use a terrain / topo / hillshade tile provider if possible
-    // Example: using a WMS for topographic / hillshade
-    const topoLayer = L.tileLayer.wms('https://ows.mundialis.de/services/service?', {
-      layers: 'TOPO-OSM-WMS',
-      format: 'image/png',
-      transparent: false,
-      attribution: 'Topo & Elevation'
-    });
-    topoLayer.addTo(map);
-
-    // Also add OSM base as overlay or below
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap contributors'
-    });
-    osm.addTo(map);
-
-    // You could also add a semi-transparent hillshade overlay from DEM sources.
-    // Using a plugin like leaflet-topography gives direct slope / aspect layers. :contentReference[oaicite:0]{index=0}
-
-    // ————— Three.js overlay & arrow setup —————
-
-    const overlay = document.getElementById('overlay');
-    const renderer = new THREE.WebGLRenderer({
-      canvas: overlay,
-      alpha: true,
-      antialias: true
-    });
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    camera.position.set(0, 5, 10);
-    camera.lookAt(0, 0, 0);
-
-    // Arrow geometry, material
-    const arrowGeom = new THREE.ConeGeometry(0.3, 2, 32);
-    const arrowMat = new THREE.MeshBasicMaterial({
-      color: 0x00ffcc,
-      transparent: true,
-      opacity: 0.9
-    });
-    const arrowMesh = new THREE.Mesh(arrowGeom, arrowMat);
-    arrowMesh.rotation.x = Math.PI; // point forward
-    arrowMesh.position.y = 1;
-
-    const arrowHolder = new THREE.Object3D();
-    arrowHolder.add(arrowMesh);
-    scene.add(arrowHolder);
-
-    const ambient = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(ambient);
-
-    function resizeOverlay() {
-      const size = map.getSize();
-      overlay.width = size.x;
-      overlay.height = size.y;
-      renderer.setSize(size.x, size.y);
-      camera.aspect = size.x / size.y;
-      camera.updateProjectionMatrix();
-    }
-    map.on('move zoom', resizeOverlay);
-    window.addEventListener('resize', resizeOverlay);
-    resizeOverlay();
-
-    // ————— Azimuth & alignment logic —————
-
-    function toRad(d) { return d * Math.PI / 180; }
-    function toDeg(r) { return r * 180 / Math.PI; }
-
-    function calculateAzimuth(lat1, lon1, lat2, lon2) {
-      const φ1 = toRad(lat1);
-      const φ2 = toRad(lat2);
-      const Δλ = toRad(lon2 - lon1);
-      const x = Math.sin(Δλ) * Math.cos(φ2);
-      const y = Math.cos(φ1) * Math.sin(φ2)
-              - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-      let θ = Math.atan2(x, y);
-      θ = toDeg(θ);
-      return (θ + 360) % 360;
-    }
-
-    let currentAzimuth = null;
-
-    function updateArrow(az) {
-      currentAzimuth = az;
-      document.getElementById('azimuthDisplay').textContent = az.toFixed(1) + "°";
-      const rad = toRad(az);
-      arrowHolder.rotation.y = -rad;
-    }
-
-    // Attach marker handling
-    let markerCurrent = null, markerTarget = null;
-
-    document.getElementById('btnSet').onclick = () => {
-      const lat1 = parseFloat(document.getElementById('currentLat').value);
-      const lon1 = parseFloat(document.getElementById('currentLon').value);
-      const lat2 = parseFloat(document.getElementById('targetLat').value);
-      const lon2 = parseFloat(document.getElementById('targetLon').value);
-      if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
-        alert("Please enter valid numeric coordinates");
-        return;
-      }
-      const az = calculateAzimuth(lat1, lon1, lat2, lon2);
-      updateArrow(az);
-
-      // Center map & add markers
-      map.setView([lat1, lon1], 14);
-      if (markerCurrent) map.removeLayer(markerCurrent);
-      if (markerTarget) map.removeLayer(markerTarget);
-      markerCurrent = L.marker([lat1, lon1]).addTo(map).bindPopup("Current").openPopup();
-      markerTarget = L.marker([lat2, lon2]).addTo(map).bindPopup("Target").openPopup();
-    };
-
-    // ————— Sensor / Orientation logic with permission & smoothing —————
-
-    let deviceHeading = null;
-    let headingHistory = []; // for smoothing
+    const compass = document.getElementById('compass');
+    const permissionBtn = document.getElementById('permissionBtn');
 
     function handleOrientation(event) {
-      let heading = null;
-      if (typeof event.webkitCompassHeading !== 'undefined') {
-        heading = event.webkitCompassHeading;  // iOS
-      } else if (event.absolute === true || event.absolute === undefined) {
-        heading = 360 - event.alpha;  // Android style
+      let heading;
+
+      if (event.webkitCompassHeading !== undefined) {
+        heading = event.webkitCompassHeading;
       } else {
         heading = 360 - event.alpha;
       }
-      if (heading !== null) {
-        // smooth: running average
-        headingHistory.push(heading);
-        if (headingHistory.length > 5) headingHistory.shift();
-        const avg = headingHistory.reduce((a, b) => a + b, 0) / headingHistory.length;
-        deviceHeading = avg;
-        document.getElementById('deviceHeading').textContent = avg.toFixed(1) + "°";
-        updateOffset();
-      }
+
+      // Tilt: clamp beta/gamma to reasonable range to avoid flip-overs
+      const tiltX = Math.max(-90, Math.min(90, event.beta || 0));  // forward/back
+      const tiltY = Math.max(-90, Math.min(90, event.gamma || 0)); // left/right
+
+      // Apply full 3D transform
+      compass.style.transform = `
+        rotateX(${tiltX * 0.5}deg)
+        rotateY(${tiltY * 0.5}deg)
+        rotateZ(${heading}deg)
+      `;
     }
 
-    function updateOffset() {
-      if (deviceHeading !== null && currentAzimuth !== null) {
-        let diff = currentAzimuth - deviceHeading;
-        if (diff > 180) diff -= 360;
-        if (diff < -180) diff += 360;
-        document.getElementById('offsetDeg').textContent = diff.toFixed(1) + "°";
-
-        const offsetElem = document.getElementById('offsetDeg');
-        if (Math.abs(diff) < 5) {
-          offsetElem.style.color = "#0f0";
-        } else if (Math.abs(diff) < 15) {
-          offsetElem.style.color = "#ff0";
-        } else {
-          offsetElem.style.color = "#f00";
-        }
-      }
-    }
-
-    // Request permission button handler (for iOS 13+)
-    document.getElementById('btnRequestPerm').onclick = () => {
+    function initCompass() {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-          .then(response => {
-            if (response === 'granted') {
-              window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-              window.addEventListener('deviceorientation', handleOrientation, true);
-              console.log("Orientation permission granted");
-            } else {
-              alert("Orientation permission denied. Your device may not support this or you must allow it.");
-            }
-          })
-          .catch(err => {
-            console.error("Permission request error:", err);
-            alert("Permission request failed: " + err);
-          });
+        DeviceOrientationEvent.requestPermission().then(response => {
+          if (response === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation, true);
+            permissionBtn.style.display = 'none';
+          } else {
+            alert('Permission denied for accessing device orientation.');
+          }
+        }).catch(console.error);
       } else {
-        // non-iOS or older style
-        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
         window.addEventListener('deviceorientation', handleOrientation, true);
+        permissionBtn.style.display = 'none';
       }
-    };
-
-    // ————— Render Loop —————
-
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
     }
-    animate();
 
+    permissionBtn.addEventListener('click', initCompass);
   </script>
+
 </body>
 </html>
