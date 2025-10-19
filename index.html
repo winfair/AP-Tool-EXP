@@ -3,167 +3,240 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>North Arrow — Free Camera Around Fixed North</title>
+<title>Geo Arrow — Point to Target (Lat/Lon/Alt)</title>
 <style>
-  :root{--bg:#0b0f12;--ink:#e8f1f0;--line:rgba(255,255,255,.12)}
+  :root{--bg:#0b0f12;--ink:#e8f1f0;--line:rgba(255,255,255,.14);--muted:#9fc0b8;--brand:#22d7b7;--accent:#ff4d4d}
   html,body{height:100%;margin:0;background:radial-gradient(120% 140% at 50% 20%,#131a20 0%,#0b0f12 60%,#06080a 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
   #canvas{position:fixed;inset:0;display:block;width:100%;height:100%}
-  #perm{position:fixed;right:12px;bottom:12px;z-index:10;appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.55rem .8rem;border-radius:12px;font-weight:600}
-  #readout{position:fixed;left:12px;bottom:12px;opacity:.8;font-variant-numeric:tabular-nums;background:rgba(0,0,0,.25);padding:.35rem .55rem;border-radius:10px;border:1px solid var(--line)}
+  .panel{position:fixed;left:12px;top:12px;z-index:10;background:rgba(10,14,18,.72);border:1px solid var(--line);backdrop-filter:blur(6px);padding:.75rem;border-radius:14px;display:flex;flex-direction:column;gap:.5rem;max-width:min(92vw,480px)}
+  .row{display:flex;gap:.5rem;flex-wrap:wrap}
+  .row>label{display:flex;flex:1 1 42%;align-items:center;gap:.35rem;background:rgba(255,255,255,.05);border:1px solid var(--line);padding:.35rem .5rem;border-radius:10px}
+  input[type="number"]{width:100%;background:transparent;border:none;outline:none;color:var(--ink);font-variant-numeric:tabular-nums}
+  .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.5rem .75rem;border-radius:12px;font-weight:600;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  .tiny{font-size:.85rem;color:var(--muted)}
+  #perm{position:fixed;right:12px;bottom:12px;z-index:10}
+  #readout{position:fixed;left:12px;bottom:12px;opacity:.9;font-variant-numeric:tabular-nums;background:rgba(0,0,0,.28);padding:.4rem .6rem;border-radius:10px;border:1px solid var(--line)}
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
-<button id="perm" type="button" title="Enable motion/compass (iOS needs a tap)">Enable Sensors</button>
-<div id="readout">az: —°  el: —°</div>
+<div class="panel">
+  <div class="tiny">Enter a <b>target</b> geo‑location (WGS84). Arrow will point to it in 3D space. Your device orientation rotates the camera around the arrow like a portal.</div>
+  <div class="row">
+    <label>Lat° <input id="tLat" type="number" step="0.000001" placeholder="e.g. 48.137" /></label>
+    <label>Lon° <input id="tLon" type="number" step="0.000001" placeholder="e.g. 11.575" /></label>
+  </div>
+  <div class="row">
+    <label>Alt (m) <input id="tAlt" type="number" step="0.1" placeholder="0" /></label>
+    <button id="setTarget" class="btn" title="Apply target">Set Target</button>
+  </div>
+  <div class="row">
+    <button id="useGps" class="btn" title="Use device GPS for your position">Use My Location</button>
+    <button id="perm" class="btn" title="Enable motion/compass (iOS needs a tap)">Enable Sensors</button>
+  </div>
+  <div class="tiny" id="status">Status: awaiting target & location…</div>
+</div>
+<div id="readout">az: —°  el: —° | me: —, —, —m</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" crossorigin="anonymous"></script>
 <script>
-// Goal: A 3D ARROW that always points to TRUE NORTH in WORLD space (+Z).
-// The CAMERA orbits around the arrow based on the phone's orientation, so you
-// can look straight down the arrow by physically rotating the phone.
+// Geo Arrow: computes the 3D direction from observer (lat/lon/alt) to target (lat/lon/alt)
+// using WGS84 ellipsoid, converts target vector into local ENU, then:
+//  - Keeps the ARROW fixed in world ENU and rotates it to point at target
+//  - Rotates the CAMERA (via device orientation) so the phone acts as a "portal" onto that arrow
 (function(){
   const canvas = document.getElementById('canvas');
   const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   const scene = new THREE.Scene();
 
-  // WORLD frame (Three.js): X = East, Y = Up, Z = North (by our choice)
-  // We'll keep the arrow fixed towards +Z. Camera orbits around origin.
-
+  // ENU world: +X = East, +Y = Up, +Z = North
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
-  let radius = 5; // camera distance from origin
-  camera.position.set(0, 0, radius);
-  camera.lookAt(0,0,0);
+  const R = 5; // camera distance to origin
+  const rig = new THREE.Group(); scene.add(rig);
+  camera.position.set(0,0,R); camera.lookAt(0,0,0); rig.add(camera);
 
   // Lighting
-  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
   const dl = new THREE.DirectionalLight(0xffffff, 0.45); dl.position.set(3,4,5); scene.add(dl);
 
-  // ----- Arrow Model (aligned to +Z = North) -----
-  // Build along +Y then rotate to +Z.
+  // Arrow model (built pointing +Z in ENU)
   const arrow = new THREE.Group();
-  const shaftMat = new THREE.MeshStandardMaterial({color:0xe8f1f0, metalness:.25, roughness:.35});
-  const tipMat   = new THREE.MeshStandardMaterial({color:0xff4d4d, metalness:.35, roughness:.25});
-  const baseMat  = new THREE.MeshStandardMaterial({color:0x22d7b7, metalness:.35, roughness:.35});
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.6,20), shaftMat); shaft.position.y = 1.1; arrow.add(shaft);
-  const tip   = new THREE.Mesh(new THREE.ConeGeometry(0.18,0.6,28), tipMat); tip.position.y = 2.4; arrow.add(tip);
-  const base  = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.16,28), baseMat); base.position.y = 0.02; arrow.add(base);
-  // Rotate whole arrow from +Y to +Z so it points at world north (+Z)
-  arrow.rotation.x = -Math.PI/2; // +Y -> +Z
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.6,22), new THREE.MeshStandardMaterial({color:0xe8f1f0, metalness:.25, roughness:.35}));
+  shaft.position.z = 1.1; shaft.rotation.x = Math.PI/2; // orient cylinder along +Z
+  const tip   = new THREE.Mesh(new THREE.ConeGeometry(0.18,0.6,30), new THREE.MeshStandardMaterial({color:0xff4d4d, metalness:.35, roughness:.25}));
+  tip.position.z = 2.4; tip.rotation.x = Math.PI/2;
+  const base  = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.16,30), new THREE.MeshStandardMaterial({color:0x22d7b7, metalness:.35, roughness:.35}));
+  base.position.z = 0.02; base.rotation.x = Math.PI/2;
+  arrow.add(shaft, tip, base);
   scene.add(arrow);
 
-  // Subtle ground disc
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.6, 96), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.05}));
+  // Ground disc for depth
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.6, 96), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.06}));
   ground.rotation.x = -Math.PI/2; ground.position.y = -0.001; scene.add(ground);
 
-  // Resize
-  function resize(){
-    const w = canvas.clientWidth || window.innerWidth;
-    const h = canvas.clientHeight || window.innerHeight;
-    renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
-  }
-  addEventListener('resize', resize, {passive:true}); resize();
-
-  // ===== Sensor -> Camera orbit mapping =====
-  // We'll compute yaw (heading, about world +Y) and pitch (elevation, about world +X) from sensors.
-  // Then place the camera on a sphere around origin and lookAt(0,0,0).
-
-  let headingDeg = 0; // 0..360, 0 = facing north
-  let pitchRad = 0;   // camera elevation in radians
-
+  // UI elements
+  const tLat = document.getElementById('tLat');
+  const tLon = document.getElementById('tLon');
+  const tAlt = document.getElementById('tAlt');
+  const setTargetBtn = document.getElementById('setTarget');
+  const useGpsBtn = document.getElementById('useGps');
+  const permBtn = document.getElementById('perm');
   const readout = document.getElementById('readout');
-  function updateReadout(){
-    const el = THREE.MathUtils.radToDeg(pitchRad);
-    readout.textContent = `az: ${headingDeg.toFixed(1)}°  el: ${el.toFixed(1)}°`;
+  const statusEl = document.getElementById('status');
+
+  // State
+  let obs = {lat:null, lon:null, alt:0}; // meters
+  let tgt = {lat:null, lon:null, alt:0};
+  let haveObs=false, haveTgt=false;
+
+  // WGS84 constants
+  const a = 6378137.0;            // semi-major (m)
+  const f = 1/298.257223563;      // flattening
+  const e2 = f*(2-f);             // eccentricity^2
+
+  const d2r = (d)=> d*Math.PI/180;
+  const r2d = (r)=> r*180/Math.PI;
+
+  function geodeticToECEF(lat, lon, h){
+    const phi=d2r(lat), lam=d2r(lon);
+    const sphi=Math.sin(phi), cphi=Math.cos(phi);
+    const slam=Math.sin(lam), clam=Math.cos(lam);
+    const N = a/Math.sqrt(1 - e2*sphi*sphi);
+    const x = (N + h)*cphi*clam;
+    const y = (N + h)*cphi*slam;
+    const z = (N*(1 - e2) + h)*sphi;
+    return {x,y,z};
   }
 
-  function setHeading(h){ headingDeg = ((h%360)+360)%360; updateReadout(); }
-  function setPitchFromRad(p){ pitchRad = THREE.MathUtils.clamp(p, -Math.PI/2+0.05, Math.PI/2-0.05); updateReadout(); }
-
-  function placeCamera(){
-    const az = THREE.MathUtils.degToRad(headingDeg);
-    const el = pitchRad;
-    const cosEl = Math.cos(el), sinEl = Math.sin(el);
-    const x = radius * Math.sin(az) * cosEl; // east
-    const y = radius * sinEl;                // up
-    const z = radius * Math.cos(az) * cosEl; // north
-    camera.position.set(x,y,z);
-    camera.lookAt(0,0,0);
+  function ecefToENU(dx, dy, dz, latRef, lonRef){
+    const phi=d2r(latRef), lam=d2r(lonRef);
+    const sphi=Math.sin(phi), cphi=Math.cos(phi);
+    const slam=Math.sin(lam), clam=Math.cos(lam);
+    const e = -slam*dx + clam*dy;
+    const n = -sphi*clam*dx - sphi*slam*dy + cphi*dz;
+    const u =  cphi*clam*dx + cphi*slam*dy + sphi*dz;
+    return {e,n,u};
   }
 
-  // --- AbsoluteOrientationSensor path (preferred) ---
+  function computeAzEl(){
+    if(!haveObs || !haveTgt) return null;
+    const A = geodeticToECEF(obs.lat, obs.lon, obs.alt||0);
+    const B = geodeticToECEF(tgt.lat, tgt.lon, tgt.alt||0);
+    const dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z;
+    const enu = ecefToENU(dx,dy,dz, obs.lat, obs.lon);
+    const az = (Math.atan2(enu.e, enu.n) + 2*Math.PI) % (2*Math.PI); // 0..2π from north, clockwise
+    const el = Math.atan2(enu.u, Math.hypot(enu.e, enu.n));
+    return {az, el, enu};
+  }
+
+  function pointArrowToAzEl(az, el){
+    // ENU unit vector for (az, el)
+    const dir = new THREE.Vector3(
+      Math.sin(az)*Math.cos(el), // east
+      Math.sin(el),               // up
+      Math.cos(az)*Math.cos(el)   // north
+    ).normalize();
+    // Our arrow's forward is +Z; rotate so +Z → dir
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), dir);
+    arrow.quaternion.copy(q);
+  }
+
+  function updateArrow(){
+    const res = computeAzEl();
+    if(!res){ readout.textContent = `az: —°  el: —° | me: ${fmtObs()}`; return; }
+    pointArrowToAzEl(res.az, res.el);
+    readout.textContent = `az: ${r2d(res.az).toFixed(1)}°  el: ${r2d(res.el).toFixed(1)}° | me: ${fmtObs()}`;
+  }
+
+  function fmtObs(){
+    if(!haveObs) return '—, —, —m';
+    return `${obs.lat?.toFixed(6)||'—'}, ${obs.lon?.toFixed(6)||'—'}, ${(obs.alt||0).toFixed(1)}m`;
+  }
+
+  // --- UI Handlers ---
+  setTargetBtn.addEventListener('click', ()=>{
+    const lat = parseFloat(tLat.value), lon = parseFloat(tLon.value), alt = parseFloat(tAlt.value||'0')||0;
+    if(Number.isFinite(lat)&&Number.isFinite(lon)){
+      tgt.lat=lat; tgt.lon=lon; tgt.alt=alt; haveTgt=true; statusEl.textContent='Status: target set.'; updateArrow();
+    } else { statusEl.textContent='Status: enter valid target lat/lon.'; }
+  });
+
+  // Geolocation for observer
+  let geoWatchId = null;
+  useGpsBtn.addEventListener('click', ()=>{
+    if(!('geolocation' in navigator)){ statusEl.textContent='Status: Geolocation not available.'; return; }
+    if(geoWatchId!==null){ navigator.geolocation.clearWatch(geoWatchId); geoWatchId=null; }
+    geoWatchId = navigator.geolocation.watchPosition(pos=>{
+      const c = pos.coords;
+      obs.lat = c.latitude; obs.lon = c.longitude; obs.alt = Number.isFinite(c.altitude)? c.altitude : 0;
+      haveObs=true; statusEl.textContent='Status: tracking your location…'; updateArrow();
+    }, err=>{
+      statusEl.textContent = `Status: GPS error — ${err.message}`;
+    }, {enableHighAccuracy:true, maximumAge:1000, timeout:8000});
+  });
+
+  // ===== Device orientation → camera rig =====
+  let yawDeg=0, pitchDeg=0, rollDeg=0;
+  function applyYPR(){
+    const y = THREE.MathUtils.degToRad(yawDeg);
+    const p = THREE.MathUtils.degToRad(pitchDeg);
+    const r = THREE.MathUtils.degToRad(rollDeg);
+    rig.rotation.set(0,0,0); rig.rotateY(-y); rig.rotateX(p); rig.rotateZ(r);
+  }
+
   function startAOS(){
     try{
-      const AOS = window.AbsoluteOrientationSensor || window.RelativeOrientationSensor;
-      if (!AOS) return false;
+      const AOS = window.AbsoluteOrientationSensor || window.RelativeOrientationSensor; if(!AOS) return false;
       const s = new AOS({frequency:60, referenceFrame:'device'});
       s.addEventListener('reading', ()=>{
-        const q = s.quaternion; // [x,y,z,w] device->world (ENU: x=east, y=north, z=up)
-        const x=q[0], y=q[1], z=q[2], w=q[3];
-        // Yaw (heading from north, clockwise)
-        const siny_cosp = 2*(w*z + x*y);
-        const cosy_cosp = 1 - 2*(y*y + z*z);
-        let yaw = Math.atan2(siny_cosp, cosy_cosp);               // radians, 0 at +Z (north), + toward +X (east)
-        let hdg = ((THREE.MathUtils.radToDeg(yaw) - 90) % 360 + 360) % 360; // 0..360
-        setHeading(hdg);
-        // Pitch (elevation). Use standard formula for ZYX decomposition in ENU
-        const sinp = 2*(w*y - z*x);
-        let pitch = Math.abs(sinp) >= 1 ? Math.sign(sinp)*Math.PI/2 : Math.asin(sinp);
-        // pitch here is rotation about world X? Good enough for orbit elevation.
-        setPitchFromRad(pitch);
+        const q = s.quaternion; const x=q[0], y=q[1], z=q[2], w=q[3];
+        const yawZ = Math.atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z));
+        const pitchY = Math.asin(THREE.MathUtils.clamp(2*(w*y - z*x), -1, 1));
+        const rollX = Math.atan2(2*(w*x + y*z), 1 - 2*(x*x + y*y));
+        yawDeg = ((r2d(yawZ) - 90) % 360 + 360) % 360; // compass cw from north
+        pitchDeg = r2d(pitchY);
+        rollDeg = r2d(rollX);
+        applyYPR();
       });
       s.addEventListener('error', e=>console.warn('AOS error', e.error||e));
-      s.start();
-      return true;
+      s.start(); return true;
     }catch(e){ console.warn('AOS unavailable', e); return false; }
   }
 
-  // --- DeviceOrientation fallback ---
   function startDO(){
-    const useAbs = 'ondeviceorientationabsolute' in window;
-    const evt = useAbs ? 'deviceorientationabsolute' : 'deviceorientation';
+    const useAbs = 'ondeviceorientationabsolute' in window; const evt = useAbs? 'deviceorientationabsolute':'deviceorientation';
     function handler(e){
-      if (typeof e.webkitCompassHeading === 'number'){
-        setHeading(e.webkitCompassHeading);
-      } else if (typeof e.alpha === 'number'){
-        setHeading(360 - e.alpha); // heuristic
-      }
-      // Approximate pitch from beta (front-back tilt). Map portrait use-case.
-      if (typeof e.beta === 'number'){
-        // e.beta ∈ [-180,180], 0 when device is flat face up; ~90 when upright.
-        // Convert so that 0 rad = level, positive = tilt up.
-        const level = (e.beta - 90) * Math.PI/180; // rough mapping for portrait
-        setPitchFromRad(level);
-      }
+      if(typeof e.webkitCompassHeading==='number') yawDeg = e.webkitCompassHeading; else if(typeof e.alpha==='number') yawDeg = (360 - e.alpha + 360)%360;
+      if(typeof e.beta==='number')  pitchDeg = e.beta - 90; // portrait mapping
+      if(typeof e.gamma==='number') rollDeg = e.gamma;
+      applyYPR();
     }
-    window.addEventListener(evt, handler, true);
-    return true;
+    window.addEventListener(evt, handler, true); return true;
   }
 
-  // iOS permission button
-  const permBtn = document.getElementById('perm');
-  async function enable(){
+  async function enableSensors(){
     try{
-      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
-        await DeviceMotionEvent.requestPermission();
-      }
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
-        await DeviceOrientationEvent.requestPermission();
-      }
+      if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){ await DeviceMotionEvent.requestPermission(); }
+      if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){ await DeviceOrientationEvent.requestPermission(); }
     }catch(_){/* ignore */}
-    if (!startAOS()) startDO();
+    if(!startAOS()) startDO();
   }
-  permBtn.addEventListener('click', enable, {passive:true});
+  permBtn.addEventListener('click', enableSensors, {passive:true});
 
-  // Auto-start on non‑iOS; iOS needs a gesture
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints>1);
-  if (!isIOS) { if (!startAOS()) startDO(); }
+  if(!isIOS){ if(!startAOS()) startDO(); }
 
   // Render loop
+  function resize(){
+    const w = canvas.clientWidth || window.innerWidth; const h = canvas.clientHeight || window.innerHeight;
+    renderer.setSize(w, h, false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+  addEventListener('resize', resize, {passive:true}); resize();
+
   function animate(){
     requestAnimationFrame(animate);
-    placeCamera();
     renderer.render(scene, camera);
   }
   animate();
