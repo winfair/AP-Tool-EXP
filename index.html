@@ -3,39 +3,45 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>North Arrow — Minimal</title>
+<title>North Arrow — Free Camera Around Fixed North</title>
 <style>
   :root{--bg:#0b0f12;--ink:#e8f1f0;--line:rgba(255,255,255,.12)}
   html,body{height:100%;margin:0;background:radial-gradient(120% 140% at 50% 20%,#131a20 0%,#0b0f12 60%,#06080a 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
   #canvas{position:fixed;inset:0;display:block;width:100%;height:100%}
   #perm{position:fixed;right:12px;bottom:12px;z-index:10;appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.55rem .8rem;border-radius:12px;font-weight:600}
-  #readout{position:fixed;left:12px;bottom:12px;opacity:.7;font-variant-numeric:tabular-nums}
+  #readout{position:fixed;left:12px;bottom:12px;opacity:.8;font-variant-numeric:tabular-nums;background:rgba(0,0,0,.25);padding:.35rem .55rem;border-radius:10px;border:1px solid var(--line)}
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
 <button id="perm" type="button" title="Enable motion/compass (iOS needs a tap)">Enable Sensors</button>
-<div id="readout">—°</div>
+<div id="readout">az: —°  el: —°</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" crossorigin="anonymous"></script>
 <script>
-// A *minimal* 3D arrow that points to geographic north on the screen.
-// The arrow is rendered in 3D but rotated by the device heading so its tip
-// always points toward the North Pole relative to the phone.
+// Goal: A 3D ARROW that always points to TRUE NORTH in WORLD space (+Z).
+// The CAMERA orbits around the arrow based on the phone's orientation, so you
+// can look straight down the arrow by physically rotating the phone.
 (function(){
   const canvas = document.getElementById('canvas');
   const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   const scene = new THREE.Scene();
 
+  // WORLD frame (Three.js): X = East, Y = Up, Z = North (by our choice)
+  // We'll keep the arrow fixed towards +Z. Camera orbits around origin.
+
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
-  camera.position.set(0, 0, 5);
+  let radius = 5; // camera distance from origin
+  camera.position.set(0, 0, radius);
+  camera.lookAt(0,0,0);
 
-  // Simple lighting
-  scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-  const dl = new THREE.DirectionalLight(0xffffff, 0.6); dl.position.set(3,4,5); scene.add(dl);
+  // Lighting
+  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.45); dl.position.set(3,4,5); scene.add(dl);
 
-  // Arrow model: points "up" (toward +Y) by default; we'll rotate around Z to aim at north
+  // ----- Arrow Model (aligned to +Z = North) -----
+  // Build along +Y then rotate to +Z.
   const arrow = new THREE.Group();
   const shaftMat = new THREE.MeshStandardMaterial({color:0xe8f1f0, metalness:.25, roughness:.35});
   const tipMat   = new THREE.MeshStandardMaterial({color:0xff4d4d, metalness:.35, roughness:.25});
@@ -43,13 +49,15 @@
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.6,20), shaftMat); shaft.position.y = 1.1; arrow.add(shaft);
   const tip   = new THREE.Mesh(new THREE.ConeGeometry(0.18,0.6,28), tipMat); tip.position.y = 2.4; arrow.add(tip);
   const base  = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.16,28), baseMat); base.position.y = 0.02; arrow.add(base);
-  // Subtle ground disc for depth
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.3, 96), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.04}));
-  ground.rotation.x = -Math.PI/2; ground.position.y = -0.02; scene.add(ground);
-
+  // Rotate whole arrow from +Y to +Z so it points at world north (+Z)
+  arrow.rotation.x = -Math.PI/2; // +Y -> +Z
   scene.add(arrow);
 
-  // Resize handler
+  // Subtle ground disc
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.6, 96), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.05}));
+  ground.rotation.x = -Math.PI/2; ground.position.y = -0.001; scene.add(ground);
+
+  // Resize
   function resize(){
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
@@ -57,43 +65,61 @@
   }
   addEventListener('resize', resize, {passive:true}); resize();
 
-  // ===== Sensor plumbing (heading in degrees, 0 = North) =====
-  let heading = 0; // will be updated from sensors
-  const readout = document.getElementById('readout');
-  const permBtn = document.getElementById('perm');
-  let sensorsOn = false;
+  // ===== Sensor -> Camera orbit mapping =====
+  // We'll compute yaw (heading, about world +Y) and pitch (elevation, about world +X) from sensors.
+  // Then place the camera on a sphere around origin and lookAt(0,0,0).
 
-  function setHeading(deg){
-    // Normalize to [0,360)
-    heading = ((deg % 360) + 360) % 360;
-    readout.textContent = heading.toFixed(1) + '°';
+  let headingDeg = 0; // 0..360, 0 = facing north
+  let pitchRad = 0;   // camera elevation in radians
+
+  const readout = document.getElementById('readout');
+  function updateReadout(){
+    const el = THREE.MathUtils.radToDeg(pitchRad);
+    readout.textContent = `az: ${headingDeg.toFixed(1)}°  el: ${el.toFixed(1)}°`;
   }
 
-  // Primary: AbsoluteOrientationSensor → yaw → heading
+  function setHeading(h){ headingDeg = ((h%360)+360)%360; updateReadout(); }
+  function setPitchFromRad(p){ pitchRad = THREE.MathUtils.clamp(p, -Math.PI/2+0.05, Math.PI/2-0.05); updateReadout(); }
+
+  function placeCamera(){
+    const az = THREE.MathUtils.degToRad(headingDeg);
+    const el = pitchRad;
+    const cosEl = Math.cos(el), sinEl = Math.sin(el);
+    const x = radius * Math.sin(az) * cosEl; // east
+    const y = radius * sinEl;                // up
+    const z = radius * Math.cos(az) * cosEl; // north
+    camera.position.set(x,y,z);
+    camera.lookAt(0,0,0);
+  }
+
+  // --- AbsoluteOrientationSensor path (preferred) ---
   function startAOS(){
     try{
       const AOS = window.AbsoluteOrientationSensor || window.RelativeOrientationSensor;
       if (!AOS) return false;
       const s = new AOS({frequency:60, referenceFrame:'device'});
       s.addEventListener('reading', ()=>{
-        const q = s.quaternion; // [x,y,z,w]
-        // Yaw from quaternion (assuming ENU):
+        const q = s.quaternion; // [x,y,z,w] device->world (ENU: x=east, y=north, z=up)
         const x=q[0], y=q[1], z=q[2], w=q[3];
+        // Yaw (heading from north, clockwise)
         const siny_cosp = 2*(w*z + x*y);
         const cosy_cosp = 1 - 2*(y*y + z*z);
-        const yaw = Math.atan2(siny_cosp, cosy_cosp); // radians
-        // Convert yaw to compass heading where 0° = North (screen up), increasing clockwise
-        const hdg = ((THREE.MathUtils.radToDeg(yaw) - 90) % 360 + 360) % 360;
+        let yaw = Math.atan2(siny_cosp, cosy_cosp);               // radians, 0 at +Z (north), + toward +X (east)
+        let hdg = ((THREE.MathUtils.radToDeg(yaw) - 90) % 360 + 360) % 360; // 0..360
         setHeading(hdg);
+        // Pitch (elevation). Use standard formula for ZYX decomposition in ENU
+        const sinp = 2*(w*y - z*x);
+        let pitch = Math.abs(sinp) >= 1 ? Math.sign(sinp)*Math.PI/2 : Math.asin(sinp);
+        // pitch here is rotation about world X? Good enough for orbit elevation.
+        setPitchFromRad(pitch);
       });
       s.addEventListener('error', e=>console.warn('AOS error', e.error||e));
       s.start();
-      sensorsOn = true;
       return true;
     }catch(e){ console.warn('AOS unavailable', e); return false; }
   }
 
-  // Fallback: DeviceOrientation
+  // --- DeviceOrientation fallback ---
   function startDO(){
     const useAbs = 'ondeviceorientationabsolute' in window;
     const evt = useAbs ? 'deviceorientationabsolute' : 'deviceorientation';
@@ -101,14 +127,22 @@
       if (typeof e.webkitCompassHeading === 'number'){
         setHeading(e.webkitCompassHeading);
       } else if (typeof e.alpha === 'number'){
-        setHeading(360 - e.alpha); // heuristic (alpha increases CCW from device facing)
+        setHeading(360 - e.alpha); // heuristic
+      }
+      // Approximate pitch from beta (front-back tilt). Map portrait use-case.
+      if (typeof e.beta === 'number'){
+        // e.beta ∈ [-180,180], 0 when device is flat face up; ~90 when upright.
+        // Convert so that 0 rad = level, positive = tilt up.
+        const level = (e.beta - 90) * Math.PI/180; // rough mapping for portrait
+        setPitchFromRad(level);
       }
     }
     window.addEventListener(evt, handler, true);
-    sensorsOn = true;
     return true;
   }
 
+  // iOS permission button
+  const permBtn = document.getElementById('perm');
   async function enable(){
     try{
       if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
@@ -120,18 +154,16 @@
     }catch(_){/* ignore */}
     if (!startAOS()) startDO();
   }
+  permBtn.addEventListener('click', enable, {passive:true});
 
   // Auto-start on non‑iOS; iOS needs a gesture
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints>1);
   if (!isIOS) { if (!startAOS()) startDO(); }
-  permBtn.addEventListener('click', enable, {passive:true});
 
-  // ===== Render loop =====
+  // Render loop
   function animate(){
     requestAnimationFrame(animate);
-    // Rotate arrow so that it *points toward north* at the top of the screen.
-    // Arrow model points +Y; heading 0 => up → rotation.z = 0; clockwise heading rotates arrow clockwise
-    arrow.rotation.set(0,0,THREE.MathUtils.degToRad(-heading));
+    placeCamera();
     renderer.render(scene, camera);
   }
   animate();
