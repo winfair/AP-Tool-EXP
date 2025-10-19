@@ -3,267 +3,135 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Spherical Compass</title>
+<title>North Arrow — Minimal</title>
 <style>
-  :root{--bg:#0b0f12;--ink:#e8f1f0;--muted:#a9c6c0;--brand:#22d7b7;--accent:#ff4d4d;--line:rgba(255,255,255,.15)}
+  :root{--bg:#0b0f12;--ink:#e8f1f0;--line:rgba(255,255,255,.12)}
   html,body{height:100%;margin:0;background:radial-gradient(120% 140% at 50% 20%,#131a20 0%,#0b0f12 60%,#06080a 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
-  #app{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto}
-  header,footer{position:relative;z-index:10;display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));backdrop-filter:blur(6px)}
-  header{justify-content:space-between;border-bottom:1px solid var(--line)}
-  footer{justify-content:space-between;border-top:1px solid var(--line)}
-  .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.55rem .8rem;border-radius:12px;font-weight:600;cursor:pointer}
-  .btn:active{transform:translateY(1px)}
-  .metric{font-variant-numeric:tabular-nums}
-  #canvas{display:block;width:100%;height:100%}
-  .hud{position:absolute;inset:auto 0 60px 0;display:flex;justify-content:center;pointer-events:none;z-index:5}
-  .card{pointer-events:auto;display:inline-flex;align-items:center;gap:.75rem;padding:.7rem 1rem;background:rgba(5,8,12,.6);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
-  .pill{padding:.35rem .6rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid var(--line)}
-  .legend{position:absolute;inset:12px auto auto 12px;display:flex;flex-direction:column;gap:.4rem;z-index:5}
-  .legend span{display:inline-block;padding:.25rem .5rem;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:.85rem}
-  .notice{font-size:.9rem;color:var(--muted)}
-  .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:rgba(10,14,18,.9);border:1px solid var(--line);color:var(--ink);padding:.6rem .9rem;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s ease}
-  .toast.show{opacity:1}
+  #canvas{position:fixed;inset:0;display:block;width:100%;height:100%}
+  #perm{position:fixed;right:12px;bottom:12px;z-index:10;appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.55rem .8rem;border-radius:12px;font-weight:600}
+  #readout{position:fixed;left:12px;bottom:12px;opacity:.7;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
-    <div style="display:flex;align-items:center;gap:.6rem">
-      <strong>🧭 Spherical Compass</strong>
-      <span class="notice">Now with obvious button effects & status toasts.</span>
-    </div>
-    <div style="display:flex;gap:.5rem">
-      <button id="perm" type="button" class="btn" title="Tap to enable motion/compass sensors">Enable Sensors</button>
-      <button id="recenter" type="button" class="btn" title="Zero the needle to your current heading">Re‑center</button>
-    </div>
-  </header>
-  <main style="position:relative">
-    <canvas id="canvas"></canvas>
-    <div class="legend">
-      <span>Drag: orbit</span>
-      <span>Wheel: zoom</span>
-    </div>
-    <div class="hud">
-      <div class="card">
-        <div class="pill"><span>Heading</span></div>
-        <div class="metric"><span id="heading">—</span>°</div>
-        <div class="pill"><span id="mode">Idle</span></div>
-      </div>
-    </div>
-  </main>
-  <footer>
-    <div class="notice">Requires HTTPS for sensors. On iOS, tap <em>Enable Sensors</em> once after load.</div>
-    <div class="notice">Made with Three.js</div>
-  </footer>
-</div>
-<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<canvas id="canvas"></canvas>
+<button id="perm" type="button" title="Enable motion/compass (iOS needs a tap)">Enable Sensors</button>
+<div id="readout">—°</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/examples/js/controls/OrbitControls.js" crossorigin="anonymous"></script>
 <script>
+// A *minimal* 3D arrow that points to geographic north on the screen.
+// The arrow is rendered in 3D but rotated by the device heading so its tip
+// always points toward the North Pole relative to the phone.
 (function(){
   const canvas = document.getElementById('canvas');
   const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   const scene = new THREE.Scene();
+
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
   camera.position.set(0, 0, 5);
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.enablePan = false;
 
-  // Toast helper
-  const toastEl = document.getElementById('toast');
-  let toastTimer = 0;
-  function toast(msg, ms=1400){
-    if(!toastEl) return; toastEl.textContent = msg; toastEl.classList.add('show');
-    clearTimeout(toastTimer); toastTimer = setTimeout(()=>toastEl.classList.remove('show'), ms);
-  }
+  // Simple lighting
+  scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.6); dl.position.set(3,4,5); scene.add(dl);
 
-  // Lighting
-  const amb = new THREE.AmbientLight(0xffffff, 0.6); scene.add(amb);
-  const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(3,4,5); scene.add(dir);
+  // Arrow model: points "up" (toward +Y) by default; we'll rotate around Z to aim at north
+  const arrow = new THREE.Group();
+  const shaftMat = new THREE.MeshStandardMaterial({color:0xe8f1f0, metalness:.25, roughness:.35});
+  const tipMat   = new THREE.MeshStandardMaterial({color:0xff4d4d, metalness:.35, roughness:.25});
+  const baseMat  = new THREE.MeshStandardMaterial({color:0x22d7b7, metalness:.35, roughness:.35});
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.6,20), shaftMat); shaft.position.y = 1.1; arrow.add(shaft);
+  const tip   = new THREE.Mesh(new THREE.ConeGeometry(0.18,0.6,28), tipMat); tip.position.y = 2.4; arrow.add(tip);
+  const base  = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.16,28), baseMat); base.position.y = 0.02; arrow.add(base);
+  // Subtle ground disc for depth
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.3, 96), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.04}));
+  ground.rotation.x = -Math.PI/2; ground.position.y = -0.02; scene.add(ground);
 
-  // Spherical grid
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(2.6, 48, 32),
-    new THREE.MeshBasicMaterial({color:0x6ccac0, wireframe:true, transparent:true, opacity:0.18})
-  );
-  scene.add(sphere);
+  scene.add(arrow);
 
-  // Horizon ring (color will flash on actions)
-  const ringMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.35});
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.01, 12, 240), ringMat);
-  ring.rotation.x = Math.PI/2; scene.add(ring);
-
-  // Cardinal labels
-  const makeLabel = (text, color)=>{
-    const s=128; const cnv=document.createElement('canvas'); cnv.width=cnv.height=s;
-    const ctx=cnv.getContext('2d');
-    ctx.fillStyle='rgba(0,0,0,0)'; ctx.fillRect(0,0,s,s);
-    ctx.fillStyle=color; ctx.font='700 72px system-ui,Segoe UI,Roboto,Inter,Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=12; ctx.fillText(text,s/2,s/2);
-    const tex=new THREE.CanvasTexture(cnv); tex.anisotropy=8; tex.needsUpdate=true;
-    const mat=new THREE.SpriteMaterial({map:tex, depthTest:false});
-    const spr=new THREE.Sprite(mat); spr.scale.set(0.7,0.7,0.7);
-    return spr;
-  };
-  const N=makeLabel('N','#f15b5b'), E=makeLabel('E','#e8f1f0'), S=makeLabel('S','#e8f1f0'), W=makeLabel('W','#e8f1f0');
-  N.position.set(0,0,-2.1); S.position.set(0,0,2.1); E.position.set(2.1,0,0); W.position.set(-2.1,0,0);
-  scene.add(N,E,S,W);
-
-  // Needle
-  const needleGroup = new THREE.Group();
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.8,16), new THREE.MeshStandardMaterial({color:0xe8f1f0, metalness:.2, roughness:.3}));
-  shaft.position.y = 0.9; needleGroup.add(shaft);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.09,0.35,24), new THREE.MeshStandardMaterial({color:0xff4d4d, metalness:.3, roughness:.25}));
-  tip.position.y = 1.85; needleGroup.add(tip);
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.12,24), new THREE.MeshStandardMaterial({color:0x22d7b7, metalness:.4, roughness:.35}));
-  base.position.y = 0; needleGroup.add(base);
-  needleGroup.position.set(0,-1.4,0);
-  scene.add(needleGroup);
-
-  // Ground plane
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.15, 120), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.06}));
-  ground.rotation.x = -Math.PI/2; ground.position.y = -1.4; scene.add(ground);
-
-  // Resize
+  // Resize handler
   function resize(){
-    const {clientWidth:w, clientHeight:h} = renderer.domElement.parentElement;
-    renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix();
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
+    renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
   }
   addEventListener('resize', resize, {passive:true}); resize();
 
-  // UI + sensor plumbing
-  const headingEl = document.getElementById('heading');
-  const modeEl = document.getElementById('mode');
-  const recenterBtn = document.getElementById('recenter');
+  // ===== Sensor plumbing (heading in degrees, 0 = North) =====
+  let heading = 0; // will be updated from sensors
+  const readout = document.getElementById('readout');
   const permBtn = document.getElementById('perm');
-  let useSensor = false; let heading = 0; // degrees, 0 = North
-  let yawOffset = 0; // for recenter when using mouse look
+  let sensorsOn = false;
 
-  function bindTap(el, fn){
-    if(!el) return;
-    const handler = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); fn(); };
-    el.addEventListener('click', handler, {passive:false});
-    el.addEventListener('touchend', handler, {passive:false});
+  function setHeading(deg){
+    // Normalize to [0,360)
+    heading = ((deg % 360) + 360) % 360;
+    readout.textContent = heading.toFixed(1) + '°';
   }
 
-  // Visual flash helper for ring
-  function flash(color=0x22d7b7, ms=350){
-    const prev = ringMat.color.getHex();
-    ringMat.color.setHex(color);
-    setTimeout(()=> ringMat.color.setHex(prev), ms);
-  }
-
-  bindTap(recenterBtn, ()=>{
-    // Zero at current heading
-    yawOffset = heading;
-    headingEl.textContent = '0.0';
-    modeEl.textContent = 'Zeroed';
-    flash(0x22d7b7);
-    toast('Heading zeroed');
-    // Ease camera to front
-    const from = camera.quaternion.clone();
-    camera.lookAt(0,0,0);
-    const to = camera.quaternion.clone();
-    camera.quaternion.copy(from);
-    const t0 = performance.now();
-    const dur = 300;
-    function tween(){
-      const t = (performance.now()-t0)/dur; const k = t<0?0:t>1?1:t; const e = k*k*(3-2*k); // smoothstep
-      THREE.Quaternion.slerp(from, to, camera.quaternion, e);
-      if(k<1) requestAnimationFrame(tween);
-    }
-    requestAnimationFrame(tween);
-  });
-
-  async function enableSensors(){
-    let permMsg = '';
-    try{
-      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
-        await DeviceMotionEvent.requestPermission(); permMsg += 'Motion OK. ';
-      }
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
-        await DeviceOrientationEvent.requestPermission(); permMsg += 'Orientation OK.';
-      }
-    }catch(e){ permMsg = 'Permission denied or not needed.'; }
-    startSensors();
-    toast(permMsg || 'Sensors enabled');
-  }
-  bindTap(permBtn, enableSensors);
-
-  function startSensors(){
-    if (useSensor) { modeEl.textContent='Sensors already on'; toast('Sensors already on'); return; }
-
-    if (!isSecureContext) {
-      modeEl.textContent = 'Sensors need HTTPS';
-      toast('Enable HTTPS to read compass');
-    }
-
-    // Prefer AbsoluteOrientationSensor if supported
+  // Primary: AbsoluteOrientationSensor → yaw → heading
+  function startAOS(){
     try{
       const AOS = window.AbsoluteOrientationSensor || window.RelativeOrientationSensor;
-      if (AOS){
-        const sensor = new AOS({frequency:60, referenceFrame:'device'});
-        sensor.addEventListener('reading', ()=>{
-          const q = sensor.quaternion; // [x,y,z,w]
-          const x=q[0], y=q[1], z=q[2], w=q[3];
-          const siny_cosp = 2*(w*z + x*y);
-          const cosy_cosp = 1 - 2*(y*y + z*z);
-          let yaw = Math.atan2(siny_cosp, cosy_cosp);
-          let hdg = ((THREE.MathUtils.radToDeg(yaw) - 90) % 360 + 360) % 360;
-          heading = hdg;
-          modeEl.textContent = 'AbsoluteOrientationSensor';
-        });
-        sensor.addEventListener('error', e=>{ console.warn(e.error||e); modeEl.textContent = 'Sensor error'; toast('Sensor error'); });
-        sensor.start(); useSensor = true; flash(0xffffff, 500); toast('Reading device sensors'); return;
-      }
-    }catch(err){ console.warn('AOS error', err); }
+      if (!AOS) return false;
+      const s = new AOS({frequency:60, referenceFrame:'device'});
+      s.addEventListener('reading', ()=>{
+        const q = s.quaternion; // [x,y,z,w]
+        // Yaw from quaternion (assuming ENU):
+        const x=q[0], y=q[1], z=q[2], w=q[3];
+        const siny_cosp = 2*(w*z + x*y);
+        const cosy_cosp = 1 - 2*(y*y + z*z);
+        const yaw = Math.atan2(siny_cosp, cosy_cosp); // radians
+        // Convert yaw to compass heading where 0° = North (screen up), increasing clockwise
+        const hdg = ((THREE.MathUtils.radToDeg(yaw) - 90) % 360 + 360) % 360;
+        setHeading(hdg);
+      });
+      s.addEventListener('error', e=>console.warn('AOS error', e.error||e));
+      s.start();
+      sensorsOn = true;
+      return true;
+    }catch(e){ console.warn('AOS unavailable', e); return false; }
+  }
 
-    // Fallback: DeviceOrientationEvent
+  // Fallback: DeviceOrientation
+  function startDO(){
     const useAbs = 'ondeviceorientationabsolute' in window;
-    const evtName = useAbs ? 'deviceorientationabsolute' : 'deviceorientation';
-    if (('ondeviceorientation' in window) || useAbs){
-      const handler = (e)=>{
-        if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)){
-          heading = e.webkitCompassHeading;
-          modeEl.textContent = 'webkitCompassHeading';
-        } else if (typeof e.alpha === 'number'){
-          heading = (360 - e.alpha + 360) % 360;
-          modeEl.textContent = evtName;
-        }
-      };
-      window.addEventListener(evtName, handler, true);
-      useSensor = true; flash(0xffffff, 500); toast('Reading device orientation'); return;
+    const evt = useAbs ? 'deviceorientationabsolute' : 'deviceorientation';
+    function handler(e){
+      if (typeof e.webkitCompassHeading === 'number'){
+        setHeading(e.webkitCompassHeading);
+      } else if (typeof e.alpha === 'number'){
+        setHeading(360 - e.alpha); // heuristic (alpha increases CCW from device facing)
+      }
     }
-
-    modeEl.textContent = 'No sensors available';
-    toast('No sensors: using desktop orbit');
+    window.addEventListener(evt, handler, true);
+    sensorsOn = true;
+    return true;
   }
 
-  // Desktop: approximate heading from camera orbit when no sensors
-  function computeDesktopHeading(){
-    const v = new THREE.Vector3(); camera.getWorldDirection(v); v.y = 0; v.normalize();
-    let az = Math.atan2(v.x, v.z);
-    let hdg = (THREE.MathUtils.radToDeg(az) + 360) % 360;
-    return hdg;
+  async function enable(){
+    try{
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+        await DeviceMotionEvent.requestPermission();
+      }
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+        await DeviceOrientationEvent.requestPermission();
+      }
+    }catch(_){/* ignore */}
+    if (!startAOS()) startDO();
   }
 
-  // Auto-start sensors on non‑iOS (iOS requires a user gesture)
+  // Auto-start on non‑iOS; iOS needs a gesture
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints>1);
-  if (!isIOS) startSensors();
+  if (!isIOS) { if (!startAOS()) startDO(); }
+  permBtn.addEventListener('click', enable, {passive:true});
 
-  // Render loop
+  // ===== Render loop =====
   function animate(){
     requestAnimationFrame(animate);
-    if (!useSensor){ heading = computeDesktopHeading(); }
-
-    const needleYaw = THREE.MathUtils.degToRad(heading - yawOffset);
-    needleGroup.rotation.y = needleYaw;
-
-    headingEl.textContent = (Math.round(heading*10)/10).toFixed(1);
-    controls.update();
+    // Rotate arrow so that it *points toward north* at the top of the screen.
+    // Arrow model points +Y; heading 0 => up → rotation.z = 0; clockwise heading rotates arrow clockwise
+    arrow.rotation.set(0,0,THREE.MathUtils.degToRad(-heading));
     renderer.render(scene, camera);
   }
   animate();
