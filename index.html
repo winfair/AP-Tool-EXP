@@ -8,17 +8,17 @@
   :root{--bg:#0b0f12;--ink:#e8f1f0;--muted:#a9c6c0;--brand:#22d7b7;--line:rgba(255,255,255,.15)}
   html,body{height:100%;margin:0;background:radial-gradient(120% 140% at 50% 20%,#131a20 0%,#0b0f12 60%,#06080a 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
   #app{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto}
-  header,footer{display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));backdrop-filter:blur(6px)}
+  header,footer{position:relative;z-index:10;display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));backdrop-filter:blur(6px)}
   header{justify-content:space-between;border-bottom:1px solid var(--line)}
   footer{justify-content:space-between;border-top:1px solid var(--line)}
   .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.55rem .8rem;border-radius:12px;font-weight:600;cursor:pointer}
   .btn:active{transform:translateY(1px)}
   .metric{font-variant-numeric:tabular-nums}
   #canvas{display:block;width:100%;height:100%}
-  .hud{position:absolute;inset:auto 0 60px 0;display:flex;justify-content:center;pointer-events:none}
+  .hud{position:absolute;inset:auto 0 60px 0;display:flex;justify-content:center;pointer-events:none;z-index:5}
   .card{pointer-events:auto;display:inline-flex;align-items:center;gap:.75rem;padding:.7rem 1rem;background:rgba(5,8,12,.6);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
   .pill{padding:.35rem .6rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid var(--line)}
-  .legend{position:absolute;inset:12px auto auto 12px;display:flex;flex-direction:column;gap:.4rem}
+  .legend{position:absolute;inset:12px auto auto 12px;display:flex;flex-direction:column;gap:.4rem;z-index:5}
   .legend span{display:inline-block;padding:.25rem .5rem;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:.85rem}
   .notice{font-size:.9rem;color:var(--muted)}
 </style>
@@ -28,11 +28,11 @@
   <header>
     <div style="display:flex;align-items:center;gap:.6rem">
       <strong>🧭 Spherical Compass</strong>
-      <span class="notice">True‑north needle inside a 3D sphere. Works with device orientation or mouse.</span>
+      <span class="notice">True‑north needle in a 3D sphere. Sensor toggle fixed; works on iOS/Android/Desktop.</span>
     </div>
     <div style="display:flex;gap:.5rem">
-      <button id="perm" class="btn" title="iOS 13+ requires a tap to grant sensor access">Enable Motion Sensors</button>
-      <button id="recenter" class="btn">Re‑center</button>
+      <button id="perm" type="button" class="btn" title="Tap to enable motion/compass sensors">Enable Sensors</button>
+      <button id="recenter" type="button" class="btn" title="Zero the needle to your current heading">Re‑center</button>
     </div>
   </header>
   <main style="position:relative">
@@ -50,7 +50,7 @@
     </div>
   </main>
   <footer>
-    <div class="notice">If your device supports <code>AbsoluteOrientationSensor</code> or <code>DeviceOrientation</code>, the needle points to true north. On desktops, use mouse to look around.</div>
+    <div class="notice">Requires HTTPS for sensors. If on iOS, you must tap <em>Enable Sensors</em> first.</div>
     <div class="notice">Made with Three.js</div>
   </footer>
 </div>
@@ -126,7 +126,7 @@
   }
   addEventListener('resize', resize, {passive:true}); resize();
 
-  // Heading & sensor handling
+  // UI + sensor plumbing
   const headingEl = document.getElementById('heading');
   const modeEl = document.getElementById('mode');
   const recenterBtn = document.getElementById('recenter');
@@ -134,40 +134,54 @@
   let useSensor = false; let heading = 0; // degrees, 0 = North
   let yawOffset = 0; // for recenter when using mouse look
 
-  recenterBtn.addEventListener('click', ()=>{ yawOffset = heading; });
+  function bindTap(el, fn){
+    if(!el) return;
+    const handler = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); fn(); };
+    el.addEventListener('click', handler, {passive:false});
+    el.addEventListener('touchend', handler, {passive:false});
+  }
 
-  // iOS permission helper
-  async function requestIOSPermission(){
+  bindTap(recenterBtn, ()=>{
+    yawOffset = heading;
+    // Visual acknowledgement
+    recenterBtn.textContent = 'Re‑centered';
+    setTimeout(()=>{ recenterBtn.textContent = 'Re‑center'; }, 900);
+  });
+
+  async function enableSensors(){
     try{
+      // iOS (needs user gesture)
       if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
         await DeviceMotionEvent.requestPermission();
       }
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
         await DeviceOrientationEvent.requestPermission();
       }
-      modeEl.textContent = 'Sensors enabled';
-      startSensors();
-    }catch(e){ modeEl.textContent = 'Permission denied'; console.warn(e); }
+    }catch(e){ /* ignore; some browsers throw if not needed */ }
+    startSensors();
   }
-  permBtn.addEventListener('click', requestIOSPermission);
+  bindTap(permBtn, enableSensors);
 
   function startSensors(){
+    // If already active, do nothing
+    if (useSensor) { modeEl.textContent='Sensors already on'; return; }
+
+    if (!isSecureContext) {
+      modeEl.textContent = 'Sensors need HTTPS';
+      console.warn('Motion/Orientation sensors require a secure origin (HTTPS).');
+    }
+
     // Prefer AbsoluteOrientationSensor if supported
     try{
-      // Some browsers block this behind flags; guard with existence checks
       const AOS = window.AbsoluteOrientationSensor || window.RelativeOrientationSensor;
       if (AOS){
         const sensor = new AOS({frequency:60, referenceFrame:'device'});
         sensor.addEventListener('reading', ()=>{
-          // sensor.quaternion is device->world, world axes: x-east, y-north, z-up
           const q = sensor.quaternion; // [x,y,z,w]
-          // Convert quaternion to yaw (heading from north), in degrees
           const x=q[0], y=q[1], z=q[2], w=q[3];
-          // Yaw from quaternion (assuming ENU):
           const siny_cosp = 2*(w*z + x*y);
           const cosy_cosp = 1 - 2*(y*y + z*z);
-          let yaw = Math.atan2(siny_cosp, cosy_cosp); // radians, +Z as yaw
-          // Convert to degrees heading where 0=north (+Y in ENU). Adjust by -90°.
+          let yaw = Math.atan2(siny_cosp, cosy_cosp);
           let hdg = ((THREE.MathUtils.radToDeg(yaw) - 90) % 360 + 360) % 360;
           heading = hdg;
           modeEl.textContent = 'AbsoluteOrientationSensor';
@@ -178,39 +192,34 @@
     }catch(err){ console.warn('AOS error', err); }
 
     // Fallback: DeviceOrientationEvent
-    if ('ondeviceorientationabsolute' in window){
-      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-      useSensor = true; modeEl.textContent = 'deviceorientationabsolute'; return;
-    }
-    if ('ondeviceorientation' in window){
-      window.addEventListener('deviceorientation', handleOrientation, true);
-      useSensor = true; modeEl.textContent = 'deviceorientation'; return;
+    const useAbs = 'ondeviceorientationabsolute' in window;
+    const evtName = useAbs ? 'deviceorientationabsolute' : 'deviceorientation';
+    if (('ondeviceorientation' in window) || useAbs){
+      const handler = (e)=>{
+        if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)){
+          heading = e.webkitCompassHeading;
+          modeEl.textContent = 'webkitCompassHeading';
+        } else if (typeof e.alpha === 'number'){
+          heading = (360 - e.alpha + 360) % 360;
+          modeEl.textContent = evtName;
+        }
+      };
+      window.addEventListener(evtName, handler, true);
+      useSensor = true; return;
     }
 
-    modeEl.textContent = 'No sensors';
-  }
-
-  function handleOrientation(e){
-    // iOS provides webkitCompassHeading (0=N)
-    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)){
-      heading = e.webkitCompassHeading;
-    } else if (typeof e.alpha === 'number'){
-      // alpha: 0..360° clockwise from device facing (varies by browser). Heuristic: 0=N by flipping.
-      // Many browsers use 0° when device points north and increase clockwise: heading ≈ 360 - alpha
-      heading = (360 - e.alpha + 360) % 360;
-    }
+    modeEl.textContent = 'No sensors available';
   }
 
   // Desktop: approximate heading from camera orbit when no sensors
   function computeDesktopHeading(){
-    // project camera look vector onto XZ plane and compute azimuth where +Z = North
     const v = new THREE.Vector3(); camera.getWorldDirection(v); v.y = 0; v.normalize();
-    let az = Math.atan2(v.x, v.z); // radians, 0 at +Z, +clockwise to +X
+    let az = Math.atan2(v.x, v.z);
     let hdg = (THREE.MathUtils.radToDeg(az) + 360) % 360;
     return hdg;
   }
 
-  // Start sensors automatically on non‑iOS (iOS needs a user gesture)
+  // Auto-start sensors on non‑iOS (iOS requires a user gesture)
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints>1);
   if (!isIOS) startSensors();
 
@@ -219,7 +228,6 @@
     requestAnimationFrame(animate);
     if (!useSensor){ heading = computeDesktopHeading(); }
 
-    // Apply heading to needle: rotate around Y so that 0° = facing +Z (North label)
     const needleYaw = THREE.MathUtils.degToRad(heading - yawOffset);
     needleGroup.rotation.y = needleYaw;
 
