@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Geo Arrow — Stable Target Pointer</title>
+  <title>Geo Arrow — Real‑Direction Pointer</title>
   <style>
     :root {
       --bg: #0b0f12;
@@ -23,9 +23,9 @@
     #canvas {
       position: fixed;
       inset: 0;
-      display: block;
       width: 100%;
       height: 100%;
+      display: block;
     }
     .panel {
       position: fixed;
@@ -33,75 +33,54 @@
       top: 12px;
       z-index: 10;
       background: rgba(10,14,18,.76);
-      border: 1px solid var(--line);
+      border:1px solid var(--line);
       backdrop-filter: blur(6px);
-      padding: .8rem;
-      border-radius: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: .55rem;
-      max-width: min(92vw, 520px);
+      padding:.8rem;
+      border-radius:14px;
+      display:flex;
+      flex-direction:column;
+      gap:.55rem;
+      max-width:min(92vw,520px);
     }
     .row {
-      display: flex;
-      gap: .5rem;
-      flex-wrap: wrap;
+      display:flex; gap:.5rem; flex-wrap:wrap;
     }
-    .row > label {
-      display: flex;
-      flex: 1 1 42%;
-      align-items: center;
-      gap: .35rem;
-      background: rgba(255,255,255,.05);
-      border: 1px solid var(--line);
-      padding: .35rem .5rem;
-      border-radius: 10px;
+    .row>label {
+      display:flex; flex:1 1 42%; align-items:center;
+      gap:.35rem;
+      background:rgba(255,255,255,.05);
+      border:1px solid var(--line);
+      padding:.35rem .5rem;
+      border-radius:10px;
     }
-    input[type="number"], input[type="text"] {
-      width: 100%;
-      background: transparent;
-      border: none;
-      outline: none;
-      color: var(--ink);
-      font-variant-numeric: tabular-nums;
+    input[type=number], input[type=text] {
+      width:100%; background:transparent; border:none; outline:none;
+      color: var(--ink); font‑variant‑numeric: tabular‑nums;
     }
-    input[type="range"] {
-      width: 100%;
-    }
+    input[type=range] { width: 100%; }
     .btn {
-      appearance: none;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,.06);
-      color: var(--ink);
-      padding: .52rem .8rem;
-      border-radius: 12px;
-      font-weight: 600;
-      cursor: pointer;
+      appearance:none; border:1px solid var(--line);
+      background: rgba(255,255,255,.06); color: var(--ink);
+      padding:.52rem .8rem; border-radius:12px; font-weight:600;
+      cursor:pointer;
     }
-    .btn:active {
-      transform: translateY(1px);
-    }
-    .tiny {
-      font-size: .85rem;
-      color: var(--muted);
-    }
+    .btn:active { transform: translateY(1px); }
+    .tiny { font-size:.85rem; color: var(--muted); }
     #readout {
-      position: fixed;
-      left: 12px;
-      bottom: 12px;
-      opacity: .95;
-      font-variant-numeric: tabular-nums;
-      background: rgba(0,0,0,.32);
-      padding: .42rem .65rem;
-      border-radius: 10px;
-      border: 1px solid var(--line);
+      position: fixed; left:12px; bottom:12px; opacity:.95;
+      font‑variant‑numeric: tabular‑nums;
+      background: rgba(0,0,0,.32); padding:.42rem .65rem;
+      border-radius:10px; border:1px solid var(--line);
     }
   </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
+
 <div class="panel">
-  <div class="tiny">Arrow points from <b>you → target</b> in true 3D (WGS‑84). Follows device orientation.</div>
+  <div class="tiny">
+    Arrow points to target in **real‑world direction**. Move i.e. rotate your device and the arrow will stay aligned.
+  </div>
   <div class="row">
     <label>Lat° <input id="tLat" type="number" step="0.000001" placeholder="e.g. 48.137" /></label>
     <label>Lon° <input id="tLon" type="number" step="0.000001" placeholder="e.g. 11.575" /></label>
@@ -116,80 +95,75 @@
     <button id="perm" class="btn">Enable Sensors</button>
   </div>
   <div class="row">
-    <label>Stability <input id="stab" type="range" min="0" max="0.9" step="0.01" value="0.18" /></label>
-    <label>Deadband° <input id="dead" type="number" step="0.1" value="0.5" /></label>
+    <label>Stability <input id="stab" type="range" min="0" max="0.9" step="0.01" value="0.18"/></label>
+    <label>Deadband° <input id="dead" type="number" step="0.1" value="0.5"/></label>
   </div>
   <div class="tiny" id="status">Status: awaiting target & location…</div>
 </div>
+
 <div id="readout">az: —° el: —° | me: —, —, —m</div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" crossorigin="anonymous"></script>
 <script>
-(function(){
+(() => {
   const canvas = document.getElementById('canvas');
   const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
-  camera.position.set(0, 0, 5);
-  camera.lookAt(0, 0, 0);
+  camera.position.set(0,0,0);  // camera is at origin (device position)
   const rig = new THREE.Group();
   rig.add(camera);
   scene.add(rig);
 
-  // Light
-  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-  const dl = new THREE.DirectionalLight(0xffffff, 0.45);
-  dl.position.set(3, 4, 5);
-  scene.add(dl);
-
-  // Arrow
-  const arrow = new THREE.Group();
-  const matLight = new THREE.MeshStandardMaterial({color:0xe8f1f0, metalness:0.25, roughness:0.35});
-  const matTip   = new THREE.MeshStandardMaterial({color:0xff4d4d, metalness:0.35, roughness:0.25});
-  const matBase  = new THREE.MeshStandardMaterial({color:0x22d7b7, metalness:0.35, roughness:0.35});
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 22), matLight);
-  shaft.position.z = 1.1; shaft.rotation.x = Math.PI/2;
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 30), matTip);
-  tip.position.z = 2.4; tip.rotation.x = Math.PI/2;
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.16, 30), matBase);
-  base.position.z = 0.02; base.rotation.x = Math.PI/2;
-  arrow.add(shaft, tip, base);
+  // Arrow at some distance forward in scene
+  const arrow = new THREE.ArrowHelper(
+    new THREE.Vector3(0,0,1),  // initial direction forward (we’ll update)
+    new THREE.Vector3(0,0,0),
+    10,  // length
+    0xff4d4d
+  );
   scene.add(arrow);
 
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.6, 96),
-    new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.06}));
-  ground.rotation.x = -Math.PI/2;
-  ground.position.y = -0.001;
-  scene.add(ground);
+  // Light so arrow is visible
+  const light = new THREE.DirectionalLight(0xffffff,0.6);
+  light.position.set(1,2,3);
+  scene.add(light);
+  scene.add(new THREE.AmbientLight(0xffffff,0.8));
 
-  // UI elements
-  const tLat = document.getElementById('tLat');
-  const tLon = document.getElementById('tLon');
-  const tAlt = document.getElementById('tAlt');
+  // UI References
+  const tLat   = document.getElementById('tLat');
+  const tLon   = document.getElementById('tLon');
+  const tAlt   = document.getElementById('tAlt');
   const btnSet = document.getElementById('setTarget');
   const btnGPS = document.getElementById('useGps');
   const btnCal = document.getElementById('calYaw');
   const btnPerm= document.getElementById('perm');
-  const stab = document.getElementById('stab');
-  const dead = document.getElementById('dead');
-  const readout = document.getElementById('readout');
+  const stab   = document.getElementById('stab');
+  const dead   = document.getElementById('dead');
   const statusEl = document.getElementById('status');
+  const readout = document.getElementById('readout');
 
+  // State
   let obs = {lat:0, lon:0, alt:0, valid:false};
   let tgt = {lat:0, lon:0, alt:0, valid:false};
+  let yaw=0, pitch=0, roll=0;
+  let yawCal=0, yawSm=0, pitchSm=0, rollSm=0;
 
-  const a = 6378137, f = 1/298.257223563, e2 = f*(2 - f);
+  // WGS‑84
+  const a = 6378137;
+  const f = 1/298.257223563;
+  const e2 = f*(2 - f);
   const d2r = d => d * Math.PI/180;
   const r2d = r => r * 180/Math.PI;
 
   function geodeticToECEF(lat, lon, h) {
     const φ = d2r(lat), λ = d2r(lon);
     const s = Math.sin(φ), c = Math.cos(φ);
-    const N = a / Math.sqrt(1 - e2 * s * s);
-    const x = (N + h) * c * Math.cos(λ);
-    const y = (N + h) * c * Math.sin(λ);
-    const z = (N*(1 - e2) + h) * s;
+    const N = a / Math.sqrt(1 - e2*s*s);
+    const x = (N + h)*c*Math.cos(λ);
+    const y = (N + h)*c*Math.sin(λ);
+    const z = (N*(1 - e2) + h)*s;
     return {x,y,z};
   }
 
@@ -197,134 +171,135 @@
     const φ = d2r(lat0), λ = d2r(lon0);
     const sφ = Math.sin(φ), cφ = Math.cos(φ);
     const sλ = Math.sin(λ), cλ = Math.cos(λ);
-    const e = -sλ * dx + cλ * dy;
-    const n = -sφ * cλ * dx - sφ * sλ * dy + cφ * dz;
-    const u =  cφ * cλ * dx + cφ * sλ * dy + sφ * dz;
-    return {e, n, u};
+    const e = -sλ*dx + cλ*dy;
+    const n = -sφ*cλ*dx - sφ*sλ*dy + cφ*dz;
+    const u =  cφ*cλ*dx + cφ*sλ*dy + sφ*dz;
+    return {e,n,u};
   }
 
-  function computeAzEl() {
+  function computeDirectionVector() {
     if (!obs.valid || !tgt.valid) return null;
     const A = geodeticToECEF(obs.lat, obs.lon, obs.alt);
     const B = geodeticToECEF(tgt.lat, tgt.lon, tgt.alt);
     const dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z;
     const enu = ecefToENU(dx, dy, dz, obs.lat, obs.lon);
-    const az = (Math.atan2(enu.e, enu.n) + 2*Math.PI) % (2*Math.PI);
-    const el = Math.atan2(enu.u, Math.hypot(enu.e, enu.n));
-    return {az, el, enu};
+    // east = +X, north = +Z, up = +Y
+    const dir = new THREE.Vector3(enu.e, enu.u, enu.n).normalize();
+    return {direction: dir, az: Math.atan2(enu.e, enu.n), el: Math.atan2(enu.u, Math.hypot(enu.e, enu.n))};
   }
 
-  let yaw=0, pitch=0, roll=0;
-  let yawCal=0, yawSm=0, pitchSm=0, rollSm=0;
-  let azSm=0, elSm=0;
-  const zForward = new THREE.Vector3(0,0,1);
-  const targetQuat = new THREE.Quaternion();
-
-  function wrapRad(a){ a%=2*Math.PI; if(a<-Math.PI)a+=2*Math.PI; if(a>Math.PI)a-=2*Math.PI; return a; }
-  function lerpAngle(a,b,k){ return a + wrapRad(b-a)*k; }
-
-  function updateArrow() {
-    const res = computeAzEl();
+  function updateArrowDirection() {
+    const res = computeDirectionVector();
     if (!res) {
-      readout.textContent = `az: —° el: —° | me: —, —, —m`; return;
+      readout.textContent = `az: —° el: —° | me: ${obs.lat.toFixed(6)}, ${obs.lon.toFixed(6)}, ${(obs.alt||0).toFixed(1)}m`;
+      return;
     }
     const k = parseFloat(stab.value) || 0.18;
-    azSm = lerpAngle(azSm, res.az, k);
-    elSm = lerpAngle(elSm, res.el, k);
-    const dir = new THREE.Vector3(
-      Math.sin(azSm)*Math.cos(elSm),
-      Math.sin(elSm),
-      Math.cos(azSm)*Math.cos(elSm)
-    ).normalize();
-    targetQuat.setFromUnitVectors(zForward, dir);
-    arrow.quaternion.slerp(targetQuat, Math.min(0.9, k*1.4));
-    readout.textContent = `az: ${r2d(res.az).toFixed(1)}° el: ${r2d(res.el).toFixed(1)}° | me: ${obs.lat.toFixed(6)}, ${obs.lon.toFixed(6)}, ${obs.alt.toFixed(1)}m`;
-  }
+    yawSm   = yawSm   + wrapRad(yaw - yawSm)*k;
+    pitchSm = pitchSm + (pitch - pitchSm)*k;
+    rollSm  = rollSm  + (roll  - rollSm )*k;
 
-  function applyOrientation() {
-    const k = parseFloat(stab.value)||0.18;
-    const db = parseFloat(dead.value)||0;
-    const yT = (yaw + yawCal + 360)%360;
-    const dY = ((yT - yawSm + 540)%360 - 180);
-    if (Math.abs(dY) > db) yawSm += dY*k;
-    if (Math.abs(pitchSm - pitch) > db) pitchSm += (pitch - pitchSm)*k;
-    if (Math.abs(rollSm - roll) > db) rollSm += (roll - rollSm)*k;
+    // Set camera rig orientation from device orientation
     rig.rotation.set(
       THREE.MathUtils.degToRad(pitchSm),
-      THREE.MathUtils.degToRad(yawSm),
+      THREE.MathUtils.degToRad(yawSm + yawCal),
       THREE.MathUtils.degToRad(rollSm)
     );
+
+    // Now arrow direction in world space — set its direction
+    arrow.setDirection(res.direction);
+
+    readout.textContent = `az: ${r2d(res.az).toFixed(1)}° el: ${r2d(res.el).toFixed(1)}° | me: ${obs.lat.toFixed(6)}, ${obs.lon.toFixed(6)}, ${(obs.alt||0).toFixed(1)}m`;
   }
 
-  btnSet.addEventListener('click', ()=>{
+  function wrapRad(a) {
+    a %= (2*Math.PI);
+    if (a < -Math.PI) a += 2*Math.PI;
+    if (a >  Math.PI) a -= 2*Math.PI;
+    return a;
+  }
+
+  // UI Handlers
+  btnSet.addEventListener('click', () => {
     const lat = parseFloat(tLat.value);
     const lon = parseFloat(tLon.value);
-    const alt = parseFloat(tAlt.value) || 0;
+    const alt = parseFloat(tAlt.value)||0;
     if (Number.isFinite(lat) && Number.isFinite(lon)) {
       tgt = {lat, lon, alt, valid:true};
-      statusEl.textContent = 'Status: target set.';
-      updateArrow();
+      statusEl.textContent = "Status: target set.";
+      updateArrowDirection();
     } else {
-      statusEl.textContent = 'Status: enter valid lat/lon';
+      statusEl.textContent = "Status: enter valid target lat/lon.";
     }
   });
 
-  btnGPS.addEventListener('click', ()=>{
-    if (!navigator.geolocation) {
-      statusEl.textContent = 'Geolocation not supported';
+  btnGPS.addEventListener('click', () => {
+    if (!('geolocation' in navigator)) {
+      statusEl.textContent = "Status: Geolocation not available.";
       return;
     }
-    navigator.geolocation.watchPosition(pos=>{
+    navigator.geolocation.watchPosition(pos => {
       const c = pos.coords;
-      const k = 0.25;
-      if (!obs.valid) obs = {lat:c.latitude, lon:c.longitude, alt:c.altitude||0, valid:true};
-      else {
-        obs.lat = obs.lat*(1-k) + c.latitude*k;
-        obs.lon = obs.lon*(1-k) + c.longitude*k;
-        obs.alt = obs.alt*(1-k) + (c.altitude||0)*k;
+      const kLoc = 0.25;
+      if (!obs.valid) {
+        obs = { lat:c.latitude, lon:c.longitude, alt:c.altitude||0, valid:true };
+      } else {
+        obs.lat = obs.lat*(1-kLoc) + c.latitude*kLoc;
+        obs.lon = obs.lon*(1-kLoc) + c.longitude*kLoc;
+        obs.alt = obs.alt*(1-kLoc) + (c.altitude||0)*kLoc;
       }
-      statusEl.textContent = 'Tracking location...';
-    }, err=>{
-      statusEl.textContent = `GPS error: ${err.message}`;
+      statusEl.textContent = "Status: tracking your location…";
+      updateArrowDirection();
+    }, err => {
+      statusEl.textContent = `Status: GPS error — ${err.message}`;
     }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
   });
 
-  btnCal.addEventListener('click', ()=>{
-    yawCal = (360 - yaw) % 360;
-    statusEl.textContent = 'Yaw calibrated';
+  btnCal.addEventListener('click', () => {
+    yawCal = - yaw; 
+    statusEl.textContent = "Status: yaw calibrated.";
   });
 
-  btnPerm.addEventListener('click', async ()=>{
+  btnPerm.addEventListener('click', async () => {
     try {
-      if (DeviceOrientationEvent?.requestPermission) await DeviceOrientationEvent.requestPermission();
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission==='function') {
+        await DeviceOrientationEvent.requestPermission();
+      }
     } catch(e) {}
-    const useDO = e => {
-      if (typeof e.webkitCompassHeading === 'number') yaw = e.webkitCompassHeading;
-      else if (typeof e.alpha === 'number') yaw = (360 - e.alpha) % 360;
-      pitch = e.beta - 90;
-      roll = e.gamma;
-      applyOrientation();
-      updateArrow();
+
+    const onDO = (e) => {
+      if (typeof e.webkitCompassHeading === 'number') {
+        yaw   = e.webkitCompassHeading;
+      } else if (typeof e.alpha === 'number') {
+        yaw   = (360 - e.alpha)%360;
+      }
+      pitch = (typeof e.beta === 'number' ? e.beta - 90 : 0);
+      roll  = (typeof e.gamma === 'number' ? e.gamma : 0);
+      updateArrowDirection();
     };
-    window.addEventListener('deviceorientation', useDO, true);
-    statusEl.textContent = 'Sensors enabled';
+
+    window.addEventListener('deviceorientationabsolute' in window ? 'deviceorientationabsolute':'deviceorientation', onDO, true);
+
+    statusEl.textContent = "Status: sensors enabled.";
   });
 
-  function resize(){
+  // Resize + animate
+  function resize() {
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
-    renderer.setSize(w, h, false);
+    renderer.setSize(w,h,false);
     camera.aspect = w/h;
     camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', resize, {passive:true});
   resize();
 
-  function animate(){
+  function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
   }
   animate();
+
 })();
 </script>
 </body>
