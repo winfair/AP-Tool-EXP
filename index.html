@@ -1,209 +1,234 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
-<meta name="theme-color" content="#0b0f12"/>
-<title>Compass — True North</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Spherical Compass</title>
 <style>
-:root{
-  --bg:#0b0f12; --ink:#e9f5f0; --muted:#a8cfc0; --accent:#20d7b7; --line:rgba(255,255,255,.12);
-  --disc1:#1a232b; --disc2:#11171d; --disc3:#0b1015;
-}
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;overscroll-behavior:none}
-button,input,select{font:inherit}
-.app{min-height:100svh;display:flex;flex-direction:column}
-.top{height:48px;display:flex;align-items:center;gap:.5rem;padding:.4rem .8rem;border-bottom:1px solid var(--line);background:linear-gradient(180deg, var(--bg), rgba(11,15,18,.92))}
-.badge{background:#121c23;border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:.25rem .6rem;font-size:.9rem;white-space:nowrap}
-.grow{margin-left:auto;display:flex;gap:.5rem;align-items:center}
-.btn{background:#17242c;border:1px solid var(--line);color:var(--ink);padding:.45rem .8rem;border-radius:10px;cursor:pointer}
-.btn:disabled{opacity:.6;cursor:not-allowed}
-.main{flex:1;display:grid;place-items:center;padding:.8rem}
-.compassWrap{position:relative;width:min(92vw,560px);aspect-ratio:1/1;display:grid;place-items:center}
-.compass{
-  width:100%;aspect-ratio:1/1;border-radius:50%;
-  background:radial-gradient(120% 120% at 50% 0%, var(--disc1) 0%, var(--disc2) 60%, var(--disc3) 100%);
-  border:1px solid var(--line);
-  box-shadow:inset 0 0 0 2px rgba(255,255,255,.06), inset 0 20px 50px rgba(0,0,0,.55);
-  position:relative;
-  transform:perspective(900px) rotateX(18deg);
-  overflow:hidden;
-}
-/* tick marks */
-.tick{position:absolute;left:50%;top:50%;transform-origin:0% 0%}
-.tickLine{width:48%;height:1px;background:rgba(255,255,255,.25);transform-origin:left center}
-.tickTxt{position:absolute;right:6%;top:-10px;font-size:.8rem;color:var(--muted)}
-/* north arrow */
-.arrow{position:absolute;left:50%;top:50%;transform-origin:50% calc(100% - 18px);filter:drop-shadow(0 2px 2px rgba(0,0,0,.6));pointer-events:none}
-.arrow svg{width:44%;height:auto;transform:translate(-50%,-72%)}
-/* center readout */
-.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotateX(-18deg);text-align:center;user-select:none}
-.big{font-size:clamp(22px,6.2vw,40px);font-weight:800}
-.mid{color:var(--muted);font-size:clamp(12px,3.6vw,16px)}
-.controls{display:flex;gap:.5rem;align-items:center}
-.field{display:flex;gap:.4rem;align-items:center;color:var(--muted)}
-input[type="number"]{width:6.5ch;background:#0e171d;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:.35rem .5rem}
-select{background:#0e171d;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:.35rem .5rem}
-.footer{height:44px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line)}
+  :root{--bg:#0b0f12;--ink:#e8f1f0;--muted:#a9c6c0;--brand:#22d7b7;--line:rgba(255,255,255,.15)}
+  html,body{height:100%;margin:0;background:radial-gradient(120% 140% at 50% 20%,#131a20 0%,#0b0f12 60%,#06080a 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+  #app{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto}
+  header,footer{display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));backdrop-filter:blur(6px)}
+  header{justify-content:space-between;border-bottom:1px solid var(--line)}
+  footer{justify-content:space-between;border-top:1px solid var(--line)}
+  .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.55rem .8rem;border-radius:12px;font-weight:600;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  .metric{font-variant-numeric:tabular-nums}
+  #canvas{display:block;width:100%;height:100%}
+  .hud{position:absolute;inset:auto 0 60px 0;display:flex;justify-content:center;pointer-events:none}
+  .card{pointer-events:auto;display:inline-flex;align-items:center;gap:.75rem;padding:.7rem 1rem;background:rgba(5,8,12,.6);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .pill{padding:.35rem .6rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid var(--line)}
+  .legend{position:absolute;inset:12px auto auto 12px;display:flex;flex-direction:column;gap:.4rem}
+  .legend span{display:inline-block;padding:.25rem .5rem;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:.85rem}
+  .notice{font-size:.9rem;color:var(--muted)}
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="top">
-    <div class="badge" id="magBadge">Mag —</div>
-    <div class="badge" id="hzBadge">Hz —</div>
-    <div class="badge" id="statusBadge">Ready</div>
-    <div class="grow">
-      <div class="controls">
-        <div class="field">
-          <label for="mode">Mode</label>
-          <select id="mode">
-            <option value="true" selected>True</option>
-            <option value="mag">Magnetic</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="decl">Decl (°)</label>
-          <input id="decl" type="number" step="0.1" value="0">
-        </div>
-      </div>
-      <button id="start" class="btn">Start</button>
+<div id="app">
+  <header>
+    <div style="display:flex;align-items:center;gap:.6rem">
+      <strong>🧭 Spherical Compass</strong>
+      <span class="notice">True‑north needle inside a 3D sphere. Works with device orientation or mouse.</span>
     </div>
-  </div>
-
-  <div class="main">
-    <div class="compassWrap">
-      <div class="compass" id="compass"></div>
-      <div class="arrow" id="arrow">
-        <!-- north-pointing marker -->
-        <svg viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="North arrow">
-          <defs>
-            <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#ffffff" stop-opacity="0.92"/>
-              <stop offset="1" stop-color="#bcd2d9" stop-opacity="0.92"/>
-            </linearGradient>
-          </defs>
-          <path d="M100 15 L140 200 L100 175 L60 200 Z" fill="url(#g)" stroke="rgba(0,0,0,.25)" stroke-width="2"/>
-          <circle cx="100" cy="205" r="18" fill="#0e171d" stroke="rgba(255,255,255,.2)" stroke-width="2"/>
-        </svg>
-      </div>
-      <div class="center">
-        <div class="big"><span id="deg">—</span>° <span id="card">---</span></div>
-        <div class="mid">Heading to <b>True North</b></div>
+    <div style="display:flex;gap:.5rem">
+      <button id="perm" class="btn" title="iOS 13+ requires a tap to grant sensor access">Enable Motion Sensors</button>
+      <button id="recenter" class="btn">Re‑center</button>
+    </div>
+  </header>
+  <main style="position:relative">
+    <canvas id="canvas"></canvas>
+    <div class="legend">
+      <span>Drag: orbit</span>
+      <span>Wheel: zoom</span>
+    </div>
+    <div class="hud">
+      <div class="card">
+        <div class="pill"><span>Heading</span></div>
+        <div class="metric"><span id="heading">—</span>°</div>
+        <div class="pill"><span id="mode">Idle</span></div>
       </div>
     </div>
-  </div>
-
-  <div class="footer">Tip: switch to “Magnetic” if you don’t know local declination.</div>
+  </main>
+  <footer>
+    <div class="notice">If your device supports <code>AbsoluteOrientationSensor</code> or <code>DeviceOrientation</code>, the needle points to true north. On desktops, use mouse to look around.</div>
+    <div class="notice">Made with Three.js</div>
+  </footer>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/examples/js/controls/OrbitControls.js" crossorigin="anonymous"></script>
 <script>
-/* ------- helpers ------- */
-const wrap360 = d => (d%360+360)%360;
-const card = d => ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"][Math.round(wrap360(d)/22.5)%16];
+(function(){
+  const canvas = document.getElementById('canvas');
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
+  camera.position.set(0, 0, 5);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
 
-/* ------- build the dial ------- */
-const compass = document.getElementById('compass');
-(function buildTicks(){
-  for(let d=0; d<360; d+=5){
-    const t=document.createElement('div'); t.className='tick';
-    t.style.transform=`rotate(${d}deg) translate(-50%,-50%)`;
-    const line=document.createElement('div'); line.className='tickLine';
-    line.style.opacity=(d%10===0)?1:0.5; line.style.height=(d%30===0)?'2px':'1px';
-    t.appendChild(line);
-    if(d%30===0){
-      const txt=document.createElement('div'); txt.className='tickTxt';
-      txt.textContent=(d===0)?"N":(d===90?"E":(d===180?"S":(d===270?"W":d)));
-      t.appendChild(txt);
-    }
-    compass.appendChild(t);
+  // Lighting
+  const amb = new THREE.AmbientLight(0xffffff, 0.6); scene.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(3,4,5); scene.add(dir);
+
+  // Spherical grid (lat/long wireframe)
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(2.6, 48, 32),
+    new THREE.MeshBasicMaterial({color:0x6ccac0, wireframe:true, transparent:true, opacity:0.18})
+  );
+  scene.add(sphere);
+
+  // Horizon ring
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(2.0, 0.01, 12, 240),
+    new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.35})
+  );
+  ring.rotation.x = Math.PI/2; scene.add(ring);
+
+  // Cardinal labels (billboard sprites)
+  const makeLabel = (text, color)=>{
+    const s=128; const cnv=document.createElement('canvas'); cnv.width=cnv.height=s;
+    const ctx=cnv.getContext('2d');
+    ctx.fillStyle='rgba(0,0,0,0)'; ctx.fillRect(0,0,s,s);
+    ctx.fillStyle=color; ctx.font='700 72px system-ui,Segoe UI,Roboto,Inter,Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=12; ctx.fillText(text,s/2,s/2);
+    const tex=new THREE.CanvasTexture(cnv); tex.anisotropy=8; tex.needsUpdate=true;
+    const mat=new THREE.SpriteMaterial({map:tex, depthTest:false});
+    const spr=new THREE.Sprite(mat); spr.scale.set(0.7,0.7,0.7);
+    return spr;
+  };
+  const N=makeLabel('N','#f15b5b'), E=makeLabel('E','#e8f1f0'), S=makeLabel('S','#e8f1f0'), W=makeLabel('W','#e8f1f0');
+  N.position.set(0,0,-2.1); S.position.set(0,0,2.1); E.position.set(2.1,0,0); W.position.set(-2.1,0,0);
+  scene.add(N,E,S,W);
+
+  // Needle (points to world +Z when heading=0)
+  const needleGroup = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.8,16), new THREE.MeshStandardMaterial({color:0xe8f1f0, metalness:.2, roughness:.3}));
+  shaft.position.y = 0.9; needleGroup.add(shaft);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.09,0.35,24), new THREE.MeshStandardMaterial({color:0xff4d4d, metalness:.3, roughness:.25}));
+  tip.position.y = 1.85; needleGroup.add(tip);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.12,24), new THREE.MeshStandardMaterial({color:0x22d7b7, metalness:.4, roughness:.35}));
+  base.position.y = 0; needleGroup.add(base);
+  // Rotate around world Y to follow heading
+  needleGroup.position.set(0,-1.4,0);
+  scene.add(needleGroup);
+
+  // Ground plane (subtle)
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(2.15, 120), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.06}));
+  ground.rotation.x = -Math.PI/2; ground.position.y = -1.4; scene.add(ground);
+
+  // Resize
+  function resize(){
+    const {clientWidth:w, clientHeight:h} = renderer.domElement.parentElement;
+    renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix();
   }
+  addEventListener('resize', resize, {passive:true}); resize();
+
+  // Heading & sensor handling
+  const headingEl = document.getElementById('heading');
+  const modeEl = document.getElementById('mode');
+  const recenterBtn = document.getElementById('recenter');
+  const permBtn = document.getElementById('perm');
+  let useSensor = false; let heading = 0; // degrees, 0 = North
+  let yawOffset = 0; // for recenter when using mouse look
+
+  recenterBtn.addEventListener('click', ()=>{ yawOffset = heading; });
+
+  // iOS permission helper
+  async function requestIOSPermission(){
+    try{
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+        await DeviceMotionEvent.requestPermission();
+      }
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+        await DeviceOrientationEvent.requestPermission();
+      }
+      modeEl.textContent = 'Sensors enabled';
+      startSensors();
+    }catch(e){ modeEl.textContent = 'Permission denied'; console.warn(e); }
+  }
+  permBtn.addEventListener('click', requestIOSPermission);
+
+  function startSensors(){
+    // Prefer AbsoluteOrientationSensor if supported
+    try{
+      // Some browsers block this behind flags; guard with existence checks
+      const AOS = window.AbsoluteOrientationSensor || window.RelativeOrientationSensor;
+      if (AOS){
+        const sensor = new AOS({frequency:60, referenceFrame:'device'});
+        sensor.addEventListener('reading', ()=>{
+          // sensor.quaternion is device->world, world axes: x-east, y-north, z-up
+          const q = sensor.quaternion; // [x,y,z,w]
+          // Convert quaternion to yaw (heading from north), in degrees
+          const x=q[0], y=q[1], z=q[2], w=q[3];
+          // Yaw from quaternion (assuming ENU):
+          const siny_cosp = 2*(w*z + x*y);
+          const cosy_cosp = 1 - 2*(y*y + z*z);
+          let yaw = Math.atan2(siny_cosp, cosy_cosp); // radians, +Z as yaw
+          // Convert to degrees heading where 0=north (+Y in ENU). Adjust by -90°.
+          let hdg = ((THREE.MathUtils.radToDeg(yaw) - 90) % 360 + 360) % 360;
+          heading = hdg;
+          modeEl.textContent = 'AbsoluteOrientationSensor';
+        });
+        sensor.addEventListener('error', e=>{ console.warn(e.error||e); modeEl.textContent = 'Sensor error'; });
+        sensor.start(); useSensor = true; return;
+      }
+    }catch(err){ console.warn('AOS error', err); }
+
+    // Fallback: DeviceOrientationEvent
+    if ('ondeviceorientationabsolute' in window){
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+      useSensor = true; modeEl.textContent = 'deviceorientationabsolute'; return;
+    }
+    if ('ondeviceorientation' in window){
+      window.addEventListener('deviceorientation', handleOrientation, true);
+      useSensor = true; modeEl.textContent = 'deviceorientation'; return;
+    }
+
+    modeEl.textContent = 'No sensors';
+  }
+
+  function handleOrientation(e){
+    // iOS provides webkitCompassHeading (0=N)
+    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)){
+      heading = e.webkitCompassHeading;
+    } else if (typeof e.alpha === 'number'){
+      // alpha: 0..360° clockwise from device facing (varies by browser). Heuristic: 0=N by flipping.
+      // Many browsers use 0° when device points north and increase clockwise: heading ≈ 360 - alpha
+      heading = (360 - e.alpha + 360) % 360;
+    }
+  }
+
+  // Desktop: approximate heading from camera orbit when no sensors
+  function computeDesktopHeading(){
+    // project camera look vector onto XZ plane and compute azimuth where +Z = North
+    const v = new THREE.Vector3(); camera.getWorldDirection(v); v.y = 0; v.normalize();
+    let az = Math.atan2(v.x, v.z); // radians, 0 at +Z, +clockwise to +X
+    let hdg = (THREE.MathUtils.radToDeg(az) + 360) % 360;
+    return hdg;
+  }
+
+  // Start sensors automatically on non‑iOS (iOS needs a user gesture)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints>1);
+  if (!isIOS) startSensors();
+
+  // Render loop
+  function animate(){
+    requestAnimationFrame(animate);
+    if (!useSensor){ heading = computeDesktopHeading(); }
+
+    // Apply heading to needle: rotate around Y so that 0° = facing +Z (North label)
+    const needleYaw = THREE.MathUtils.degToRad(heading - yawOffset);
+    needleGroup.rotation.y = needleYaw;
+
+    headingEl.textContent = (Math.round(heading*10)/10).toFixed(1);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
 })();
-
-/* ------- UI refs ------- */
-const btnStart=document.getElementById('start');
-const modeSel=document.getElementById('mode');
-const declInput=document.getElementById('decl');
-const magBadge=document.getElementById('magBadge');
-const hzBadge=document.getElementById('hzBadge');
-const statusBadge=document.getElementById('statusBadge');
-const arrow=document.getElementById('arrow');
-const degOut=document.getElementById('deg');
-const cardOut=document.getElementById('card');
-
-/* ------- state ------- */
-const state={ heading:null, ema:null, hz:0, smp:0, t0:performance.now() };
-
-/* ------- rendering ------- */
-function render(){
-  if(state.heading!=null){
-    const h=state.heading;
-    degOut.textContent=h.toFixed(1);
-    cardOut.textContent=card(h);
-    // Rotate the arrow so it points to (true) North
-    arrow.style.transform=`translate(-50%,-50%) rotate(${h}deg)`;
-  }
-  hzBadge.textContent = "Hz " + state.hz.toFixed(0);
-}
-
-/* ------- sensors ------- */
-function onOrientation(e){
-  let heading;
-  if(typeof e.webkitCompassHeading === "number"){
-    // iOS: degrees CW from magnetic North
-    heading = e.webkitCompassHeading;
-    magBadge.textContent = (typeof e.webkitCompassAccuracy === "number" && e.webkitCompassAccuracy<20) ? "Mag OK" : "Mag noisy";
-  }else if(typeof e.alpha === "number"){
-    // Generic: alpha is device yaw CCW from screen-top; convert to CW-from-N
-    // screen orientation compensation (simple)
-    const so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
-    let alpha = e.alpha;
-    if(so===90) alpha+=90; else if(so===-90 || so===270) alpha-=90; else if(so===180) alpha+=180;
-    heading = 360 - (alpha % 360);
-    magBadge.textContent = "Mag —";
-  }
-
-  if(heading!=null){
-    // True vs Magnetic
-    if(modeSel.value === 'true'){
-      const decl = parseFloat(declInput.value)||0;
-      heading = wrap360(heading + decl);
-    }
-    // Simple smoothing (EMA)
-    const a=0.18;
-    state.ema = (state.ema==null)? heading : (state.ema*(1-a) + heading*a);
-    state.heading = wrap360(state.ema);
-  }
-
-  state.smp++; const now=performance.now();
-  if(now - state.t0 > 1000){ state.hz=state.smp; state.smp=0; state.t0=now; }
-  render();
-}
-
-async function start(){
-  try{
-    if(typeof DeviceOrientationEvent !== 'undefined' &&
-       typeof DeviceOrientationEvent.requestPermission === 'function'){
-      const p = await DeviceOrientationEvent.requestPermission();
-      if(p!=='granted') throw new Error('Motion permission denied');
-    }
-    window.addEventListener('deviceorientation', onOrientation, true);
-    statusBadge.textContent='Running';
-    btnStart.disabled=true;
-  }catch(err){
-    statusBadge.textContent='Start failed';
-    alert(err.message || err);
-  }
-}
-
-/* ------- wire up ------- */
-btnStart.addEventListener('click', start);
-modeSel.addEventListener('change', render);
-declInput.addEventListener('input', ()=>{ state.ema=null; });
-
-/* first paint */
-render();
 </script>
 </body>
 </html>
