@@ -1,306 +1,185 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Geo Arrow — Real‑Direction Pointer</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover,user-scalable=no"/>
+  <title>Geo‑Pointer with Pin Drop</title>
   <style>
-    :root {
-      --bg: #0b0f12;
-      --ink: #e8f1f0;
-      --line: rgba(255,255,255,.16);
-      --muted: #9fc0b8;
-      --brand: #22d7b7;
-      --accent: #ff4d4d;
-    }
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: radial-gradient(120% 140% at 50% 20%, #131a20 0%, #0b0f12 60%, #06080a 100%);
-      color: var(--ink);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Inter, Arial, sans-serif;
-    }
-    #canvas {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .panel {
-      position: fixed;
-      left: 12px;
-      top: 12px;
-      z-index: 10;
-      background: rgba(10,14,18,.76);
-      border:1px solid var(--line);
-      backdrop-filter: blur(6px);
-      padding:.8rem;
-      border-radius:14px;
-      display:flex;
-      flex-direction:column;
-      gap:.55rem;
-      max-width:min(92vw,520px);
-    }
-    .row {
-      display:flex; gap:.5rem; flex-wrap:wrap;
-    }
-    .row>label {
-      display:flex; flex:1 1 42%; align-items:center;
-      gap:.35rem;
-      background:rgba(255,255,255,.05);
-      border:1px solid var(--line);
-      padding:.35rem .5rem;
-      border-radius:10px;
-    }
-    input[type=number], input[type=text] {
-      width:100%; background:transparent; border:none; outline:none;
-      color: var(--ink); font‑variant‑numeric: tabular‑nums;
-    }
-    input[type=range] { width: 100%; }
-    .btn {
-      appearance:none; border:1px solid var(--line);
-      background: rgba(255,255,255,.06); color: var(--ink);
-      padding:.52rem .8rem; border-radius:12px; font-weight:600;
-      cursor:pointer;
-    }
-    .btn:active { transform: translateY(1px); }
-    .tiny { font-size:.85rem; color: var(--muted); }
-    #readout {
-      position: fixed; left:12px; bottom:12px; opacity:.95;
-      font‑variant‑numeric: tabular‑nums;
-      background: rgba(0,0,0,.32); padding:.42rem .65rem;
-      border-radius:10px; border:1px solid var(--line);
-    }
+    html, body { margin:0; height:100%; overflow:hidden; background:#0b0f12; color:#e8f1f0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    #map { position:absolute; top:0; left:0; width:35%; height:100%; z-index:5; }
+    #canvas { position:absolute; top:0; left:35%; width:65%; height:100%; z-index:1; }
+    .panel { position:absolute; top:12px; right:12px; z-index:10; background:rgba(10,14,18,0.8); padding:0.8rem; border-radius:10px; }
+    .btn { padding:0.5rem 1rem; margin:0.3rem; background:#222; border:none; color:#e8f1f0; cursor:pointer; border-radius:6px; }
+    .tiny { font-size:0.85rem; color:#9fc0b8; }
+    #readout { position:absolute; bottom:12px; left:35%; width:65%; padding:0.4rem 0.65rem; background:rgba(0,0,0,0.32); color:#e8f1f0; font-variant-numeric:tabular-nums; border-radius:10px; }  
   </style>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 </head>
 <body>
-<canvas id="canvas"></canvas>
-
-<div class="panel">
-  <div class="tiny">
-    Arrow points to target in **real‑world direction**. Move i.e. rotate your device and the arrow will stay aligned.
-  </div>
-  <div class="row">
-    <label>Lat° <input id="tLat" type="number" step="0.000001" placeholder="e.g. 48.137" /></label>
-    <label>Lon° <input id="tLon" type="number" step="0.000001" placeholder="e.g. 11.575" /></label>
-  </div>
-  <div class="row">
-    <label>Alt (m) <input id="tAlt" type="number" step="0.1" placeholder="0" /></label>
-    <button id="setTarget" class="btn">Set Target</button>
-  </div>
-  <div class="row">
+  <div id="map"></div>
+  <canvas id="canvas"></canvas>
+  <div class="panel">
     <button id="useGps" class="btn">Use My Location</button>
-    <button id="calYaw" class="btn">Calibrate</button>
-    <button id="perm" class="btn">Enable Sensors</button>
+    <button id="calYaw" class="btn">Calibrate Yaw</button>
+    <div class="tiny">Click map to drop a pin (target)</div>
   </div>
-  <div class="row">
-    <label>Stability <input id="stab" type="range" min="0" max="0.9" step="0.01" value="0.18"/></label>
-    <label>Deadband° <input id="dead" type="number" step="0.1" value="0.5"/></label>
-  </div>
-  <div class="tiny" id="status">Status: awaiting target & location…</div>
-</div>
+  <div id="readout">az: —° el: —° | me: —, — | target: —, —</div>
 
-<div id="readout">az: —° el: —° | me: —, —, —m</div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" crossorigin="anonymous"></script>
+  <script>
+    (function(){
+      // Map setup
+      const map = L.map('map').setView([0,0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" crossorigin="anonymous"></script>
-<script>
-(() => {
-  const canvas = document.getElementById('canvas');
-  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
-  camera.position.set(0,0,0);  // camera is at origin (device position)
-  const rig = new THREE.Group();
-  rig.add(camera);
-  scene.add(rig);
+      let pinMarker = null;
+      let tgt = {lat:null, lon:null, alt:0, valid:false};
+      map.on('click', e => {
+        if (pinMarker) map.removeLayer(pinMarker);
+        pinMarker = L.marker(e.latlng).addTo(map);
+        tgt = { lat: e.latlng.lat, lon: e.latlng.lng, alt: 0, valid:true };
+      });
 
-  // Arrow at some distance forward in scene
-  const arrow = new THREE.ArrowHelper(
-    new THREE.Vector3(0,0,1),  // initial direction forward (we’ll update)
-    new THREE.Vector3(0,0,0),
-    10,  // length
-    0xff4d4d
-  );
-  scene.add(arrow);
+      // Three.js setup
+      const canvas   = document.getElementById('canvas');
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+      const scene    = new THREE.Scene();
+      const camera   = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
+      camera.position.set(0,0,0);
+      const rig     = new THREE.Group();
+      rig.add(camera);
+      scene.add(rig);
 
-  // Light so arrow is visible
-  const light = new THREE.DirectionalLight(0xffffff,0.6);
-  light.position.set(1,2,3);
-  scene.add(light);
-  scene.add(new THREE.AmbientLight(0xffffff,0.8));
+      // Arrow
+      const arrowLen = 15;
+      const arrow = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,0), arrowLen, 0xff4d4d);
+      scene.add(arrow);
 
-  // UI References
-  const tLat   = document.getElementById('tLat');
-  const tLon   = document.getElementById('tLon');
-  const tAlt   = document.getElementById('tAlt');
-  const btnSet = document.getElementById('setTarget');
-  const btnGPS = document.getElementById('useGps');
-  const btnCal = document.getElementById('calYaw');
-  const btnPerm= document.getElementById('perm');
-  const stab   = document.getElementById('stab');
-  const dead   = document.getElementById('dead');
-  const statusEl = document.getElementById('status');
-  const readout = document.getElementById('readout');
+      // Lights
+      scene.add(new THREE.AmbientLight(0xffffff,0.8));
+      const dl = new THREE.DirectionalLight(0xffffff,0.6);
+      dl.position.set(5,5,5);
+      scene.add(dl);
 
-  // State
-  let obs = {lat:0, lon:0, alt:0, valid:false};
-  let tgt = {lat:0, lon:0, alt:0, valid:false};
-  let yaw=0, pitch=0, roll=0;
-  let yawCal=0, yawSm=0, pitchSm=0, rollSm=0;
+      // UI
+      const btnGPS = document.getElementById('useGps');
+      const btnCal = document.getElementById('calYaw');
+      const readoutEl = document.getElementById('readout');
 
-  // WGS‑84
-  const a = 6378137;
-  const f = 1/298.257223563;
-  const e2 = f*(2 - f);
-  const d2r = d => d * Math.PI/180;
-  const r2d = r => r * 180/Math.PI;
+      // State
+      let obs = {lat:0, lon:0, alt:0, valid:false};
+      let yaw=0, pitch=0, roll=0;
+      let yawCal = 0, yawSm=0, pitchSm=0, rollSm=0;
 
-  function geodeticToECEF(lat, lon, h) {
-    const φ = d2r(lat), λ = d2r(lon);
-    const s = Math.sin(φ), c = Math.cos(φ);
-    const N = a / Math.sqrt(1 - e2*s*s);
-    const x = (N + h)*c*Math.cos(λ);
-    const y = (N + h)*c*Math.sin(λ);
-    const z = (N*(1 - e2) + h)*s;
-    return {x,y,z};
-  }
+      const a = 6378137, f = 1/298.257223563, e2 = f*(2-f);
+      const d2r = d => d * Math.PI/180, r2d = r => r * 180/Math.PI;
 
-  function ecefToENU(dx, dy, dz, lat0, lon0) {
-    const φ = d2r(lat0), λ = d2r(lon0);
-    const sφ = Math.sin(φ), cφ = Math.cos(φ);
-    const sλ = Math.sin(λ), cλ = Math.cos(λ);
-    const e = -sλ*dx + cλ*dy;
-    const n = -sφ*cλ*dx - sφ*sλ*dy + cφ*dz;
-    const u =  cφ*cλ*dx + cφ*sλ*dy + sφ*dz;
-    return {e,n,u};
-  }
-
-  function computeDirectionVector() {
-    if (!obs.valid || !tgt.valid) return null;
-    const A = geodeticToECEF(obs.lat, obs.lon, obs.alt);
-    const B = geodeticToECEF(tgt.lat, tgt.lon, tgt.alt);
-    const dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z;
-    const enu = ecefToENU(dx, dy, dz, obs.lat, obs.lon);
-    // east = +X, north = +Z, up = +Y
-    const dir = new THREE.Vector3(enu.e, enu.u, enu.n).normalize();
-    return {direction: dir, az: Math.atan2(enu.e, enu.n), el: Math.atan2(enu.u, Math.hypot(enu.e, enu.n))};
-  }
-
-  function updateArrowDirection() {
-    const res = computeDirectionVector();
-    if (!res) {
-      readout.textContent = `az: —° el: —° | me: ${obs.lat.toFixed(6)}, ${obs.lon.toFixed(6)}, ${(obs.alt||0).toFixed(1)}m`;
-      return;
-    }
-    const k = parseFloat(stab.value) || 0.18;
-    yawSm   = yawSm   + wrapRad(yaw - yawSm)*k;
-    pitchSm = pitchSm + (pitch - pitchSm)*k;
-    rollSm  = rollSm  + (roll  - rollSm )*k;
-
-    // Set camera rig orientation from device orientation
-    rig.rotation.set(
-      THREE.MathUtils.degToRad(pitchSm),
-      THREE.MathUtils.degToRad(yawSm + yawCal),
-      THREE.MathUtils.degToRad(rollSm)
-    );
-
-    // Now arrow direction in world space — set its direction
-    arrow.setDirection(res.direction);
-
-    readout.textContent = `az: ${r2d(res.az).toFixed(1)}° el: ${r2d(res.el).toFixed(1)}° | me: ${obs.lat.toFixed(6)}, ${obs.lon.toFixed(6)}, ${(obs.alt||0).toFixed(1)}m`;
-  }
-
-  function wrapRad(a) {
-    a %= (2*Math.PI);
-    if (a < -Math.PI) a += 2*Math.PI;
-    if (a >  Math.PI) a -= 2*Math.PI;
-    return a;
-  }
-
-  // UI Handlers
-  btnSet.addEventListener('click', () => {
-    const lat = parseFloat(tLat.value);
-    const lon = parseFloat(tLon.value);
-    const alt = parseFloat(tAlt.value)||0;
-    if (Number.isFinite(lat) && Number.isFinite(lon)) {
-      tgt = {lat, lon, alt, valid:true};
-      statusEl.textContent = "Status: target set.";
-      updateArrowDirection();
-    } else {
-      statusEl.textContent = "Status: enter valid target lat/lon.";
-    }
-  });
-
-  btnGPS.addEventListener('click', () => {
-    if (!('geolocation' in navigator)) {
-      statusEl.textContent = "Status: Geolocation not available.";
-      return;
-    }
-    navigator.geolocation.watchPosition(pos => {
-      const c = pos.coords;
-      const kLoc = 0.25;
-      if (!obs.valid) {
-        obs = { lat:c.latitude, lon:c.longitude, alt:c.altitude||0, valid:true };
-      } else {
-        obs.lat = obs.lat*(1-kLoc) + c.latitude*kLoc;
-        obs.lon = obs.lon*(1-kLoc) + c.longitude*kLoc;
-        obs.alt = obs.alt*(1-kLoc) + (c.altitude||0)*kLoc;
+      function geodeticToECEF(lat, lon, h){
+        const φ = d2r(lat), λ = d2r(lon);
+        const s = Math.sin(φ), c = Math.cos(φ);
+        const N = a / Math.sqrt(1 - e2*s*s);
+        const x = (N + h)*c*Math.cos(λ);
+        const y = (N + h)*c*Math.sin(λ);
+        const z = (N*(1 - e2) + h)*s;
+        return {x,y,z};
       }
-      statusEl.textContent = "Status: tracking your location…";
-      updateArrowDirection();
-    }, err => {
-      statusEl.textContent = `Status: GPS error — ${err.message}`;
-    }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
-  });
 
-  btnCal.addEventListener('click', () => {
-    yawCal = - yaw; 
-    statusEl.textContent = "Status: yaw calibrated.";
-  });
-
-  btnPerm.addEventListener('click', async () => {
-    try {
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission==='function') {
-        await DeviceOrientationEvent.requestPermission();
+      function ecefToENU(dx,dy,dz, lat0, lon0){
+        const φ = d2r(lat0), λ = d2r(lon0);
+        const sφ = Math.sin(φ), cφ = Math.cos(φ);
+        const sλ = Math.sin(λ), cλ = Math.cos(λ);
+        const e = -sλ*dx + cλ*dy;
+        const n = -sφ*cλ*dx - sφ*sλ*dy + cφ*dz;
+        const u =  cφ*cλ*dx + cφ*sλ*dy + sφ*dz;
+        return {e,n,u};
       }
-    } catch(e) {}
 
-    const onDO = (e) => {
-      if (typeof e.webkitCompassHeading === 'number') {
-        yaw   = e.webkitCompassHeading;
-      } else if (typeof e.alpha === 'number') {
-        yaw   = (360 - e.alpha)%360;
+      function computeDir(){
+        if (!obs.valid || !tgt.valid) return null;
+        const A = geodeticToECEF(obs.lat, obs.lon, obs.alt);
+        const B = geodeticToECEF(tgt.lat, tgt.lon, tgt.alt);
+        const dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z;
+        const enu = ecefToENU(dx,dy,dz, obs.lat, obs.lon);
+        const dirVec = new THREE.Vector3(enu.e, enu.u, enu.n).normalize();
+        const az = Math.atan2(enu.e, enu.n);
+        const el = Math.atan2(enu.u, Math.hypot(enu.e, enu.n));
+        return { dir:dirVec, az, el };
       }
-      pitch = (typeof e.beta === 'number' ? e.beta - 90 : 0);
-      roll  = (typeof e.gamma === 'number' ? e.gamma : 0);
-      updateArrowDirection();
-    };
 
-    window.addEventListener('deviceorientationabsolute' in window ? 'deviceorientationabsolute':'deviceorientation', onDO, true);
+      function wrapRad(a){
+        a %= (2*Math.PI);
+        if (a < -Math.PI) a += 2*Math.PI;
+        if (a >  Math.PI) a -= 2*Math.PI;
+        return a;
+      }
 
-    statusEl.textContent = "Status: sensors enabled.";
-  });
+      function update(){
+        const res = computeDir();
+        const k = 0.18; // fixed smoothing for simplicity
+        yawSm   += wrapRad((yaw + yawCal)*Math.PI/180 - yawSm)*k;
+        pitchSm += (pitch*Math.PI/180 - pitchSm)*k;
+        rollSm  += (roll*Math.PI/180 - rollSm)*k;
+        rig.rotation.set(pitchSm, yawSm, rollSm);
 
-  // Resize + animate
-  function resize() {
-    const w = canvas.clientWidth || window.innerWidth;
-    const h = canvas.clientHeight || window.innerHeight;
-    renderer.setSize(w,h,false);
-    camera.aspect = w/h;
-    camera.updateProjectionMatrix();
-  }
-  window.addEventListener('resize', resize, {passive:true});
-  resize();
+        if (res){
+          arrow.setDirection(res.dir);
+          readoutEl.textContent = `az:${r2d(res.az).toFixed(1)}° el:${r2d(res.el).toFixed(1)}° | me:${obs.lat.toFixed(6)},${obs.lon.toFixed(6)} | tgt:${tgt.lat.toFixed(6)},${tgt.lon.toFixed(6)}`;
+        } else {
+          readoutEl.textContent = `az:—° el:—° | me:${obs.lat.toFixed(6)},${obs.lon.toFixed(6)} | tgt:—,—`;
+        }
+      }
 
-  function animate() {
-    requestAnimationFrame(animate);
-    renderer.render(scene, camera);
-  }
-  animate();
+      btnGPS.addEventListener('click', ()=>{
+        if (!navigator.geolocation) { statusEl.textContent="GPS unavailable"; return; }
+        navigator.geolocation.watchPosition(p=> {
+          const c = p.coords;
+          const kLoc = 0.25;
+          if (!obs.valid) obs = {lat:c.latitude, lon:c.longitude, alt:c.altitude||0, valid:true};
+          else {
+            obs.lat = obs.lat*(1-kLoc) + c.latitude*kLoc;
+            obs.lon = obs.lon*(1-kLoc) + c.longitude*kLoc;
+            obs.alt = obs.alt*(1-kLoc) + (c.altitude||0)*kLoc;
+          }
+        }, e=> {
+          statusEl.textContent = `GPS error: ${e.message}`;
+        }, { enableHighAccuracy:true, maximumAge:3000, timeout:15000 });
+      });
 
-})();
-</script>
+      btnCal.addEventListener('click', ()=> {
+        yawCal = - yaw;
+      });
+
+      window.addEventListener('deviceorientation', e => {
+        if (typeof e.webkitCompassHeading === 'number') yaw = e.webkitCompassHeading;
+        else if (typeof e.alpha === 'number') yaw = (360 - e.alpha)%360;
+        pitch = (typeof e.beta  === 'number'? e.beta-90 : 0);
+        roll  = (typeof e.gamma === 'number'? e.gamma : 0);
+        update();
+      }, true);
+
+      function resize(){
+        const w = canvas.clientWidth || window.innerWidth;
+        const h = canvas.clientHeight|| window.innerHeight;
+        renderer.setSize(w,h,false);
+        camera.aspect = w/h;
+        camera.updateProjectionMatrix();
+      }
+      window.addEventListener('resize', resize, {passive:true});
+      resize();
+
+      function animate(){
+        requestAnimationFrame(animate);
+        update();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+    })();
+  </script>
 </body>
 </html>
