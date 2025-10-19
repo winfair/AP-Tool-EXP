@@ -3,37 +3,43 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Geo Arrow — Point to Target (Lat/Lon/Alt)</title>
+<title>Geo Arrow — Stable Target Pointer (WGS‑84, Sensor‑Smoothed)</title>
 <style>
-  :root{--bg:#0b0f12;--ink:#e8f1f0;--line:rgba(255,255,255,.14);--muted:#9fc0b8;--brand:#22d7b7;--accent:#ff4d4d}
+  :root{--bg:#0b0f12;--ink:#e8f1f0;--line:rgba(255,255,255,.16);--muted:#9fc0b8;--brand:#22d7b7;--accent:#ff4d4d}
   html,body{height:100%;margin:0;background:radial-gradient(120% 140% at 50% 20%,#131a20 0%,#0b0f12 60%,#06080a 100%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
   #canvas{position:fixed;inset:0;display:block;width:100%;height:100%}
-  .panel{position:fixed;left:12px;top:12px;z-index:10;background:rgba(10,14,18,.72);border:1px solid var(--line);backdrop-filter:blur(6px);padding:.75rem;border-radius:14px;display:flex;flex-direction:column;gap:.5rem;max-width:min(92vw,480px)}
+  .panel{position:fixed;left:12px;top:12px;z-index:10;background:rgba(10,14,18,.76);border:1px solid var(--line);backdrop-filter:blur(6px);padding:.8rem;border-radius:14px;display:flex;flex-direction:column;gap:.55rem;max-width:min(92vw,520px)}
   .row{display:flex;gap:.5rem;flex-wrap:wrap}
   .row>label{display:flex;flex:1 1 42%;align-items:center;gap:.35rem;background:rgba(255,255,255,.05);border:1px solid var(--line);padding:.35rem .5rem;border-radius:10px}
-  input[type="number"]{width:100%;background:transparent;border:none;outline:none;color:var(--ink);font-variant-numeric:tabular-nums}
-  .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.5rem .75rem;border-radius:12px;font-weight:600;cursor:pointer}
+  input[type="number"], input[type="text"]{width:100%;background:transparent;border:none;outline:none;color:var(--ink);font-variant-numeric:tabular-nums}
+  input[type="range"]{width:100%}
+  .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);padding:.52rem .8rem;border-radius:12px;font-weight:600;cursor:pointer}
   .btn:active{transform:translateY(1px)}
   .tiny{font-size:.85rem;color:var(--muted)}
   #perm{position:fixed;right:12px;bottom:12px;z-index:10}
-  #readout{position:fixed;left:12px;bottom:12px;opacity:.9;font-variant-numeric:tabular-nums;background:rgba(0,0,0,.28);padding:.4rem .6rem;border-radius:10px;border:1px solid var(--line)}
+  #readout{position:fixed;left:12px;bottom:12px;opacity:.95;font-variant-numeric:tabular-nums;background:rgba(0,0,0,.32);padding:.42rem .65rem;border-radius:10px;border:1px solid var(--line)}
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
 <div class="panel">
-  <div class="tiny">Enter a <b>target</b> geo‑location (WGS84). Arrow will point to it in 3D space. Your device orientation rotates the camera around the arrow like a portal.</div>
+  <div class="tiny">Arrow points from <b>you → target</b> in true 3D (WGS‑84). Camera follows your device orientation. Added smoothing & deadband to reduce jitter.</div>
   <div class="row">
-    <label>Lat° <input id="tLat" type="number" step="0.000001" placeholder="e.g. 48.137" /></label>
-    <label>Lon° <input id="tLon" type="number" step="0.000001" placeholder="e.g. 11.575" /></label>
+    <label title="Degrees">Lat° <input id="tLat" type="number" step="0.000001" placeholder="e.g. 48.137" /></label>
+    <label title="Degrees">Lon° <input id="tLon" type="number" step="0.000001" placeholder="e.g. 11.575" /></label>
   </div>
   <div class="row">
-    <label>Alt (m) <input id="tAlt" type="number" step="0.1" placeholder="0" /></label>
+    <label title="Meters">Alt (m) <input id="tAlt" type="number" step="0.1" placeholder="0" /></label>
     <button id="setTarget" class="btn" title="Apply target">Set Target</button>
   </div>
   <div class="row">
     <button id="useGps" class="btn" title="Use device GPS for your position">Use My Location</button>
+    <button id="calYaw" class="btn" title="Zero yaw to current heading (visual align)">Calibrate</button>
     <button id="perm" class="btn" title="Enable motion/compass (iOS needs a tap)">Enable Sensors</button>
+  </div>
+  <div class="row">
+    <label title="Lower = snappier, Higher = smoother">Stability <input id="stab" type="range" min="0" max="0.9" step="0.01" value="0.18" /></label>
+    <label title="Ignore tiny heading changes">Deadband° <input id="dead" type="number" step="0.1" value="0.5" /></label>
   </div>
   <div class="tiny" id="status">Status: awaiting target & location…</div>
 </div>
@@ -41,10 +47,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" crossorigin="anonymous"></script>
 <script>
-// Geo Arrow: computes the 3D direction from observer (lat/lon/alt) to target (lat/lon/alt)
-// using WGS84 ellipsoid, converts target vector into local ENU, then:
-//  - Keeps the ARROW fixed in world ENU and rotates it to point at target
-//  - Rotates the CAMERA (via device orientation) so the phone acts as a "portal" onto that arrow
+// Geo Arrow (stable): WGS‑84 vector to target (ENU), smoothed sensors, slerped arrow, yaw calibration & deadband.
 (function(){
   const canvas = document.getElementById('canvas');
   const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
@@ -61,10 +64,10 @@
   scene.add(new THREE.AmbientLight(0xffffff, 0.9));
   const dl = new THREE.DirectionalLight(0xffffff, 0.45); dl.position.set(3,4,5); scene.add(dl);
 
-  // Arrow model (built pointing +Z in ENU)
+  // Arrow model (+Z forward)
   const arrow = new THREE.Group();
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.6,22), new THREE.MeshStandardMaterial({color:0xe8f1f0, metalness:.25, roughness:.35}));
-  shaft.position.z = 1.1; shaft.rotation.x = Math.PI/2; // orient cylinder along +Z
+  shaft.position.z = 1.1; shaft.rotation.x = Math.PI/2;
   const tip   = new THREE.Mesh(new THREE.ConeGeometry(0.18,0.6,30), new THREE.MeshStandardMaterial({color:0xff4d4d, metalness:.35, roughness:.25}));
   tip.position.z = 2.4; tip.rotation.x = Math.PI/2;
   const base  = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.16,30), new THREE.MeshStandardMaterial({color:0x22d7b7, metalness:.35, roughness:.35}));
@@ -72,7 +75,7 @@
   arrow.add(shaft, tip, base);
   scene.add(arrow);
 
-  // Ground disc for depth
+  // Ground disc
   const ground = new THREE.Mesh(new THREE.CircleGeometry(2.6, 96), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.06}));
   ground.rotation.x = -Math.PI/2; ground.position.y = -0.001; scene.add(ground);
 
@@ -83,6 +86,9 @@
   const setTargetBtn = document.getElementById('setTarget');
   const useGpsBtn = document.getElementById('useGps');
   const permBtn = document.getElementById('perm');
+  const calYawBtn = document.getElementById('calYaw');
+  const stab = document.getElementById('stab');
+  const dead = document.getElementById('dead');
   const readout = document.getElementById('readout');
   const statusEl = document.getElementById('status');
 
@@ -131,16 +137,34 @@
     return {az, el, enu};
   }
 
+  // --- Smoothing helpers ---
+  const TWO_PI = Math.PI*2;
+  function wrapRad(a){ a%=TWO_PI; if(a<-Math.PI) a+=TWO_PI; if(a>Math.PI) a-=TWO_PI; return a; }
+  function lerpAngleRad(a,b,t){
+    let d = wrapRad(b-a); return a + d*t;
+  }
+
+  // Arrow orientation smoothing
+  const targetQuat = new THREE.Quaternion();
+  const zForward = new THREE.Vector3(0,0,1);
+  let azSm = 0, elSm = 0; // smoothed az/el (rad)
+
   function pointArrowToAzEl(az, el){
-    // ENU unit vector for (az, el)
+    // EMA for az/el
+    const k = parseFloat(stab.value) || 0.18; // higher = smoother
+    azSm = lerpAngleRad(azSm, az, k);
+    elSm = lerpAngleRad(elSm, el, k);
+
+    // Build ENU direction
     const dir = new THREE.Vector3(
-      Math.sin(az)*Math.cos(el), // east
-      Math.sin(el),               // up
-      Math.cos(az)*Math.cos(el)   // north
+      Math.sin(azSm)*Math.cos(elSm), // east
+      Math.sin(elSm),                // up
+      Math.cos(azSm)*Math.cos(elSm)  // north
     ).normalize();
-    // Our arrow's forward is +Z; rotate so +Z → dir
-    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), dir);
-    arrow.quaternion.copy(q);
+    targetQuat.setFromUnitVectors(zForward, dir);
+
+    // Slerp arrow toward target
+    arrow.quaternion.slerp(targetQuat, Math.min(0.9, k*1.4));
   }
 
   function updateArrow(){
@@ -163,29 +187,61 @@
     } else { statusEl.textContent='Status: enter valid target lat/lon.'; }
   });
 
-  // Geolocation for observer
-  let geoWatchId = null;
+  // Geolocation for observer (EMA smoothing and throttling)
+  let geoWatchId = null; let lastGeoT = 0;
+  let obsLatSm = null, obsLonSm = null, obsAltSm = null;
   useGpsBtn.addEventListener('click', ()=>{
     if(!('geolocation' in navigator)){ statusEl.textContent='Status: Geolocation not available.'; return; }
     if(geoWatchId!==null){ navigator.geolocation.clearWatch(geoWatchId); geoWatchId=null; }
     geoWatchId = navigator.geolocation.watchPosition(pos=>{
+      const now = performance.now();
+      if(now - lastGeoT < 300) return; // throttle updates ~3Hz
+      lastGeoT = now;
       const c = pos.coords;
-      obs.lat = c.latitude; obs.lon = c.longitude; obs.alt = Number.isFinite(c.altitude)? c.altitude : 0;
+      const k = 0.25; // location smoothing
+      if(obsLatSm==null){ obsLatSm=c.latitude; obsLonSm=c.longitude; obsAltSm=(Number.isFinite(c.altitude)? c.altitude:0); }
+      obsLatSm = obsLatSm*(1-k) + c.latitude*k;
+      obsLonSm = obsLonSm*(1-k) + c.longitude*k;
+      const altRaw = Number.isFinite(c.altitude)? c.altitude:0;
+      obsAltSm = obsAltSm*(1-k) + altRaw*k;
+      obs.lat = obsLatSm; obs.lon = obsLonSm; obs.alt = obsAltSm;
       haveObs=true; statusEl.textContent='Status: tracking your location…'; updateArrow();
     }, err=>{
       statusEl.textContent = `Status: GPS error — ${err.message}`;
-    }, {enableHighAccuracy:true, maximumAge:1000, timeout:8000});
+    }, {enableHighAccuracy:true, maximumAge:3000, timeout:15000});
   });
 
-  // ===== Device orientation → camera rig =====
+  // ===== Device orientation → camera rig (with smoothing & deadband & calibration) =====
   let yawDeg=0, pitchDeg=0, rollDeg=0;
+  let yawCal=0; // user calibration offset (degrees)
+  let yawSm=0, pitchSm=0, rollSm=0; // smoothed angles (deg)
+
+  function angDeltaDeg(a,b){
+    let d=(b-a)%360; if(d<-180) d+=360; if(d>180) d-=360; return d;
+  }
+  function emaAngleDeg(curr, target, k){ return curr + angDeltaDeg(curr, target)*k; }
+
   function applyYPR(){
-    const y = THREE.MathUtils.degToRad(yawDeg);
-    const p = THREE.MathUtils.degToRad(pitchDeg);
-    const r = THREE.MathUtils.degToRad(rollDeg);
+    const k = parseFloat(stab.value) || 0.18;
+    const deadband = parseFloat(dead.value)||0;
+
+    // Apply calibration to yaw and deadband
+    let yT = (yawDeg + yawCal + 360)%360;
+    let pT = pitchDeg, rT = rollDeg;
+
+    if(Math.abs(angDeltaDeg(yawSm, yT)) > deadband) yawSm = emaAngleDeg(yawSm, yT, k);
+    if(Math.abs(pT - pitchSm) > deadband)            pitchSm = pitchSm + (pT - pitchSm)*k;
+    if(Math.abs(rT - rollSm) > deadband)             rollSm  = rollSm  + (rT - rollSm)*k;
+
+    const y = THREE.MathUtils.degToRad(yawSm);
+    const p = THREE.MathUtils.degToRad(pitchSm);
+    const r = THREE.MathUtils.degToRad(rollSm);
     rig.rotation.set(0,0,0); rig.rotateY(-y); rig.rotateX(p); rig.rotateZ(r);
   }
 
+  calYawBtn.addEventListener('click', ()=>{ yawCal = (360 - yawDeg) % 360; statusEl.textContent='Status: yaw calibrated.'; });
+
+  // Preferred: AbsoluteOrientationSensor
   function startAOS(){
     try{
       const AOS = window.AbsoluteOrientationSensor || window.RelativeOrientationSensor; if(!AOS) return false;
@@ -205,6 +261,7 @@
     }catch(e){ console.warn('AOS unavailable', e); return false; }
   }
 
+  // Fallback: DeviceOrientation
   function startDO(){
     const useAbs = 'ondeviceorientationabsolute' in window; const evt = useAbs? 'deviceorientationabsolute':'deviceorientation';
     function handler(e){
