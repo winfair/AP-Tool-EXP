@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>3D Spatial Compass — Precision Alignment Tool</title>
+<title>3D Spatial Compass — Precision Alignment Tool (Calibrated)</title>
 <style>
   html, body { margin:0; padding:0; overflow:hidden; background:#000; color:#fff;
     height:100%; width:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
     touch-action:none; -webkit-user-select:none; user-select:none; }
-  #info { position:fixed; top:10px; left:10px; right:150px; z-index:12;
+  #info { position:fixed; top:10px; left:10px; right:220px; z-index:12;
     font-size:14px; line-height:1.35; opacity:0.95; text-shadow:0 0 4px #000; }
-  #menuButton { position:fixed; top:10px; right:10px; z-index:12;
-    padding:8px 12px; font-size:15px; background:rgba(50,50,50,0.9); color:#fff;
+  #controls { position:fixed; top:10px; right:10px; z-index:12; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+  .btn { padding:8px 12px; font-size:13px; background:rgba(50,50,50,0.9); color:#fff;
     border:1px solid #777; border-radius:6px; }
   #enableMotion {
     position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:20;
@@ -32,11 +32,20 @@
   }
   #waypointList { width:85%; max-height:200px; overflow-y:auto; border:1px solid #333;
     padding:6px; margin-top:8px; border-radius:6px; font-size:14px; }
+  .toggle { display:inline-flex; align-items:center; gap:6px; }
+  .toggle input { transform: scale(1.2); }
 </style>
 </head>
 <body>
   <div id="info">Tap “Enable Motion & Orientation”, then allow prompts. Allow location as well.</div>
-  <button id="menuButton">Set Target</button>
+  <div id="controls">
+    <button id="menuButton" class="btn">Set Target</button>
+    <button id="axisButton" class="btn">Heading Axis: +Y</button>
+    <label class="toggle btn" style="padding:6px 10px;">
+      <input type="checkbox" id="flipScreenRot" />
+      Flip Screen Rot
+    </label>
+  </div>
   <button id="enableMotion">Enable Motion & Orientation</button>
 
   <div id="menuOverlay">
@@ -66,6 +75,31 @@
   let currentPos = { lat:null, lon:null, elev:0 };
   let target = null;
   let sensorActive = false;
+
+  // ======= Calibration: choose which device axis represents the phone's TOP EDGE =======
+  // We’ll try each of the 6 axes (device local frame) as the "heading axis" and let you pick.
+  // These axes are evaluated AFTER we build deviceQuat (device->world).
+  // Axis list and label list must be in same order.
+  const axisList = [
+    new THREE.Vector3( 1, 0, 0),  // +X
+    new THREE.Vector3(-1, 0, 0),  // -X
+    new THREE.Vector3( 0, 1, 0),  // +Y (default guess)
+    new THREE.Vector3( 0,-1, 0),  // -Y
+    new THREE.Vector3( 0, 0, 1),  // +Z
+    new THREE.Vector3( 0, 0,-1),  // -Z
+  ];
+  const axisNames = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"];
+  let axisIndex = 2; // default +Y
+  const axisBtn = document.getElementById('axisButton');
+  axisBtn.onclick = () => {
+    axisIndex = (axisIndex + 1) % axisList.length;
+    axisBtn.textContent = "Heading Axis: " + axisNames[axisIndex];
+  };
+
+  // Rare platforms mirror yaw with screen orientation; allow a manual flip.
+  let flipScreenRot = false;
+  const flipChk = document.getElementById('flipScreenRot');
+  flipChk.onchange = () => { flipScreenRot = flipChk.checked; };
 
   // ======= Math helpers =======
   const deg2rad = d => d * Math.PI / 180;
@@ -196,7 +230,8 @@
     return 0;
   }
   function updateScreenOrientRad(){
-    screenOrientRad = (readScreenOrientation() || 0) * Math.PI/180;
+    const angle = readScreenOrientation() || 0;
+    screenOrientRad = (angle * Math.PI/180) * (flipScreenRot ? -1 : 1); // allow manual flip
   }
   addEventListener('orientationchange', updateScreenOrientRad);
   updateScreenOrientRad();
@@ -211,8 +246,7 @@
     // Prefer iOS absolute compass if present
     let alphaDeg = (typeof evt.alpha === 'number') ? evt.alpha : 0;
     if (typeof evt.webkitCompassHeading === 'number') {
-      // webkitCompassHeading: 0 at magnetic North, increasing CW
-      alphaDeg = 360 - evt.webkitCompassHeading; // convert to CCW
+      alphaDeg = 360 - evt.webkitCompassHeading; // convert CW heading -> CCW alpha
     }
 
     const alpha = deg2rad(alphaDeg || 0); // yaw
@@ -225,10 +259,13 @@
     deviceQuat.multiply(_q1); // device -> world
     deviceQuat.multiply(_q0.setFromAxisAngle(_zee, -screenOrientRad)); // remove screen rotation
 
-    // Forward is phone's +Y (top edge). Ignore roll: align +Y to that vector.
-    const forward = new THREE.Vector3(0,1,0).applyQuaternion(deviceQuat).normalize();
-    rollIndependentQuat.setFromUnitVectors(new THREE.Vector3(0,1,0), forward);
+    // === CALIBRATION STEP: choose which device axis is "top edge" ===
+    const chosenAxis = axisList[axisIndex].clone();            // device local axis
+    const headingVec = chosenAxis.applyQuaternion(deviceQuat)   // to world
+                                  .normalize();
 
+    // Ignore roll by aligning +Y world to the heading vector
+    rollIndependentQuat.setFromUnitVectors(new THREE.Vector3(0,1,0), headingVec);
     realArrow.setRotationFromQuaternion(rollIndependentQuat);
 
     if(!sensorActive){ sensorActive = true; enableBtn.style.display='none'; }
@@ -287,7 +324,7 @@
     targetArrow.material.color.set(dDeg < ALIGN_TOLERANCE_DEG ? 0xff0000 : 0xffffff);
 
     infoEl.textContent =
-      `Δ=${dDeg.toFixed(2)}° | Bearing ${brg.toFixed(1)}° | Elev ${elev.toFixed(1)}°` +
+      `Axis ${axisNames[axisIndex]} | Δ=${dDeg.toFixed(2)}° | Bearing ${brg.toFixed(1)}° | Elev ${elev.toFixed(1)}°` +
       (currentPos.elev ? ` | Alt ${currentPos.elev.toFixed(0)}m` : '');
   }
 
@@ -333,6 +370,7 @@
   initGeolocation();
   animate();
 
+  // Permissions & recovery
   enableBtn.addEventListener('click', requestMotionPermissions);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !sensorActive) {
