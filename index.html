@@ -1,383 +1,322 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>3D Spatial Compass — Precision Alignment Tool (Calibrated)</title>
-<style>
-  html, body { margin:0; padding:0; overflow:hidden; background:#000; color:#fff;
-    height:100%; width:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-    touch-action:none; -webkit-user-select:none; user-select:none; }
-  #info { position:fixed; top:10px; left:10px; right:220px; z-index:12;
-    font-size:14px; line-height:1.35; opacity:0.95; text-shadow:0 0 4px #000; }
-  #controls { position:fixed; top:10px; right:10px; z-index:12; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
-  .btn { padding:8px 12px; font-size:13px; background:rgba(50,50,50,0.9); color:#fff;
-    border:1px solid #777; border-radius:6px; }
-  #enableMotion {
-    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:20;
-    background:#1e1e1e; color:#fff; border:1px solid #888; border-radius:10px;
-    padding:14px 18px; font-size:16px; box-shadow:0 8px 30px rgba(0,0,0,0.4);
-  }
-  #menuOverlay { position:fixed; inset:0; display:none; z-index:15;
-    background:rgba(0,0,0,0.95); color:#fff; padding:20px; box-sizing:border-box;
-    display:none; flex-direction:column; align-items:center; justify-content:center; }
-  #menuOverlay h2 { margin:0 0 12px; }
-  #menuOverlay input {
-    width:85%; padding:10px; margin:7px 0; font-size:16px; border:none; border-radius:6px;
-    background:#1e1e1e; color:#fff;
-  }
-  #menuOverlay button {
-    margin:7px 0; padding:10px 14px; font-size:16px; border:1px solid #555;
-    background:#333; color:#fff; border-radius:6px;
-  }
-  #waypointList { width:85%; max-height:200px; overflow-y:auto; border:1px solid #333;
-    padding:6px; margin-top:8px; border-radius:6px; font-size:14px; }
-  .toggle { display:inline-flex; align-items:center; gap:6px; }
-  .toggle input { transform: scale(1.2); }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>3D Live Phone Orientation</title>
+  <style>
+    :root {
+      --bg: radial-gradient(1200px 800px at 20% 10%, #1e2a5a 0%, #0b1020 60%);
+      --panel: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.1);
+      --text: #e8eefc;
+      --muted: #9fb2e3;
+      --accent: #6aa1ff;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #0b1020;
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      overflow: hidden;
+    }
+    #scene {
+      position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg);
+    }
+    .overlay {
+      position: fixed; inset: 0; pointer-events: none; display: grid; place-items: start center; padding: env(safe-area-inset-top) 16px 16px;
+    }
+    .hud {
+      pointer-events: auto; margin-top: 12px; display: flex; gap: 12px; align-items: center; background: var(--panel);
+      border: 1px solid var(--border); backdrop-filter: blur(10px); border-radius: 14px; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .hud small { color: var(--muted); }
+    .hud .sep { width: 1px; height: 20px; background: var(--border); }
+    .hud input[type=range] { accent-color: var(--accent); }
+    .hud button {
+      appearance: none; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+      color: var(--text); padding: 8px 12px; border-radius: 12px; cursor: pointer; font-weight: 600;
+    }
+    .hud button:hover { filter: brightness(1.1); }
+
+    .center-modal {
+      position: fixed; inset: 0; display: grid; place-items: center; background: rgba(3,6,16,0.72);
+      backdrop-filter: blur(6px); z-index: 10; padding: 24px; transition: opacity 200ms ease;
+    }
+    .card { pointer-events: auto; width: min(520px, 92vw); border-radius: 18px; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)); padding: 22px 22px 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+    .card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: 0.2px; }
+    .card p { margin: 0 0 14px; color: var(--muted); line-height: 1.4; }
+    .cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .cta-row button, .cta-row a {
+      appearance: none; border: 1px solid var(--border); text-decoration: none; color: var(--text);
+      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+      padding: 10px 14px; border-radius: 12px; cursor: pointer; font-weight: 700;
+    }
+    .cta-row button.primary { background: linear-gradient(180deg, rgba(121,169,255,0.6), rgba(55,123,255,0.45)); border-color: rgba(147,183,255,0.5); }
+    .hidden { opacity: 0; pointer-events: none; }
+
+    .badge { padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+  </style>
 </head>
 <body>
-  <div id="info">Tap “Enable Motion & Orientation”, then allow prompts. Allow location as well.</div>
-  <div id="controls">
-    <button id="menuButton" class="btn">Set Target</button>
-    <button id="axisButton" class="btn">Heading Axis: +Y</button>
-    <label class="toggle btn" style="padding:6px 10px;">
-      <input type="checkbox" id="flipScreenRot" />
-      Flip Screen Rot
-    </label>
-  </div>
-  <button id="enableMotion">Enable Motion & Orientation</button>
+  <canvas id="scene" aria-label="3D phone orientation"></canvas>
 
-  <div id="menuOverlay">
-    <h2>Target Point</h2>
-    <input id="wpLat" type="number" step="any" placeholder="Latitude (e.g. 34.8234)">
-    <input id="wpLng" type="number" step="any" placeholder="Longitude (e.g. -118.9453)">
-    <input id="wpElev" type="number" step="any" placeholder="Elevation (m)">
-    <button id="fetchElev">Fetch Elevation</button>
-    <button id="setTarget">Set Target</button>
-    <div id="waypointList"></div>
-    <button id="closeMenu">Close</button>
+  <!-- HUD overlay -->
+  <div class="overlay" aria-live="polite" aria-atomic="true">
+    <div class="hud">
+      <span class="badge" id="status">awaiting sensors…</span>
+      <div class="sep"></div>
+      <small>α:<span id="alpha">–</span>° β:<span id="beta">–</span>° γ:<span id="gamma">–</span>°</small>
+      <div class="sep"></div>
+      <small>smooth</small>
+      <input id="smooth" type="range" min="0" max="0.3" step="0.01" value="0.08" title="Smoothing" />
+      <button id="recenter" title="Set current as forward">Recenter</button>
+    </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script>
-  // ======= Globals =======
-  let scene, camera, renderer;
-  let realArrow, targetArrow, azRing, pitchRing;
-  let deviceQuat = new THREE.Quaternion();
-  let rollIndependentQuat = new THREE.Quaternion();
+  <!-- Permission / Fallback modal -->
+  <div id="permModal" class="center-modal">
+    <div class="card">
+      <h1>Enable Motion Access</h1>
+      <p>
+        To render your phone in 3D using live orientation, we need motion sensor permission. Works over HTTPS (GitHub Pages).
+      </p>
+      <div class="cta-row">
+        <button id="enableBtn" class="primary">Enable Motion</button>
+        <button id="mouseBtn">Use Mouse Instead</button>
+        <a href="#" id="learnLink" aria-label="What data is used?">What’s collected?</a>
+      </div>
+      <p style="margin-top:10px"><small class="badge">Privacy</small> This page reads only orientation angles from your device; no data leaves your browser.</p>
+    </div>
+  </div>
 
-  const EARTH_RADIUS = 6371000; // m
-  const ALIGN_TOLERANCE_DEG = 2;
-  const infoEl = document.getElementById('info');
-  const enableBtn = document.getElementById('enableMotion');
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/geometries/RoundedBoxGeometry.js';
 
-  let currentPos = { lat:null, lon:null, elev:0 };
-  let target = null;
-  let sensorActive = false;
-
-  // ======= Calibration: choose which device axis represents the phone's TOP EDGE =======
-  // We’ll try each of the 6 axes (device local frame) as the "heading axis" and let you pick.
-  // These axes are evaluated AFTER we build deviceQuat (device->world).
-  // Axis list and label list must be in same order.
-  const axisList = [
-    new THREE.Vector3( 1, 0, 0),  // +X
-    new THREE.Vector3(-1, 0, 0),  // -X
-    new THREE.Vector3( 0, 1, 0),  // +Y (default guess)
-    new THREE.Vector3( 0,-1, 0),  // -Y
-    new THREE.Vector3( 0, 0, 1),  // +Z
-    new THREE.Vector3( 0, 0,-1),  // -Z
-  ];
-  const axisNames = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"];
-  let axisIndex = 2; // default +Y
-  const axisBtn = document.getElementById('axisButton');
-  axisBtn.onclick = () => {
-    axisIndex = (axisIndex + 1) % axisList.length;
-    axisBtn.textContent = "Heading Axis: " + axisNames[axisIndex];
-  };
-
-  // Rare platforms mirror yaw with screen orientation; allow a manual flip.
-  let flipScreenRot = false;
-  const flipChk = document.getElementById('flipScreenRot');
-  flipChk.onchange = () => { flipScreenRot = flipChk.checked; };
-
-  // ======= Math helpers =======
-  const deg2rad = d => d * Math.PI / 180;
-  const rad2deg = r => r * 180 / Math.PI;
-
-  function distanceMeters(lat1,lon1,lat2,lon2){
-    const φ1=deg2rad(lat1), φ2=deg2rad(lat2);
-    const Δφ=φ2-φ1, Δλ=deg2rad(lon2-lon1);
-    const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-    return 2*EARTH_RADIUS*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
-  function bearingTo(lat1,lon1,lat2,lon2){
-    const φ1=deg2rad(lat1), φ2=deg2rad(lat2), Δλ=deg2rad(lon2-lon1);
-    const y = Math.sin(Δλ)*Math.cos(φ2);
-    const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-    return (rad2deg(Math.atan2(y,x))+360)%360;
-  }
-  function elevationAngle(lat1,lon1,e1,lat2,lon2,e2){
-    const Δe=(e2??0)-(e1??0);
-    const d=distanceMeters(lat1,lon1,lat2,lon2);
-    return rad2deg(Math.atan2(Δe, d));
-  }
-  function dirFromBearingElevation(bearingDeg,elevDeg){
-    const yaw=deg2rad(bearingDeg), pitch=deg2rad(elevDeg);
-    const x=Math.sin(yaw)*Math.cos(pitch);
-    const y=Math.sin(pitch);
-    const z=-Math.cos(yaw)*Math.cos(pitch);
-    return new THREE.Vector3(x,y,z).normalize();
-  }
-  function quatToPointPlusY(dir){
-    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), dir);
-  }
-
-  // ======= Elevation lookup =======
-  async function fetchElevation(lat, lon){
-    try{
-      const r = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lon}`);
-      const j = await r.json();
-      if(j && j.results && j.results.length) return j.results[0].elevation;
-    }catch(e){ console.warn('Elevation fetch error', e); }
-    return null;
-  }
-
-  // ======= Scene =======
-  function initScene(){
-    scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
-    camera.position.set(0,0,5);
-
-    renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-    renderer.setPixelRatio(devicePixelRatio);
+    // --- Renderer / Scene / Camera ---
+    const canvas = document.getElementById('scene');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
-    document.body.appendChild(renderer.domElement);
 
-    const arrowGeom = new THREE.ConeGeometry(0.22, 1.1, 40);
+    const scene = new THREE.Scene();
+    scene.background = null; // keep CSS gradient
 
-    const realMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.85});
-    realArrow = new THREE.Mesh(arrowGeom, realMat);
-    realArrow.rotation.x = Math.PI/2;
-    scene.add(realArrow);
+    const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 100);
+    camera.position.set(0.35, 0.25, 0.6);
 
-    const tgtMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.85});
-    targetArrow = new THREE.Mesh(arrowGeom, tgtMat);
-    targetArrow.rotation.x = Math.PI/2;
-    targetArrow.visible = false;
-    scene.add(targetArrow);
+    // Lighting
+    {
+      const amb = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(amb);
+      const key = new THREE.DirectionalLight(0xffffff, 0.8);
+      key.position.set(1, 1.2, 0.8);
+      scene.add(key);
+      const rim = new THREE.DirectionalLight(0xffffff, 0.5);
+      rim.position.set(-1.2, 0.3, -1);
+      scene.add(rim);
+    }
 
-    azRing = makeRingWithTicks(1.85, 120, 0x00ffff, 0.28, false);
-    scene.add(azRing.group);
-    addCardinalLabels(azRing.radius);
+    // Ground + helpers
+    {
+      const grid = new THREE.GridHelper(4, 32, 0x777777, 0x333333);
+      grid.position.y = -0.18;
+      scene.add(grid);
+      const axes = new THREE.AxesHelper(0.18);
+      axes.position.set(0.0, -0.18, 0);
+      scene.add(axes);
+    }
 
-    pitchRing = makeRingWithTicks(1.25, 80, 0xff00ff, 0.28, true);
-    scene.add(pitchRing.group);
+    // Phone model
+    const phone = new THREE.Group();
+    scene.add(phone);
+    (function buildPhone(){
+      const bodyGeo = new RoundedBoxGeometry(0.15, 0.30, 0.010, 7, 0.012);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x222b3a, metalness: 0.6, roughness: 0.35 });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.castShadow = true; body.receiveShadow = true;
+      phone.add(body);
 
+      const screenGeo = new RoundedBoxGeometry(0.138, 0.288, 0.003, 6, 0.010);
+      const screenMat = new THREE.MeshStandardMaterial({ color: 0x0b0f18, metalness: 0.0, roughness: 0.9, emissive: 0x050a14, emissiveIntensity: 0.6 });
+      const screen = new THREE.Mesh(screenGeo, screenMat);
+      screen.position.z = 0.006;
+      phone.add(screen);
+
+      const axes = new THREE.AxesHelper(0.08);
+      axes.position.set(0,0,0.006);
+      phone.add(axes);
+
+      // Decorative notch (top center)
+      const notchGeo = new RoundedBoxGeometry(0.032, 0.012, 0.003, 4, 0.004);
+      const notchMat = new THREE.MeshStandardMaterial({ color: 0x0e1220, metalness: 0.1, roughness: 0.7 });
+      const notch = new THREE.Mesh(notchGeo, notchMat);
+      notch.position.set(0, 0.133, 0.0065);
+      phone.add(notch);
+
+      // Tilt the whole thing slightly initially for desktop view
+      phone.rotation.set(0.2, -0.3, 0.05);
+      phone.position.y = 0.0;
+    })();
+
+    // OrbitControls fallback (desktop)
+    const orbit = new OrbitControls(camera, renderer.domElement);
+    orbit.enableDamping = true;
+    orbit.enabled = false; // start disabled; enabled if no sensors/permission denied
+
+    // HUD elements
+    const statusEl = document.getElementById('status');
+    const alphaEl = document.getElementById('alpha');
+    const betaEl  = document.getElementById('beta');
+    const gammaEl = document.getElementById('gamma');
+    const smoothEl = document.getElementById('smooth');
+    const recenterBtn = document.getElementById('recenter');
+    const permModal = document.getElementById('permModal');
+    const enableBtn = document.getElementById('enableBtn');
+    const mouseBtn = document.getElementById('mouseBtn');
+    const learnLink = document.getElementById('learnLink');
+
+    learnLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      alert('This page only reads orientation angles (alpha, beta, gamma) locally to rotate the 3D model. Nothing is transmitted.');
+    });
+
+    // Motion handling state
+    const targetQ = new THREE.Quaternion();
+    const displayQ = new THREE.Quaternion();
+    let baselineQ = new THREE.Quaternion().identity(); // inverse of current to recenter
+    let haveReading = false;
+    let smoothing = parseFloat(smoothEl.value);
+
+    const zee = new THREE.Vector3(0,0,1);
+    const euler = new THREE.Euler();
+    const q0 = new THREE.Quaternion();
+    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -PI/2 around X
+
+    function getScreenOrientationRad() {
+      const ang = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+      return THREE.MathUtils.degToRad(ang || 0);
+    }
+
+    function setObjectQuaternionFromEuler(q, alpha, beta, gamma, orient) {
+      // Replicates three.js DeviceOrientationControls mapping
+      euler.set(beta, alpha, -gamma, 'YXZ');
+      q.setFromEuler(euler);
+      q.multiply(q1);
+      q.multiply(q0.setFromAxisAngle(zee, -orient));
+    }
+
+    function handleDeviceOrientation(ev) {
+      const { alpha, beta, gamma } = ev;
+      if (alpha == null || beta == null || gamma == null) return;
+      haveReading = true;
+      const a = THREE.MathUtils.degToRad(alpha);
+      const b = THREE.MathUtils.degToRad(beta);
+      const g = THREE.MathUtils.degToRad(gamma);
+      setObjectQuaternionFromEuler(targetQ, a, b, g, getScreenOrientationRad());
+
+      // HUD
+      alphaEl.textContent = (alpha).toFixed(0);
+      betaEl.textContent  = (beta ).toFixed(0);
+      gammaEl.textContent = (gamma).toFixed(0);
+    }
+
+    function onPermissionGranted() {
+      window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+      statusEl.textContent = 'live';
+      statusEl.style.color = '#9cf3b2';
+      permModal.classList.add('hidden');
+      orbit.enabled = false;
+    }
+
+    async function requestPermissionIfNeeded() {
+      // iOS 13+ requires explicit permission; other platforms may not
+      const iOSNeedsPermission = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+      if (iOSNeedsPermission) {
+        try {
+          // Some iOS versions also require DeviceMotion; ignore errors there
+          if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+            try { await DeviceMotionEvent.requestPermission(); } catch {}
+          }
+          const state = await DeviceOrientationEvent.requestPermission();
+          if (state === 'granted') { onPermissionGranted(); }
+          else { throw new Error('Permission denied'); }
+        } catch (err) {
+          statusEl.textContent = 'permission denied';
+          statusEl.style.color = '#ff8a80';
+          orbit.enabled = true;
+        }
+      } else {
+        // Non‑iOS
+        if ('DeviceOrientationEvent' in window) {
+          onPermissionGranted();
+        } else {
+          statusEl.textContent = 'no sensor';
+          statusEl.style.color = '#ffd27f';
+          orbit.enabled = true;
+        }
+      }
+    }
+
+    // UI wiring
+    enableBtn.addEventListener('click', () => requestPermissionIfNeeded());
+    mouseBtn.addEventListener('click', () => { orbit.enabled = true; permModal.classList.add('hidden'); statusEl.textContent = 'mouse'; });
+    smoothEl.addEventListener('input', () => { smoothing = parseFloat(smoothEl.value); });
+    recenterBtn.addEventListener('click', () => {
+      // Make current orientation the new forward (identity)
+      baselineQ.copy(targetQ).invert();
+    });
+
+    // Resize handling
     addEventListener('resize', () => {
-      camera.aspect = innerWidth/innerHeight;
+      camera.aspect = innerWidth / innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(innerWidth, innerHeight);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     });
-  }
 
-  function makeRingWithTicks(radius, segs, color, opacity, vertical=false){
-    const group = new THREE.Group();
-    const curve = new THREE.EllipseCurve(0,0,radius,radius,0,Math.PI*2,false,0);
-    const pts = curve.getPoints(segs).map(p=>new THREE.Vector3(p.x,p.y,0));
-    const geom = new THREE.BufferGeometry().setFromPoints(pts);
-    const mat = new THREE.LineBasicMaterial({color, transparent:true, opacity});
-    const ring = new THREE.LineLoop(geom, mat);
-    group.add(ring);
-
-    for(let d=0; d<360; d+=10){
-      const a=deg2rad(d), rOut=radius, rIn=radius-(d%90===0?0.12:0.07);
-      const x1=Math.cos(a)*rOut, y1=Math.sin(a)*rOut;
-      const x2=Math.cos(a)*rIn,  y2=Math.sin(a)*rIn;
-      const tg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1,y1,0), new THREE.Vector3(x2,y2,0)]);
-      const tl = new THREE.Line(tg, new THREE.LineBasicMaterial({color, transparent:true, opacity:0.45}));
-      group.add(tl);
-    }
-    if(vertical) group.rotation.x = Math.PI/2;
-    return {group, radius};
-  }
-
-  function addCardinalLabels(radius){
-    const labels = [
-      {t:'N', p:new THREE.Vector3(0,  radius+0.12, 0)},
-      {t:'E', p:new THREE.Vector3( radius+0.12, 0, 0)},
-      {t:'S', p:new THREE.Vector3(0, -radius-0.12, 0)},
-      {t:'W', p:new THREE.Vector3(-radius-0.12, 0, 0)},
-    ];
-    for(const {t,p} of labels){
-      const s = makeTextSprite(t); s.position.copy(p); scene.add(s);
-    }
-  }
-  function makeTextSprite(text){
-    const c=document.createElement('canvas'), size=128; c.width=c.height=size;
-    const ctx=c.getContext('2d'); ctx.clearRect(0,0,size,size);
-    ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.font='bold 64px Arial';
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(text,size/2,size/2);
-    const tex=new THREE.CanvasTexture(c); const mat=new THREE.SpriteMaterial({map:tex, transparent:true});
-    const spr=new THREE.Sprite(mat); spr.scale.set(0.35,0.35,1); return spr;
-  }
-
-  // ======= Screen orientation correction (fixes yaw when phone is flat) =======
-  let screenOrientRad = 0;
-  function readScreenOrientation(){
-    if (screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
-    if (typeof window.orientation === 'number') return window.orientation;
-    return 0;
-  }
-  function updateScreenOrientRad(){
-    const angle = readScreenOrientation() || 0;
-    screenOrientRad = (angle * Math.PI/180) * (flipScreenRot ? -1 : 1); // allow manual flip
-  }
-  addEventListener('orientationchange', updateScreenOrientRad);
-  updateScreenOrientRad();
-
-  // ======= Orientation handler (DeviceOrientationControls math) =======
-  const _zee = new THREE.Vector3(0,0,1);
-  const _euler = new THREE.Euler();
-  const _q0 = new THREE.Quaternion();
-  const _q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -PI/2 about X
-
-  function onOrientation(evt){
-    // Prefer iOS absolute compass if present
-    let alphaDeg = (typeof evt.alpha === 'number') ? evt.alpha : 0;
-    if (typeof evt.webkitCompassHeading === 'number') {
-      alphaDeg = 360 - evt.webkitCompassHeading; // convert CW heading -> CCW alpha
+    // Screen orientation changes affect mapping
+    const onSO = () => {};
+    if (screen.orientation && screen.orientation.addEventListener) {
+      screen.orientation.addEventListener('change', onSO);
+    } else {
+      addEventListener('orientationchange', onSO);
     }
 
-    const alpha = deg2rad(alphaDeg || 0); // yaw
-    const beta  = deg2rad(evt.beta  || 0); // pitch
-    const gamma = deg2rad(evt.gamma || 0); // roll
+    // Animation loop
+    const tmpQ = new THREE.Quaternion();
+    function animate() {
+      requestAnimationFrame(animate);
 
-    // Build device quaternion in world frame: YXZ + fix to world + screen orientation
-    _euler.set(beta, alpha, -gamma, 'YXZ');
-    deviceQuat.setFromEuler(_euler);
-    deviceQuat.multiply(_q1); // device -> world
-    deviceQuat.multiply(_q0.setFromAxisAngle(_zee, -screenOrientRad)); // remove screen rotation
-
-    // === CALIBRATION STEP: choose which device axis is "top edge" ===
-    const chosenAxis = axisList[axisIndex].clone();            // device local axis
-    const headingVec = chosenAxis.applyQuaternion(deviceQuat)   // to world
-                                  .normalize();
-
-    // Ignore roll by aligning +Y world to the heading vector
-    rollIndependentQuat.setFromUnitVectors(new THREE.Vector3(0,1,0), headingVec);
-    realArrow.setRotationFromQuaternion(rollIndependentQuat);
-
-    if(!sensorActive){ sensorActive = true; enableBtn.style.display='none'; }
-  }
-
-  // ======= Permissions & listeners =======
-  async function requestMotionPermissions(){
-    try{
-      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-        try { await DeviceMotionEvent.requestPermission(); } catch(_){}
+      // If we have device data, compute relative quaternion baseline * target
+      if (haveReading) {
+        tmpQ.copy(baselineQ).multiply(targetQ);
+        // Smooth the visual rotation
+        THREE.Quaternion.slerp(phone.quaternion, tmpQ, phone.quaternion, 1 - Math.exp(-60 * smoothing * (renderer.info.render.frameTime || 0.016)));
       }
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        await DeviceOrientationEvent.requestPermission();
-      }
-    }catch(_){}
-    addEventListener('deviceorientation', onOrientation, true);
-    addEventListener('deviceorientationabsolute', onOrientation, true);
 
-    setTimeout(() => {
-      if (!sensorActive) {
-        infoEl.textContent =
-          'No motion data. On iOS: Settings → Safari → Motion & Orientation Access = ON, then reload and tap the button. Site must be HTTPS.';
-      }
-    }, 2000);
-  }
-
-  // ======= Geolocation =======
-  function initGeolocation(){
-    if(!navigator.geolocation){ infoEl.textContent='Geolocation not supported.'; return; }
-    navigator.geolocation.watchPosition(pos=>{
-      currentPos.lat = pos.coords.latitude;
-      currentPos.lon = pos.coords.longitude;
-      if (typeof pos.coords.altitude === 'number') currentPos.elev = pos.coords.altitude;
-    }, err=>{
-      infoEl.textContent = 'GPS error: ' + err.message;
-    }, {enableHighAccuracy:true, maximumAge:1500, timeout:7000});
-  }
-
-  // ======= Target update & alignment =======
-  function updateTarget(){
-    if(!target || currentPos.lat==null || currentPos.lon==null) return;
-
-    const brg = bearingTo(currentPos.lat,currentPos.lon,target.lat,target.lon);
-    const elev = elevationAngle(currentPos.lat,currentPos.lon,currentPos.elev,target.lat,target.lon,target.elev);
-
-    const dir  = dirFromBearingElevation(brg, elev);
-    const qTgt = quatToPointPlusY(dir);
-
-    targetArrow.setRotationFromQuaternion(qTgt);
-    targetArrow.visible = true;
-
-    const phoneFwd = new THREE.Vector3(0,1,0).applyQuaternion(rollIndependentQuat).normalize();
-    const dot = Math.min(1, Math.max(-1, phoneFwd.dot(dir)));
-    const dDeg = rad2deg(Math.acos(dot));
-
-    targetArrow.material.color.set(dDeg < ALIGN_TOLERANCE_DEG ? 0xff0000 : 0xffffff);
-
-    infoEl.textContent =
-      `Axis ${axisNames[axisIndex]} | Δ=${dDeg.toFixed(2)}° | Bearing ${brg.toFixed(1)}° | Elev ${elev.toFixed(1)}°` +
-      (currentPos.elev ? ` | Alt ${currentPos.elev.toFixed(0)}m` : '');
-  }
-
-  // ======= Render loop =======
-  function animate(){
-    requestAnimationFrame(animate);
-    if (target) updateTarget();
-    renderer.render(scene,camera);
-  }
-
-  // ======= UI =======
-  const menuBtn = document.getElementById('menuButton');
-  const overlay = document.getElementById('menuOverlay');
-  const wpLatEl = document.getElementById('wpLat');
-  const wpLngEl = document.getElementById('wpLng');
-  const wpElevEl = document.getElementById('wpElev');
-  const fetchElevBtn = document.getElementById('fetchElev');
-  const setTargetBtn = document.getElementById('setTarget');
-  const closeMenuBtn = document.getElementById('closeMenu');
-
-  menuBtn.onclick = () => {
-    overlay.style.display='flex';
-    if(!wpLatEl.value && currentPos.lat!=null) wpLatEl.value = currentPos.lat.toFixed(6);
-    if(!wpLngEl.value && currentPos.lon!=null) wpLngEl.value = currentPos.lon.toFixed(6);
-  };
-  closeMenuBtn.onclick = () => overlay.style.display='none';
-  fetchElevBtn.onclick = async () => {
-    const lat=parseFloat(wpLatEl.value), lon=parseFloat(wpLngEl.value);
-    if (Number.isNaN(lat)||Number.isNaN(lon)) { alert('Enter valid latitude/longitude'); return; }
-    wpElevEl.value='…';
-    const elev = await fetchElevation(lat, lon);
-    if (elev!==null) wpElevEl.value=(+elev).toFixed(1); else { alert('Elevation lookup failed'); wpElevEl.value=''; }
-  };
-  setTargetBtn.onclick = () => {
-    const lat=parseFloat(wpLatEl.value), lon=parseFloat(wpLngEl.value), elev=parseFloat(wpElevEl.value);
-    if([lat,lon,elev].some(v=>Number.isNaN(v))){ alert('Please enter numeric lat/lon/elev'); return; }
-    target = {lat, lon, elev};
-    overlay.style.display='none';
-  };
-
-  // ======= Boot =======
-  initScene();
-  initGeolocation();
-  animate();
-
-  // Permissions & recovery
-  enableBtn.addEventListener('click', requestMotionPermissions);
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !sensorActive) {
-      enableBtn.style.display = 'block';
-      infoEl.textContent = 'Tap “Enable Motion & Orientation”, then allow prompts.';
+      orbit.update();
+      renderer.render(scene, camera);
     }
-  });
+    animate();
+
+    // Secure context check
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      statusEl.textContent = 'HTTPS required';
+      statusEl.style.color = '#ffd27f';
+    }
+
+    // Hint: auto-attempt on Android to avoid extra tap, keep modal visible on iOS
+    (async function autoTry() {
+      const iOSNeedsPermission = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+      if (!iOSNeedsPermission) {
+        await requestPermissionIfNeeded();
+      }
+    })();
   </script>
 </body>
 </html>
