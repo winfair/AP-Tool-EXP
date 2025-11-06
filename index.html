@@ -47,6 +47,25 @@
     .cta-row button.primary { background: linear-gradient(180deg, rgba(121,169,255,0.6), rgba(55,123,255,0.45)); border-color: rgba(147,183,255,0.5); }
     .hidden { opacity: 0; pointer-events: none; }
   </style>
+
+  <!-- Import map fixes bare specifiers like "three" in CDN-loaded modules -->
+  <!-- Polyfill import maps for older browsers (e.g., older Safari) -->
+  <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script>
+    // Minimal support check for import maps so users get a clear message
+    (function(){
+      const ok = (window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'));
+      window.__importMapSupport = !!ok;
+    })();
+  </script>
 </head>
 <body>
   <canvas id="scene" aria-label="3D phone orientation"></canvas>
@@ -68,6 +87,8 @@
     <details class="diag" open>
       <summary><span class="badge b-info">Diagnostics</span> Permissions & Accuracy</summary>
       <div class="grid" id="diagGrid">
+        <div class="kv"><div class="k">Modules (imports)</div><div class="v" id="d_modules">–</div></div>
+        <div class="kv"><div class="k">Import map support</div><div class="v" id="d_imap">–</div></div>
         <div class="kv"><div class="k">Secure context (HTTPS)</div><div class="v" id="d_https">–</div></div>
         <div class="kv"><div class="k">DeviceOrientation API</div><div class="v" id="d_doe">–</div></div>
         <div class="kv"><div class="k">DeviceMotion API</div><div class="v" id="d_dme">–</div></div>
@@ -103,10 +124,10 @@
   </div>
 
   <script type="module">
-    // --- Imports ---
-    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-    import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/geometries/RoundedBoxGeometry.js';
+    // --- Imports (resolved by import map) ---
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
     // --- Scene ---
     const canvas = document.getElementById('scene');
@@ -153,6 +174,8 @@
     const learnLink = document.getElementById('learnLink');
 
     // --- Diagnostics refs ---
+    const d_modules = document.getElementById('d_modules');
+    const d_imap = document.getElementById('d_imap');
     const d_https = document.getElementById('d_https');
     const d_doe = document.getElementById('d_doe');
     const d_dme = document.getElementById('d_dme');
@@ -168,6 +191,23 @@
     const d_overall = document.getElementById('d_overall');
 
     const badge = (txt, cls) => `<span class="badge ${cls}">${txt}</span>`;
+
+    // --- Module smoke tests (acts as test cases) ---
+    (function runModuleTests(){
+      const imap = window.__importMapSupport ? 'yes' : 'no';
+      d_imap.innerHTML = badge(imap, imap==='yes' ? 'b-ok' : 'b-warn');
+      try {
+        if (!THREE) throw new Error('THREE missing');
+        if (typeof OrbitControls !== 'function') throw new Error('OrbitControls missing');
+        if (typeof RoundedBoxGeometry !== 'function') throw new Error('RoundedBoxGeometry missing');
+        const q = new THREE.Quaternion(); q.identity();
+        if (Math.abs(q.length() - 1) > 1e-6) throw new Error('Quaternion not normalized');
+        d_modules.innerHTML = badge('ok', 'b-ok');
+      } catch (e) {
+        d_modules.innerHTML = badge('fail', 'b-err');
+        console.error('[Module test failed]', e);
+      }
+    })();
 
     // --- Motion state ---
     const targetQ = new THREE.Quaternion();
@@ -191,12 +231,9 @@
     const now = () => (performance && performance.now) ? performance.now() : Date.now();
     function mean(a){ return a.length? a.reduce((s,x)=>s+x,0)/a.length : 0; }
     function std(a){ if(a.length<2) return 0; const m=mean(a); return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/(a.length-1)); }
-    function circularDiffDeg(prev, curr){
-      let d = curr - prev; d = (d + 180) % 360 - 180; return d;
-    }
+    function circularDiffDeg(prev, curr){ let d = curr - prev; d = (d + 180) % 360 - 180; return d; }
 
     const sample = { times:[], alpha:[], beta:[], gamma:[], g:[] };
-
     function resetSamples(){ sample.times.length=sample.alpha.length=sample.beta.length=sample.gamma.length=sample.g.length=0; }
 
     // --- Listeners ---
@@ -206,7 +243,6 @@
       const a = THREE.MathUtils.degToRad(alpha); const b = THREE.MathUtils.degToRad(beta); const g = THREE.MathUtils.degToRad(gamma);
       setQFromEuler(targetQ, a, b, g, screenOrientRad());
       alphaEl.textContent = (alpha).toFixed(0); betaEl.textContent = (beta).toFixed(0); gammaEl.textContent = (gamma).toFixed(0);
-      // Collect for diagnostics
       if (collecting){ sample.times.push(now()); sample.alpha.push(alpha); sample.beta.push(beta); sample.gamma.push(gamma); }
     }
 
@@ -228,8 +264,14 @@
     async function requestPermission(){
       const iOS = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
       if (iOS) {
-        try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { try { await DeviceMotionEvent.requestPermission(); } catch {} } const state = await DeviceOrientationEvent.requestPermission(); if (state === 'granted') { onPermissionGranted(); } else { throw new Error('denied'); } }
-        catch { statusEl.textContent='permission denied'; statusEl.style.color='var(--err)'; orbit.enabled=true; }
+        try {
+          if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { try { await DeviceMotionEvent.requestPermission(); } catch {} }
+          const state = await DeviceOrientationEvent.requestPermission();
+          if (state === 'granted') { onPermissionGranted(); } else { throw new Error('denied'); }
+        }
+        catch {
+          statusEl.textContent='permission denied'; statusEl.style.color='var(--err)'; orbit.enabled=true;
+        }
       } else {
         if ('DeviceOrientationEvent' in window) { onPermissionGranted(); } else { statusEl.textContent='no sensor'; statusEl.style.color='var(--warn)'; orbit.enabled=true; }
       }
@@ -251,16 +293,14 @@
     async function runAccuracyTest(){
       if (!haveReading) { d_overall.innerHTML = badge('no orientation data','b-err'); return; }
       resetSamples(); collecting = true; const t0 = now();
-      await new Promise(r => setTimeout(r, 2500)); // brief window
+      await new Promise(r => setTimeout(r, 2500));
       collecting = false; const t1 = now();
       const n = sample.alpha.length; const dt = (t1 - t0)/1000; const hz = n>1? (n-1)/dt : 0; d_rate.innerHTML = badge(`${hz.toFixed(1)} Hz`, hz>=40? 'b-ok' : hz>=20? 'b-info' : 'b-warn');
-      // Jitter: STD of per-step diffs for beta/gamma
       const diffs = (arr)=>{ const out=[]; for(let i=1;i<arr.length;i++){ out.push(circularDiffDeg(arr[i-1], arr[i])); } return out; };
       const jb = std(diffs(sample.beta)); const jg = std(diffs(sample.gamma));
       d_jitter.innerHTML = badge(`${jb.toFixed(2)}° / ${jg.toFixed(2)}°`, (jb<1&&jg<1)?'b-ok':(jb<3&&jg<3)?'b-info':'b-warn');
       if (sample.g.length){ const mg = mean(sample.g); const sg = std(sample.g); d_g.innerHTML = badge(`${mg.toFixed(2)}±${sg.toFixed(2)} m/s²`, (Math.abs(mg-9.81)<1 && sg<0.4)?'b-ok':'b-info'); }
       else { d_g.innerHTML = badge('n/a','b-info'); }
-      // Overall
       const score = (hz>=40?2:hz>=20?1:0) + ((jb<1&&jg<1)?2:(jb<3&&jg<3)?1:0) + (sample.g.length? ((Math.abs(mean(sample.g)-9.81)<1 && std(sample.g)<0.4)?2:1) : 0);
       const label = score>=5? ['excellent','b-ok'] : score>=3? ['good','b-info'] : ['poor','b-warn'];
       d_overall.innerHTML = badge(label[0], label[1]);
@@ -279,7 +319,20 @@
     addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); });
 
     // --- Render loop ---
-    function animate(){ requestAnimationFrame(animate); if(haveReading){ tmpQ.copy(baselineQ).multiply(targetQ); THREE.Quaternion.slerp(phone.quaternion, tmpQ, phone.quaternion, 1 - Math.exp(-60 * smoothing * (renderer.info.render.frameTime || 0.016))); } orbit.update(); renderer.render(scene, camera); }
+    function animate(){
+      requestAnimationFrame(animate);
+      if(haveReading){
+        tmpQ.copy(baselineQ).multiply(targetQ);
+        THREE.Quaternion.slerp(
+          phone.quaternion,
+          tmpQ,
+          phone.quaternion,
+          1 - Math.exp(-60 * smoothing * (renderer.info.render.frameTime || 0.016))
+        );
+      }
+      orbit.update();
+      renderer.render(scene, camera);
+    }
     animate();
 
     // --- Boot diagnostics ---
@@ -287,7 +340,7 @@
     d_https.innerHTML = badge(httpsOK? 'yes' : 'no', httpsOK? 'b-ok':'b-warn');
     d_doe.innerHTML = badge(('DeviceOrientationEvent' in window)? 'available' : 'missing', ('DeviceOrientationEvent' in window)? 'b-ok':'b-err');
     d_dme.innerHTML = badge(('DeviceMotionEvent' in window)? 'available' : 'missing', ('DeviceMotionEvent' in window)? 'b-ok':'b-info');
-    d_ios.innerHTML = badge((typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')? 'yes':'no', (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')? 'b-info':'b-info');
+    d_ios.innerHTML = badge((typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')? 'yes':'no', 'b-info');
     updatePermissionsAPI();
 
     // --- Auto attempt (Android) ---
