@@ -4,347 +4,331 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0b1020" />
-  <title>3D Orientation • Permissions & Accuracy</title>
+  <title>Phone Perspective – Live Rectangle</title>
   <style>
-    :root {
+    :root{
       --bg: radial-gradient(1200px 800px at 20% 10%, #1e2a5a 0%, #0b1020 60%);
       --panel: rgba(255,255,255,0.06);
-      --border: rgba(255,255,255,0.1);
+      --border: rgba(255,255,255,0.12);
       --text: #e8eefc;
-      --muted: #9fb2e3;
-      --accent: #6aa1ff;
-      --ok: #9cf3b2; --warn:#ffd27f; --err:#ff8a80; --info:#9fb2e3;
+      --muted: #a8b6df;
+      --ok:#9cf3b2; --warn:#ffd27f; --err:#ff8a80; --info:#9fb2e3;
+      --accent:#6aa1ff;
     }
-    html, body { height: 100%; margin: 0; background: #0b1020; color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial; overflow: hidden; }
-    #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg); }
+    html,body{height:100%;margin:0;background:#0b1020;color:var(--text);font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;}
+    .stage{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto;background:var(--bg);}
 
-    .overlay { position: fixed; inset: 0; pointer-events: none; display: grid; grid-template-rows: auto 1fr auto; }
+    /* HUD */
+    .hud{display:flex;gap:10px;align-items:center;justify-content:center;margin:12px auto 0;padding:10px 14px;border:1px solid var(--border);background:var(--panel);backdrop-filter: blur(10px);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35);}
+    .hud .sep{width:1px;height:20px;background:var(--border);} 
+    .hud button{appearance:none;border:1px solid var(--border);background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));color:var(--text);padding:8px 12px;border-radius:12px;cursor:pointer;font-weight:700}
+    .hud button.primary{background:linear-gradient(180deg, rgba(121,169,255,.6), rgba(55,123,255,.45));border-color:rgba(147,183,255,.5)}
+    .hud input[type=range]{accent-color:var(--accent)}
+    .badge{padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.08);font-size:12px;color:var(--muted)}
+    .b-ok{color:var(--ok)} .b-warn{color:var(--warn)} .b-err{color:var(--err)} .b-info{color:var(--info)}
 
-    .hud { pointer-events: auto; margin: 12px auto 0; display: flex; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--border); backdrop-filter: blur(10px); border-radius: 14px; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-    .hud small { color: var(--muted); }
-    .hud .sep { width: 1px; height: 20px; background: var(--border); }
-    .hud input[type=range] { accent-color: var(--accent); }
-    .hud button { appearance: none; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)); color: var(--text); padding: 8px 12px; border-radius: 12px; cursor: pointer; font-weight: 600; }
-    .hud button:hover { filter: brightness(1.1); }
+    /* Perspective canvas */
+    .perspective{position:relative;display:grid;place-items:center; width:100%; height:100%; perspective: 900px; overflow:hidden;}
 
-    .diag { pointer-events:auto; margin: 12px auto; width:min(980px,94vw); border:1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)); border-radius:16px; box-shadow: 0 16px 50px rgba(0,0,0,.45); }
-    .diag summary { list-style:none; cursor:pointer; padding: 12px 14px; display:flex; align-items:center; gap:10px; }
-    .diag summary::-webkit-details-marker { display:none; }
-    .diag .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:10px; padding:0 14px 14px; }
-    .kv { background: rgba(255,255,255,0.04); border:1px solid var(--border); border-radius: 12px; padding:10px 12px; }
-    .kv .k { font-size: 12px; color: var(--muted); }
-    .kv .v { font-size: 14px; font-weight: 700; }
+    /* The phone-shaped rectangle we transform */
+    .phone{width:min(70vw, 360px); aspect-ratio: 9 / 19.5; border-radius: 24px; position:relative; transform-style:preserve-3d; box-shadow: 0 20px 60px rgba(0,0,0,.5);}
+    .phone::before{ /* body */
+      content:""; position:absolute; inset:0; border-radius:24px;
+      background: linear-gradient(145deg, #0f1629, #1f2a4d);
+      border: 1px solid rgba(255,255,255,0.1);
+      transform: translateZ(-4px);
+    }
+    .screen{position:absolute; inset:8px; border-radius:18px; background: radial-gradient(120% 120% at 30% 20%, #14203f, #0a0f1c); border:1px solid rgba(255,255,255,.08); overflow:hidden}
+    .notch{position:absolute; top:8px; left:50%; width:70px; height:10px; margin-left:-35px; border-radius:8px; background:#0a0f1c; border:1px solid rgba(255,255,255,.05)}
 
-    .badge { padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); font-size: 11px; color: var(--muted); }
-    .b-ok{ color: var(--ok); border-color: rgba(156,243,178,.5);} .b-warn{ color:var(--warn);} .b-err{color:var(--err);} .b-info{ color: var(--info); }
+    /* Diagnostics */
+    details.diag{width:min(980px,94vw); margin:12px auto; border:1px solid var(--border); border-radius:16px; background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04)); box-shadow:0 16px 50px rgba(0,0,0,.45)}
+    details.diag summary{list-style:none; cursor:pointer; padding:12px 14px; display:flex; gap:10px; align-items:center}
+    details.diag summary::-webkit-details-marker{display:none}
+    .grid{display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:10px; padding:0 14px 14px}
+    .kv{background:rgba(255,255,255,.05); border:1px solid var(--border); border-radius:12px; padding:10px 12px}
+    .kv .k{font-size:12px; color:var(--muted)} .kv .v{font-size:14px; font-weight:700}
 
-    .center-modal { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(3,6,16,0.72); backdrop-filter: blur(6px); z-index: 10; padding: 24px; transition: opacity 200ms ease; }
-    .card { pointer-events: auto; width: min(520px, 92vw); border-radius: 18px; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)); padding: 22px 22px 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
-    .card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: 0.2px; }
-    .card p { margin: 0 0 14px; color: var(--muted); line-height: 1.4; }
-    .cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .cta-row button, .cta-row a { appearance: none; border: 1px solid var(--border); text-decoration: none; color: var(--text); background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06)); padding: 10px 14px; border-radius: 12px; cursor: pointer; font-weight: 700; }
-    .cta-row button.primary { background: linear-gradient(180deg, rgba(121,169,255,0.6), rgba(55,123,255,0.45)); border-color: rgba(147,183,255,0.5); }
-    .hidden { opacity: 0; pointer-events: none; }
+    /* Simulation panel */
+    .sim{display:none; gap:12px; align-items:center; justify-content:center; padding:8px 14px}
+    .sim.show{display:flex}
+
+    /* Modal */
+    .modal{position:fixed; inset:0; display:grid; place-items:center; background:rgba(3,6,16,.7); backdrop-filter: blur(6px); z-index:5}
+    .card{width:min(520px,92vw); border-radius:18px; border:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04)); padding:22px; box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    .hidden{display:none}
   </style>
-
-  <!-- Import map fixes bare specifiers like "three" in CDN-loaded modules -->
-  <!-- Polyfill import maps for older browsers (e.g., older Safari) -->
-  <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.min.js"></script>
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
-  <script>
-    // Minimal support check for import maps so users get a clear message
-    (function(){
-      const ok = (window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'));
-      window.__importMapSupport = !!ok;
-    })();
-  </script>
 </head>
 <body>
-  <canvas id="scene" aria-label="3D phone orientation"></canvas>
-
-  <div class="overlay" aria-live="polite" aria-atomic="true">
+  <div class="stage">
     <!-- HUD -->
-    <div class="hud">
-      <span class="badge" id="status">awaiting sensors…</span>
+    <div class="hud" role="toolbar" aria-label="Controls">
+      <span id="status" class="badge">awaiting sensors…</span>
       <div class="sep"></div>
-      <small>α:<span id="alpha">–</span>° β:<span id="beta">–</span>° γ:<span id="gamma">–</span>°</small>
+      <label><small>mode</small>
+        <select id="mode">
+          <option value="myview" selected>Match my perspective</option>
+          <option value="external">External viewer (mirror)</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="lockYaw" checked /> <small>lock Z-rot</small></label>
       <div class="sep"></div>
-      <small>smooth</small>
-      <input id="smooth" type="range" min="0" max="0.3" step="0.01" value="0.08" title="Smoothing" />
+      <small>smooth</small> <input id="smooth" type="range" min="0" max="0.3" step="0.01" value="0.10" />
       <button id="recenter" title="Set current as forward">Recenter</button>
-      <button id="testBtn" title="Run sensor self-test">Accuracy Test</button>
+      <div class="sep"></div>
+      <button id="enableBtn" class="primary">Enable Motion</button>
+      <button id="toggleSim">Simulate</button>
+    </div>
+
+    <!-- Simulation sliders (desktop tests) -->
+    <div class="sim" id="simPanel">
+      <small class="badge">Simulation</small>
+      α <input id="simA" type="range" min="0" max="360" step="1" value="0"/>
+      β <input id="simB" type="range" min="-180" max="180" step="1" value="0"/>
+      γ <input id="simG" type="range" min="-90" max="90" step="1" value="0"/>
+    </div>
+
+    <!-- Perspective canvas -->
+    <div class="perspective">
+      <div id="card" class="phone">
+        <div class="screen">
+          <div class="notch"></div>
+          <div style="position:absolute; inset:0; display:grid; place-items:center; color:#bcd1ff; text-align:center; padding:20px">
+            <div>
+              <div style="font-weight:800; letter-spacing:.6px">Live Phone Rectangle</div>
+              <div style="font-size:12px; color:#95a6d8">tilt your device</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Diagnostics -->
     <details class="diag" open>
-      <summary><span class="badge b-info">Diagnostics</span> Permissions & Accuracy</summary>
-      <div class="grid" id="diagGrid">
-        <div class="kv"><div class="k">Modules (imports)</div><div class="v" id="d_modules">–</div></div>
-        <div class="kv"><div class="k">Import map support</div><div class="v" id="d_imap">–</div></div>
-        <div class="kv"><div class="k">Secure context (HTTPS)</div><div class="v" id="d_https">–</div></div>
-        <div class="kv"><div class="k">DeviceOrientation API</div><div class="v" id="d_doe">–</div></div>
-        <div class="kv"><div class="k">DeviceMotion API</div><div class="v" id="d_dme">–</div></div>
+      <summary><span class="badge b-info">Diagnostics</span> Sensors, math & tests</summary>
+      <div class="grid">
+        <div class="kv"><div class="k">HTTPS</div><div class="v" id="d_https">–</div></div>
+        <div class="kv"><div class="k">DeviceOrientation</div><div class="v" id="d_doe">–</div></div>
+        <div class="kv"><div class="k">DeviceMotion</div><div class="v" id="d_dme">–</div></div>
         <div class="kv"><div class="k">iOS permission API</div><div class="v" id="d_ios">–</div></div>
-        <div class="kv"><div class="k">Permissions API</div><div class="v" id="d_perm">–</div></div>
-        <div class="kv"><div class="k">Accelerometer perm</div><div class="v" id="d_acc">n/a</div></div>
-        <div class="kv"><div class="k">Gyroscope perm</div><div class="v" id="d_gyro">n/a</div></div>
-        <div class="kv"><div class="k">Magnetometer perm</div><div class="v" id="d_mag">n/a</div></div>
-        <div class="kv"><div class="k">Absolute frame</div><div class="v" id="d_abs">–</div></div>
-        <div class="kv"><div class="k">Reading rate</div><div class="v" id="d_rate">–</div></div>
-        <div class="kv"><div class="k">Angle jitter (β/γ)</div><div class="v" id="d_jitter">–</div></div>
-        <div class="kv"><div class="k">Gravity mag</div><div class="v" id="d_g">–</div></div>
-        <div class="kv"><div class="k">Overall accuracy</div><div class="v" id="d_overall">–</div></div>
+        <div class="kv"><div class="k">Rate</div><div class="v" id="d_rate">–</div></div>
+        <div class="kv"><div class="k">Angles (α β γ)</div><div class="v" id="d_angles">–</div></div>
+        <div class="kv"><div class="k">Math tests</div><div class="v" id="d_tests">–</div></div>
       </div>
     </details>
 
-    <!-- Spacer to bottom -->
+    <!-- Spacer for bottom -->
     <div></div>
+  </div>
 
-    <!-- Permission Modal -->
-    <div id="permModal" class="center-modal">
-      <div class="card">
-        <h1>Enable Motion Access</h1>
-        <p>This needs motion sensor permission to mirror your device in 3D. Use HTTPS (GitHub Pages does). Nothing leaves your browser.</p>
-        <div class="cta-row">
-          <button id="enableBtn" class="primary">Enable Motion</button>
-          <button id="mouseBtn">Use Mouse Instead</button>
-          <a href="#" id="learnLink" aria-label="What data is used?">What’s collected?</a>
-        </div>
-        <p style="margin-top:10px"><small class="badge">Privacy</small> Reads only orientation/acceleration locally; no network IO.</p>
+  <!-- Permission modal -->
+  <div id="perm" class="modal hidden">
+    <div class="card">
+      <h2 style="margin:0 0 8px">Enable Motion Access</h2>
+      <p style="margin:0 0 12px; color:var(--muted)">We use your device orientation to tilt a rectangle like a real phone in 3D. Nothing leaves your browser.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap">
+        <button id="permGo" class="primary">Enable Motion</button>
+        <button id="permLater">Use Simulation</button>
       </div>
     </div>
   </div>
 
-  <script type="module">
-    // --- Imports (resolved by import map) ---
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+  <script>
+    // ========= Utilities =========
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $('status');
+    const card = $('card');
+    const modeSel = $('mode');
+    const lockYawEl = $('lockYaw');
+    const smoothEl = $('smooth');
+    const recenterBtn = $('recenter');
+    const enableBtn = $('enableBtn');
+    const toggleSimBtn = $('toggleSim');
+    const simPanel = $('simPanel');
+    const simA = $('simA'); const simB = $('simB'); const simG = $('simG');
+    const perm = $('perm'); const permGo = $('permGo'); const permLater = $('permLater');
 
-    // --- Scene ---
-    const canvas = document.getElementById('scene');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.setSize(innerWidth, innerHeight);
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 100);
-    camera.position.set(0.35, 0.25, 0.6);
-
-    const amb = new THREE.AmbientLight(0xffffff, 0.6); scene.add(amb);
-    const key = new THREE.DirectionalLight(0xffffff, 0.8); key.position.set(1, 1.2, 0.8); scene.add(key);
-    const rim = new THREE.DirectionalLight(0xffffff, 0.5); rim.position.set(-1.2, 0.3, -1); scene.add(rim);
-
-    const grid = new THREE.GridHelper(4, 32, 0x777777, 0x333333); grid.position.y = -0.18; scene.add(grid);
-    const axes = new THREE.AxesHelper(0.18); axes.position.set(0.0, -0.18, 0); scene.add(axes);
-
-    const phone = new THREE.Group(); scene.add(phone);
-    (function buildPhone(){
-      const bodyGeo = new RoundedBoxGeometry(0.15, 0.30, 0.010, 7, 0.012);
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x222b3a, metalness: 0.6, roughness: 0.35 });
-      const body = new THREE.Mesh(bodyGeo, bodyMat); body.castShadow = body.receiveShadow = true; phone.add(body);
-      const screenGeo = new RoundedBoxGeometry(0.138, 0.288, 0.003, 6, 0.010);
-      const screenMat = new THREE.MeshStandardMaterial({ color: 0x0b0f18, metalness: 0.0, roughness: 0.9, emissive: 0x050a14, emissiveIntensity: 0.6 });
-      const screen = new THREE.Mesh(screenGeo, screenMat); screen.position.z = 0.006; phone.add(screen);
-      const pax = new THREE.AxesHelper(0.08); pax.position.set(0,0,0.006); phone.add(pax);
-      phone.rotation.set(0.2, -0.3, 0.05);
-    })();
-
-    const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping = true; orbit.enabled = false;
-
-    // --- HUD refs ---
-    const statusEl = document.getElementById('status');
-    const alphaEl = document.getElementById('alpha');
-    const betaEl  = document.getElementById('beta');
-    const gammaEl = document.getElementById('gamma');
-    const smoothEl = document.getElementById('smooth');
-    const recenterBtn = document.getElementById('recenter');
-    const testBtn = document.getElementById('testBtn');
-
-    const permModal = document.getElementById('permModal');
-    const enableBtn = document.getElementById('enableBtn');
-    const mouseBtn = document.getElementById('mouseBtn');
-    const learnLink = document.getElementById('learnLink');
-
-    // --- Diagnostics refs ---
-    const d_modules = document.getElementById('d_modules');
-    const d_imap = document.getElementById('d_imap');
-    const d_https = document.getElementById('d_https');
-    const d_doe = document.getElementById('d_doe');
-    const d_dme = document.getElementById('d_dme');
-    const d_ios = document.getElementById('d_ios');
-    const d_perm = document.getElementById('d_perm');
-    const d_acc = document.getElementById('d_acc');
-    const d_gyro = document.getElementById('d_gyro');
-    const d_mag = document.getElementById('d_mag');
-    const d_abs = document.getElementById('d_abs');
-    const d_rate = document.getElementById('d_rate');
-    const d_jitter = document.getElementById('d_jitter');
-    const d_g = document.getElementById('d_g');
-    const d_overall = document.getElementById('d_overall');
+    const d_https = $('d_https'); const d_doe=$('d_doe'); const d_dme=$('d_dme'); const d_ios=$('d_ios');
+    const d_rate=$('d_rate'); const d_angles=$('d_angles'); const d_tests=$('d_tests');
 
     const badge = (txt, cls) => `<span class="badge ${cls}">${txt}</span>`;
-
-    // --- Module smoke tests (acts as test cases) ---
-    (function runModuleTests(){
-      const imap = window.__importMapSupport ? 'yes' : 'no';
-      d_imap.innerHTML = badge(imap, imap==='yes' ? 'b-ok' : 'b-warn');
-      try {
-        if (!THREE) throw new Error('THREE missing');
-        if (typeof OrbitControls !== 'function') throw new Error('OrbitControls missing');
-        if (typeof RoundedBoxGeometry !== 'function') throw new Error('RoundedBoxGeometry missing');
-        const q = new THREE.Quaternion(); q.identity();
-        if (Math.abs(q.length() - 1) > 1e-6) throw new Error('Quaternion not normalized');
-        d_modules.innerHTML = badge('ok', 'b-ok');
-      } catch (e) {
-        d_modules.innerHTML = badge('fail', 'b-err');
-        console.error('[Module test failed]', e);
-      }
-    })();
-
-    // --- Motion state ---
-    const targetQ = new THREE.Quaternion();
-    const tmpQ = new THREE.Quaternion();
-    let baselineQ = new THREE.Quaternion().identity();
-    let haveReading = false; let haveMotion = false; let absoluteFrame = false;
-    let smoothing = parseFloat(smoothEl.value);
-
-    const zee = new THREE.Vector3(0,0,1);
-    const euler = new THREE.Euler();
-    const q0 = new THREE.Quaternion();
-    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
-
-    function screenOrientRad() {
-      const ang = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
-      return THREE.MathUtils.degToRad(ang || 0);
-    }
-    function setQFromEuler(q, alpha, beta, gamma, orient) { euler.set(beta, alpha, -gamma, 'YXZ'); q.setFromEuler(euler); q.multiply(q1); q.multiply(q0.setFromAxisAngle(zee, -orient)); }
-
-    // --- Diagnostics helpers ---
-    const now = () => (performance && performance.now) ? performance.now() : Date.now();
-    function mean(a){ return a.length? a.reduce((s,x)=>s+x,0)/a.length : 0; }
-    function std(a){ if(a.length<2) return 0; const m=mean(a); return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/(a.length-1)); }
-    function circularDiffDeg(prev, curr){ let d = curr - prev; d = (d + 180) % 360 - 180; return d; }
-
-    const sample = { times:[], alpha:[], beta:[], gamma:[], g:[] };
-    function resetSamples(){ sample.times.length=sample.alpha.length=sample.beta.length=sample.gamma.length=sample.g.length=0; }
-
-    // --- Listeners ---
-    function handleDeviceOrientation(ev){
-      const { alpha, beta, gamma } = ev; if(alpha==null||beta==null||gamma==null) return;
-      haveReading = true; absoluteFrame = !!ev.absolute; d_abs.innerHTML = badge(ev.absolute? 'true' : 'false', ev.absolute? 'b-ok':'b-info');
-      const a = THREE.MathUtils.degToRad(alpha); const b = THREE.MathUtils.degToRad(beta); const g = THREE.MathUtils.degToRad(gamma);
-      setQFromEuler(targetQ, a, b, g, screenOrientRad());
-      alphaEl.textContent = (alpha).toFixed(0); betaEl.textContent = (beta).toFixed(0); gammaEl.textContent = (gamma).toFixed(0);
-      if (collecting){ sample.times.push(now()); sample.alpha.push(alpha); sample.beta.push(beta); sample.gamma.push(gamma); }
-    }
-
-    function handleDeviceMotion(ev){
-      haveMotion = true;
-      const ag = ev.accelerationIncludingGravity; if(!ag) return;
-      const gmag = Math.sqrt((ag.x||0)**2 + (ag.y||0)**2 + (ag.z||0)**2);
-      if (collecting) sample.g.push(gmag);
-    }
-
-    function onPermissionGranted(){
-      window.addEventListener('deviceorientation', handleDeviceOrientation, true);
-      window.addEventListener('devicemotion', handleDeviceMotion, true);
-      statusEl.textContent = 'live'; statusEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--ok');
-      permModal.classList.add('hidden'); orbit.enabled = false;
-      d_doe.innerHTML = badge('available','b-ok'); d_dme.innerHTML = badge('available','b-ok');
-    }
-
-    async function requestPermission(){
-      const iOS = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
-      if (iOS) {
-        try {
-          if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { try { await DeviceMotionEvent.requestPermission(); } catch {} }
-          const state = await DeviceOrientationEvent.requestPermission();
-          if (state === 'granted') { onPermissionGranted(); } else { throw new Error('denied'); }
-        }
-        catch {
-          statusEl.textContent='permission denied'; statusEl.style.color='var(--err)'; orbit.enabled=true;
-        }
-      } else {
-        if ('DeviceOrientationEvent' in window) { onPermissionGranted(); } else { statusEl.textContent='no sensor'; statusEl.style.color='var(--warn)'; orbit.enabled=true; }
-      }
-      updatePermissionsAPI();
-    }
-
-    // --- Permissions API probing (best-effort) ---
-    async function queryPerm(name){ try { const s = await navigator.permissions.query({name}); return s.state; } catch { return 'unsupported'; } }
-    async function updatePermissionsAPI(){
-      const hasAPI = 'permissions' in navigator; d_perm.innerHTML = badge(hasAPI? 'yes':'no', hasAPI? 'b-ok':'b-info');
-      if (!hasAPI) return;
-      const [acc, gyro, mag] = await Promise.all([queryPerm('accelerometer'), queryPerm('gyroscope'), queryPerm('magnetometer')]);
-      const m = (state)=> state==='granted'? 'b-ok' : state==='prompt'? 'b-info' : state==='denied'? 'b-err' : 'b-info';
-      d_acc.innerHTML = badge(acc, m(acc)); d_gyro.innerHTML = badge(gyro, m(gyro)); d_mag.innerHTML = badge(mag, m(mag));
-    }
-
-    // --- Accuracy test ---
-    let collecting = false;
-    async function runAccuracyTest(){
-      if (!haveReading) { d_overall.innerHTML = badge('no orientation data','b-err'); return; }
-      resetSamples(); collecting = true; const t0 = now();
-      await new Promise(r => setTimeout(r, 2500));
-      collecting = false; const t1 = now();
-      const n = sample.alpha.length; const dt = (t1 - t0)/1000; const hz = n>1? (n-1)/dt : 0; d_rate.innerHTML = badge(`${hz.toFixed(1)} Hz`, hz>=40? 'b-ok' : hz>=20? 'b-info' : 'b-warn');
-      const diffs = (arr)=>{ const out=[]; for(let i=1;i<arr.length;i++){ out.push(circularDiffDeg(arr[i-1], arr[i])); } return out; };
-      const jb = std(diffs(sample.beta)); const jg = std(diffs(sample.gamma));
-      d_jitter.innerHTML = badge(`${jb.toFixed(2)}° / ${jg.toFixed(2)}°`, (jb<1&&jg<1)?'b-ok':(jb<3&&jg<3)?'b-info':'b-warn');
-      if (sample.g.length){ const mg = mean(sample.g); const sg = std(sample.g); d_g.innerHTML = badge(`${mg.toFixed(2)}±${sg.toFixed(2)} m/s²`, (Math.abs(mg-9.81)<1 && sg<0.4)?'b-ok':'b-info'); }
-      else { d_g.innerHTML = badge('n/a','b-info'); }
-      const score = (hz>=40?2:hz>=20?1:0) + ((jb<1&&jg<1)?2:(jb<3&&jg<3)?1:0) + (sample.g.length? ((Math.abs(mean(sample.g)-9.81)<1 && std(sample.g)<0.4)?2:1) : 0);
-      const label = score>=5? ['excellent','b-ok'] : score>=3? ['good','b-info'] : ['poor','b-warn'];
-      d_overall.innerHTML = badge(label[0], label[1]);
-    }
-
-    // --- UI wiring ---
-    smoothEl.addEventListener('input', () => { smoothing = parseFloat(smoothEl.value); });
-    recenterBtn.addEventListener('click', () => { baselineQ.copy(targetQ).invert(); });
-    testBtn.addEventListener('click', runAccuracyTest);
-
-    enableBtn.addEventListener('click', () => requestPermission());
-    mouseBtn.addEventListener('click', () => { orbit.enabled = true; permModal.classList.add('hidden'); statusEl.textContent = 'mouse'; });
-    learnLink.addEventListener('click', (e) => { e.preventDefault(); alert('Only local sensor angles + acceleration are read to drive the 3D model. No uploads.'); });
-
-    // --- Resize/orientation ---
-    addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); });
-
-    // --- Render loop ---
-    function animate(){
-      requestAnimationFrame(animate);
-      if(haveReading){
-        tmpQ.copy(baselineQ).multiply(targetQ);
-        THREE.Quaternion.slerp(
-          phone.quaternion,
-          tmpQ,
-          phone.quaternion,
-          1 - Math.exp(-60 * smoothing * (renderer.info.render.frameTime || 0.016))
-        );
-      }
-      orbit.update();
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    // --- Boot diagnostics ---
     const httpsOK = (location.protocol === 'https:' || location.hostname === 'localhost');
     d_https.innerHTML = badge(httpsOK? 'yes' : 'no', httpsOK? 'b-ok':'b-warn');
-    d_doe.innerHTML = badge(('DeviceOrientationEvent' in window)? 'available' : 'missing', ('DeviceOrientationEvent' in window)? 'b-ok':'b-err');
-    d_dme.innerHTML = badge(('DeviceMotionEvent' in window)? 'available' : 'missing', ('DeviceMotionEvent' in window)? 'b-ok':'b-info');
-    d_ios.innerHTML = badge((typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')? 'yes':'no', 'b-info');
-    updatePermissionsAPI();
 
-    // --- Auto attempt (Android) ---
-    (async function autoTry(){ const iOS = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'; if(!iOS) { await requestPermission(); } })();
+    // ========= Quaternion math (minimal) =========
+    function quatFromEulerYXZ(beta, alpha, minusGamma){
+      // Builds quaternion from Euler (Y X Z order) used for DeviceOrientation mapping below
+      const cy = Math.cos(beta/2), sy = Math.sin(beta/2);
+      const cx = Math.cos(alpha/2), sx = Math.sin(alpha/2);
+      const cz = Math.cos(minusGamma/2), sz = Math.sin(minusGamma/2);
+      // Y (beta) * X (alpha) * Z (-gamma)
+      const w = cy*cx*cz + sy*sx*sz;
+      const x = cy*sx*cz + sy*cx*sz;
+      const y = sy*cx*cz - cy*sx*sz;
+      const z = cy*cx*sz - sy*sx*cz;
+      return {x,y,z,w};
+    }
+    function quatMultiply(a,b){
+      return {
+        w: a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z,
+        x: a.w*b.x + a.x*b.w + a.y*b.z - a.z*b.y,
+        y: a.w*b.y - a.x*b.z + a.y*b.w + a.z*b.x,
+        z: a.w*b.z + a.x*b.y - a.y*b.x + a.z*b.w,
+      };
+    }
+    function quatInverse(q){ const n = q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w || 1; return {x:-q.x/n,y:-q.y/n,z:-q.z/n,w:q.w/n}; }
+    function quatNormalize(q){ const n = Math.hypot(q.x,q.y,q.z,q.w)||1; return {x:q.x/n,y:q.y/n,z:q.z/n,w:q.w/n}; }
+    function quatSlerp(a,b,t){
+      // ensure shortest path
+      let cosom = a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w;
+      let bx=b.x,by=b.y,bz=b.z,bw=b.w;
+      if (cosom < 0){ cosom=-cosom; bx=-bx; by=-by; bz=-bz; bw=-bw; }
+      let k0,k1;
+      if (1 - cosom > 1e-6){ const omega = Math.acos(cosom); const sinom = Math.sin(omega); k0 = Math.sin((1-t)*omega)/sinom; k1 = Math.sin(t*omega)/sinom; }
+      else { k0 = 1-t; k1 = t; }
+      return { x:k0*a.x + k1*bx, y:k0*a.y + k1*by, z:k0*a.z + k1*bz, w:k0*a.w + k1*bw };
+    }
+    function quatToCSSMatrix(q){
+      q = quatNormalize(q);
+      const x=q.x,y=q.y,z=q.z,w=q.w;
+      const xx=x*x, yy=y*y, zz=z*z; const xy=x*y, xz=x*z, yz=y*z; const wx=w*x, wy=w*y, wz=w*z;
+      // column-major for CSS matrix3d
+      return [
+        1-2*(yy+zz), 2*(xy+ wz),   2*(xz- wy),   0,
+        2*(xy- wz),   1-2*(xx+zz), 2*(yz+ wx),   0,
+        2*(xz+ wy),   2*(yz- wx),   1-2*(xx+yy), 0,
+        0,            0,            0,          1,
+      ];
+    }
+
+    // Device orientation mapping (like three.js DeviceOrientationControls)
+    function deviceQuaternion(alpha, beta, gamma, screenOrientRad){
+      const a = deg2rad(alpha), b = deg2rad(beta), g = deg2rad(gamma);
+      let q = quatFromEulerYXZ(b, a, -g); // euler YXZ: (beta, alpha, -gamma)
+      // multiply by q1 = rotation about X by -90deg to convert to world space
+      const s = Math.SQRT1_2; const q1 = {x:-s, y:0, z:0, w:s};
+      q = quatMultiply(q, q1);
+      // rotate around Z by -screenOrientation
+      const half = -screenOrientRad/2; const qz = {x:0,y:0,z:Math.sin(half),w:Math.cos(half)};
+      q = quatMultiply(q, qz);
+      return quatNormalize(q);
+    }
+
+    function deg2rad(d){return d*Math.PI/180}
+
+    // ========= State =========
+    let baseline = {x:0,y:0,z:0,w:1};
+    let targetQ = {x:0,y:0,z:0,w:1};
+    let displayQ = {x:0,y:0,z:0,w:1};
+    let smoothing = parseFloat(smoothEl.value);
+    let haveReading=false; let lastTick=performance.now(); let samples=0;
+
+    // ========= Render =========
+    function applyToCard(q){
+      // Optional: lock yaw (Z) by removing z-rotation component
+      if (lockYawEl.checked){
+        // Convert to ZYX euler-ish by extracting yaw from matrix and zeroing it
+        const m = quatToCSSMatrix(q);
+        // Extract yaw from rotation matrix m (column-major): yaw = atan2(m[4], m[0])
+        const yaw = Math.atan2(m[4], m[0]);
+        const hz = -yaw/2; const qZinv = {x:0,y:0,z:Math.sin(hz),w:Math.cos(hz)}; // rotate by -yaw
+        q = quatMultiply(qZinv, q);
+      }
+      const m = quatToCSSMatrix(q);
+      const css = `matrix3d(${m.map(n => (Math.abs(n) < 1e-10 ? 0 : n)).join(',')})`;
+      card.style.transform = `perspective(900px) ${css}`;
+    }
+
+    function update(){
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lastTick)/1000);
+      lastTick = now;
+      const t = 1 - Math.exp(-60 * smoothing * dt);
+      displayQ = quatSlerp(displayQ, targetQ, t);
+      applyToCard(displayQ);
+      requestAnimationFrame(update);
+    }
+
+    // ========= Permissions =========
+    function hasIOSPermissionAPI(){ return typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'; }
+    function screenOrientRad(){
+      const ang = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+      return deg2rad(ang||0);
+    }
+    function onGranted(){ statusEl.innerHTML = badge('live','b-ok'); perm.classList.add('hidden'); }
+
+    async function requestPermission(){
+      if (hasIOSPermissionAPI()){
+        try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { try{ await DeviceMotionEvent.requestPermission(); }catch{} }
+          const st = await DeviceOrientationEvent.requestPermission(); if (st==='granted'){ attachListeners(); onGranted(); } else throw new Error('denied');
+        } catch { statusEl.innerHTML = badge('permission denied','b-err'); }
+      } else { if ('DeviceOrientationEvent' in window){ attachListeners(); onGranted(); } else { statusEl.innerHTML = badge('no sensor','b-warn'); } }
+    }
+
+    // ========= Listeners / Simulation =========
+    let simMode = false;
+    const simVals = {alpha:0,beta:0,gamma:0};
+
+    function attachListeners(){
+      window.addEventListener('deviceorientation', (ev)=>{
+        if (simMode) return;
+        const {alpha, beta, gamma} = ev; if (alpha==null||beta==null||gamma==null) return;
+        haveReading = true; samples++;
+        d_angles.textContent = `${alpha.toFixed(0)} ${beta.toFixed(0)} ${gamma.toFixed(0)}`;
+        const q = deviceQuaternion(alpha, beta, gamma, screenOrientRad());
+        const rel = quatMultiply(quatInverse(baseline), q);
+        targetQ = (modeSel.value==='myview') ? quatInverse(rel) : rel;
+      }, true);
+      window.addEventListener('devicemotion', ()=>{ /* used for rate only */ }, true);
+    }
+
+    // ========= UI wiring =========
+    recenterBtn.addEventListener('click', ()=>{ baseline = targetQ; });
+    smoothEl.addEventListener('input', ()=>{ smoothing = parseFloat(smoothEl.value); });
+    enableBtn.addEventListener('click', ()=>{ perm.classList.remove('hidden'); });
+    permGo.addEventListener('click', requestPermission);
+    permLater.addEventListener('click', ()=>{ simMode=true; simPanel.classList.add('show'); perm.classList.add('hidden'); statusEl.innerHTML = badge('simulation','b-info'); });
+    toggleSimBtn.addEventListener('click', ()=>{ simMode = !simMode; simPanel.classList.toggle('show', simMode); statusEl.innerHTML = badge(simMode?'simulation':'live','b-info'); });
+
+    for (const el of [simA,simB,simG]){
+      el.addEventListener('input', ()=>{
+        simMode = true; simPanel.classList.add('show');
+        simVals.alpha = parseFloat(simA.value); simVals.beta = parseFloat(simB.value); simVals.gamma = parseFloat(simG.value);
+        const q = deviceQuaternion(simVals.alpha, simVals.beta, simVals.gamma, screenOrientRad());
+        const rel = quatMultiply(quatInverse(baseline), q);
+        targetQ = (modeSel.value==='myview') ? quatInverse(rel) : rel;
+        d_angles.textContent = `${simVals.alpha} ${simVals.beta} ${simVals.gamma}`;
+      });
+    }
+
+    modeSel.addEventListener('change', ()=>{ /* immediately apply new mapping */ displayQ = targetQ = quatMultiply({x:0,y:0,z:0,w:1}, targetQ); });
+
+    // ========= Sampling rate display =========
+    setInterval(()=>{ const r = samples/1; samples=0; d_rate.innerHTML = badge(`${r.toFixed(1)} Hz`, r>=40?'b-ok':r>=20?'b-info':'b-warn'); }, 1000);
+
+    // ========= Math self-tests (acts as test cases) =========
+    (function selfTests(){
+      const tests = [];
+      const eqQ=(a,b)=> Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z,a.w-b.w) < 1e-5;
+      // T1: identity
+      tests.push(eqQ(deviceQuaternion(0,0,0,0), {x:0,y:0,z:0,w:1}));
+      // T2: invert(invert(q)) == q
+      const q = deviceQuaternion(10,20,30,0); const inv = quatInverse(q); const inv2 = quatInverse(inv); tests.push(eqQ(quatNormalize(inv2), q));
+      // T3: slerp endpoints
+      const a = {x:0,y:0,z:0,w:1}; const b = deviceQuaternion(0,45,0,0); tests.push(eqQ(quatSlerp(a,b,1), b)); tests.push(eqQ(quatSlerp(a,b,0), a));
+      // T4: matrix orthonormal columns
+      const m = quatToCSSMatrix(b); const c0 = Math.hypot(m[0],m[1],m[2]); const c1=Math.hypot(m[4],m[5],m[6]); const c2=Math.hypot(m[8],m[9],m[10]); tests.push(Math.abs(c0-1)<1e-5 && Math.abs(c1-1)<1e-5 && Math.abs(c2-1)<1e-5);
+      const pass = tests.every(Boolean);
+      d_tests.innerHTML = badge(pass? 'pass' : 'fail', pass? 'b-ok':'b-err');
+    })();
+
+    // ========= Boot =========
+    if (!hasIOSPermissionAPI() && 'DeviceOrientationEvent' in window){ // Android auto
+      requestPermission();
+    } else {
+      perm.classList.remove('hidden');
+    }
+    update();
   </script>
 </body>
 </html>
