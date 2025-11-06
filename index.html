@@ -65,12 +65,13 @@
     <div class="badge" id="heading">—°</div>
     <div class="badge" id="absFlag">relative</div>
     <div class="sep"></div>
-    <button id="enableBtn" class="primary">Enable Motion</button>
+    <button id=\"enableBtn\" class=\"primary\">Enable Motion</button> <small id=\"liveBadge\" class=\"badge\">idle</small>
   </div>
 
   <details class="diag" open>
     <summary><span class="badge b-info">Diagnostics</span> Modules, permissions & math</summary>
-    <div class="grid">
+    <div class=\"grid\">
+      <div class=\"kv\"><div class=\"k\">Angles α β γ</div><div class=\"v\" id=\"d_angles\">–</div></div>
       <div class="kv"><div class="k">Import map</div><div class="v" id="d_imap">–</div></div>
       <div class="kv"><div class="k">Modules</div><div class="v" id="d_modules">–</div></div>
       <div class="kv"><div class="k">HTTPS</div><div class="v" id="d_https">–</div></div>
@@ -109,6 +110,8 @@
     const perm = document.getElementById('perm');
     const permGo = document.getElementById('permGo');
     const permLater = document.getElementById('permLater');
+    const liveBadge = document.getElementById('liveBadge');
+    const d_angles = document.getElementById('d_angles');
 
     const d_imap = document.getElementById('d_imap');
     const d_modules = document.getElementById('d_modules');
@@ -278,7 +281,19 @@
       const { alpha, beta, gamma, absolute } = ev;
       if (alpha==null||beta==null||gamma==null) return;
       haveReading = true; samples++;
+      d_angles.textContent = `${alpha.toFixed(0)} ${beta.toFixed(0)} ${gamma.toFixed(0)}`;
       if (absolute) { absoluteAvailable = true; absFlagEl.textContent = 'absolute'; absFlagEl.className = 'badge'; }
+      setDeviceQuaternion(
+        targetQ,
+        THREE.MathUtils.degToRad(alpha),
+        THREE.MathUtils.degToRad(beta),
+        THREE.MathUtils.degToRad(gamma),
+        screenOrientRad()
+      );
+      // visual heartbeat so users see data arriving
+      liveBadge.textContent = 'live';
+      liveBadge.className = 'badge b-ok';
+    }
       setDeviceQuaternion(
         targetQ,
         THREE.MathUtils.degToRad(alpha),
@@ -310,7 +325,8 @@
     recenterBtn.addEventListener('click', ()=>{ const q = new THREE.Quaternion().copy(baselineQ).multiply(targetQ); headingOffset = computeHeadingRad(q); absFlagEl.textContent = 'relative'; });
     axisSel.addEventListener('change', ()=>{});
     mirrorEl.addEventListener('change', ()=>{});
-    enableBtn.addEventListener('click', ()=>{ perm.classList.remove('hidden'); });
+    // One-tap permission (works on iOS because it's in a user gesture)
+    enableBtn.addEventListener('click', requestPermission);
     permGo.addEventListener('click', requestPermission);
     permLater.addEventListener('click', ()=> perm.classList.add('hidden'));
 
@@ -369,10 +385,14 @@
 
     // Auto attempt on Android; show modal on iOS
     (function boot(){
+      // Immediately render (even without sensors) so scene appears
+      renderer.render(scene, camera);
+      // Android/Chrome: auto; iOS requires explicit user gesture which we get from Enable Motion
       if (!(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function') && 'DeviceOrientationEvent' in window) {
         requestPermission();
       } else {
-        perm.classList.remove('hidden');
+        // show hint
+        statusEl.textContent = 'tap Enable Motion';
       }
     })();
   </script>
