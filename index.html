@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0b1020" />
-  <title>3D Live Phone Orientation</title>
+  <title>3D Orientation • Permissions & Accuracy</title>
   <style>
     :root {
       --bg: radial-gradient(1200px 800px at 20% 10%, #1e2a5a 0%, #0b1020 60%);
@@ -13,58 +13,46 @@
       --text: #e8eefc;
       --muted: #9fb2e3;
       --accent: #6aa1ff;
+      --ok: #9cf3b2; --warn:#ffd27f; --err:#ff8a80; --info:#9fb2e3;
     }
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: #0b1020;
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      overflow: hidden;
-    }
-    #scene {
-      position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg);
-    }
-    .overlay {
-      position: fixed; inset: 0; pointer-events: none; display: grid; place-items: start center; padding: env(safe-area-inset-top) 16px 16px;
-    }
-    .hud {
-      pointer-events: auto; margin-top: 12px; display: flex; gap: 12px; align-items: center; background: var(--panel);
-      border: 1px solid var(--border); backdrop-filter: blur(10px); border-radius: 14px; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    }
+    html, body { height: 100%; margin: 0; background: #0b1020; color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial; overflow: hidden; }
+    #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg); }
+
+    .overlay { position: fixed; inset: 0; pointer-events: none; display: grid; grid-template-rows: auto 1fr auto; }
+
+    .hud { pointer-events: auto; margin: 12px auto 0; display: flex; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--border); backdrop-filter: blur(10px); border-radius: 14px; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
     .hud small { color: var(--muted); }
     .hud .sep { width: 1px; height: 20px; background: var(--border); }
     .hud input[type=range] { accent-color: var(--accent); }
-    .hud button {
-      appearance: none; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
-      color: var(--text); padding: 8px 12px; border-radius: 12px; cursor: pointer; font-weight: 600;
-    }
+    .hud button { appearance: none; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)); color: var(--text); padding: 8px 12px; border-radius: 12px; cursor: pointer; font-weight: 600; }
     .hud button:hover { filter: brightness(1.1); }
 
-    .center-modal {
-      position: fixed; inset: 0; display: grid; place-items: center; background: rgba(3,6,16,0.72);
-      backdrop-filter: blur(6px); z-index: 10; padding: 24px; transition: opacity 200ms ease;
-    }
+    .diag { pointer-events:auto; margin: 12px auto; width:min(980px,94vw); border:1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)); border-radius:16px; box-shadow: 0 16px 50px rgba(0,0,0,.45); }
+    .diag summary { list-style:none; cursor:pointer; padding: 12px 14px; display:flex; align-items:center; gap:10px; }
+    .diag summary::-webkit-details-marker { display:none; }
+    .diag .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:10px; padding:0 14px 14px; }
+    .kv { background: rgba(255,255,255,0.04); border:1px solid var(--border); border-radius: 12px; padding:10px 12px; }
+    .kv .k { font-size: 12px; color: var(--muted); }
+    .kv .v { font-size: 14px; font-weight: 700; }
+
+    .badge { padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+    .b-ok{ color: var(--ok); border-color: rgba(156,243,178,.5);} .b-warn{ color:var(--warn);} .b-err{color:var(--err);} .b-info{ color: var(--info); }
+
+    .center-modal { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(3,6,16,0.72); backdrop-filter: blur(6px); z-index: 10; padding: 24px; transition: opacity 200ms ease; }
     .card { pointer-events: auto; width: min(520px, 92vw); border-radius: 18px; border: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)); padding: 22px 22px 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
     .card h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: 0.2px; }
     .card p { margin: 0 0 14px; color: var(--muted); line-height: 1.4; }
     .cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .cta-row button, .cta-row a {
-      appearance: none; border: 1px solid var(--border); text-decoration: none; color: var(--text);
-      background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
-      padding: 10px 14px; border-radius: 12px; cursor: pointer; font-weight: 700;
-    }
+    .cta-row button, .cta-row a { appearance: none; border: 1px solid var(--border); text-decoration: none; color: var(--text); background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06)); padding: 10px 14px; border-radius: 12px; cursor: pointer; font-weight: 700; }
     .cta-row button.primary { background: linear-gradient(180deg, rgba(121,169,255,0.6), rgba(55,123,255,0.45)); border-color: rgba(147,183,255,0.5); }
     .hidden { opacity: 0; pointer-events: none; }
-
-    .badge { padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.1); border: 1px solid var(--border); font-size: 11px; color: var(--muted); }
   </style>
 </head>
 <body>
   <canvas id="scene" aria-label="3D phone orientation"></canvas>
 
-  <!-- HUD overlay -->
   <div class="overlay" aria-live="polite" aria-atomic="true">
+    <!-- HUD -->
     <div class="hud">
       <span class="badge" id="status">awaiting sensors…</span>
       <div class="sep"></div>
@@ -73,250 +61,237 @@
       <small>smooth</small>
       <input id="smooth" type="range" min="0" max="0.3" step="0.01" value="0.08" title="Smoothing" />
       <button id="recenter" title="Set current as forward">Recenter</button>
+      <button id="testBtn" title="Run sensor self-test">Accuracy Test</button>
     </div>
-  </div>
 
-  <!-- Permission / Fallback modal -->
-  <div id="permModal" class="center-modal">
-    <div class="card">
-      <h1>Enable Motion Access</h1>
-      <p>
-        To render your phone in 3D using live orientation, we need motion sensor permission. Works over HTTPS (GitHub Pages).
-      </p>
-      <div class="cta-row">
-        <button id="enableBtn" class="primary">Enable Motion</button>
-        <button id="mouseBtn">Use Mouse Instead</button>
-        <a href="#" id="learnLink" aria-label="What data is used?">What’s collected?</a>
+    <!-- Diagnostics -->
+    <details class="diag" open>
+      <summary><span class="badge b-info">Diagnostics</span> Permissions & Accuracy</summary>
+      <div class="grid" id="diagGrid">
+        <div class="kv"><div class="k">Secure context (HTTPS)</div><div class="v" id="d_https">–</div></div>
+        <div class="kv"><div class="k">DeviceOrientation API</div><div class="v" id="d_doe">–</div></div>
+        <div class="kv"><div class="k">DeviceMotion API</div><div class="v" id="d_dme">–</div></div>
+        <div class="kv"><div class="k">iOS permission API</div><div class="v" id="d_ios">–</div></div>
+        <div class="kv"><div class="k">Permissions API</div><div class="v" id="d_perm">–</div></div>
+        <div class="kv"><div class="k">Accelerometer perm</div><div class="v" id="d_acc">n/a</div></div>
+        <div class="kv"><div class="k">Gyroscope perm</div><div class="v" id="d_gyro">n/a</div></div>
+        <div class="kv"><div class="k">Magnetometer perm</div><div class="v" id="d_mag">n/a</div></div>
+        <div class="kv"><div class="k">Absolute frame</div><div class="v" id="d_abs">–</div></div>
+        <div class="kv"><div class="k">Reading rate</div><div class="v" id="d_rate">–</div></div>
+        <div class="kv"><div class="k">Angle jitter (β/γ)</div><div class="v" id="d_jitter">–</div></div>
+        <div class="kv"><div class="k">Gravity mag</div><div class="v" id="d_g">–</div></div>
+        <div class="kv"><div class="k">Overall accuracy</div><div class="v" id="d_overall">–</div></div>
       </div>
-      <p style="margin-top:10px"><small class="badge">Privacy</small> This page reads only orientation angles from your device; no data leaves your browser.</p>
+    </details>
+
+    <!-- Spacer to bottom -->
+    <div></div>
+
+    <!-- Permission Modal -->
+    <div id="permModal" class="center-modal">
+      <div class="card">
+        <h1>Enable Motion Access</h1>
+        <p>This needs motion sensor permission to mirror your device in 3D. Use HTTPS (GitHub Pages does). Nothing leaves your browser.</p>
+        <div class="cta-row">
+          <button id="enableBtn" class="primary">Enable Motion</button>
+          <button id="mouseBtn">Use Mouse Instead</button>
+          <a href="#" id="learnLink" aria-label="What data is used?">What’s collected?</a>
+        </div>
+        <p style="margin-top:10px"><small class="badge">Privacy</small> Reads only orientation/acceleration locally; no network IO.</p>
+      </div>
     </div>
   </div>
 
   <script type="module">
+    // --- Imports ---
     import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
     import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
     import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.160.0/examples/jsm/geometries/RoundedBoxGeometry.js';
 
-    // --- Renderer / Scene / Camera ---
+    // --- Scene ---
     const canvas = document.getElementById('scene');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
-
     const scene = new THREE.Scene();
-    scene.background = null; // keep CSS gradient
-
     const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 100);
     camera.position.set(0.35, 0.25, 0.6);
 
-    // Lighting
-    {
-      const amb = new THREE.AmbientLight(0xffffff, 0.6);
-      scene.add(amb);
-      const key = new THREE.DirectionalLight(0xffffff, 0.8);
-      key.position.set(1, 1.2, 0.8);
-      scene.add(key);
-      const rim = new THREE.DirectionalLight(0xffffff, 0.5);
-      rim.position.set(-1.2, 0.3, -1);
-      scene.add(rim);
-    }
+    const amb = new THREE.AmbientLight(0xffffff, 0.6); scene.add(amb);
+    const key = new THREE.DirectionalLight(0xffffff, 0.8); key.position.set(1, 1.2, 0.8); scene.add(key);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.5); rim.position.set(-1.2, 0.3, -1); scene.add(rim);
 
-    // Ground + helpers
-    {
-      const grid = new THREE.GridHelper(4, 32, 0x777777, 0x333333);
-      grid.position.y = -0.18;
-      scene.add(grid);
-      const axes = new THREE.AxesHelper(0.18);
-      axes.position.set(0.0, -0.18, 0);
-      scene.add(axes);
-    }
+    const grid = new THREE.GridHelper(4, 32, 0x777777, 0x333333); grid.position.y = -0.18; scene.add(grid);
+    const axes = new THREE.AxesHelper(0.18); axes.position.set(0.0, -0.18, 0); scene.add(axes);
 
-    // Phone model
-    const phone = new THREE.Group();
-    scene.add(phone);
+    const phone = new THREE.Group(); scene.add(phone);
     (function buildPhone(){
       const bodyGeo = new RoundedBoxGeometry(0.15, 0.30, 0.010, 7, 0.012);
       const bodyMat = new THREE.MeshStandardMaterial({ color: 0x222b3a, metalness: 0.6, roughness: 0.35 });
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
-      body.castShadow = true; body.receiveShadow = true;
-      phone.add(body);
-
+      const body = new THREE.Mesh(bodyGeo, bodyMat); body.castShadow = body.receiveShadow = true; phone.add(body);
       const screenGeo = new RoundedBoxGeometry(0.138, 0.288, 0.003, 6, 0.010);
       const screenMat = new THREE.MeshStandardMaterial({ color: 0x0b0f18, metalness: 0.0, roughness: 0.9, emissive: 0x050a14, emissiveIntensity: 0.6 });
-      const screen = new THREE.Mesh(screenGeo, screenMat);
-      screen.position.z = 0.006;
-      phone.add(screen);
-
-      const axes = new THREE.AxesHelper(0.08);
-      axes.position.set(0,0,0.006);
-      phone.add(axes);
-
-      // Decorative notch (top center)
-      const notchGeo = new RoundedBoxGeometry(0.032, 0.012, 0.003, 4, 0.004);
-      const notchMat = new THREE.MeshStandardMaterial({ color: 0x0e1220, metalness: 0.1, roughness: 0.7 });
-      const notch = new THREE.Mesh(notchGeo, notchMat);
-      notch.position.set(0, 0.133, 0.0065);
-      phone.add(notch);
-
-      // Tilt the whole thing slightly initially for desktop view
+      const screen = new THREE.Mesh(screenGeo, screenMat); screen.position.z = 0.006; phone.add(screen);
+      const pax = new THREE.AxesHelper(0.08); pax.position.set(0,0,0.006); phone.add(pax);
       phone.rotation.set(0.2, -0.3, 0.05);
-      phone.position.y = 0.0;
     })();
 
-    // OrbitControls fallback (desktop)
-    const orbit = new OrbitControls(camera, renderer.domElement);
-    orbit.enableDamping = true;
-    orbit.enabled = false; // start disabled; enabled if no sensors/permission denied
+    const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping = true; orbit.enabled = false;
 
-    // HUD elements
+    // --- HUD refs ---
     const statusEl = document.getElementById('status');
     const alphaEl = document.getElementById('alpha');
     const betaEl  = document.getElementById('beta');
     const gammaEl = document.getElementById('gamma');
     const smoothEl = document.getElementById('smooth');
     const recenterBtn = document.getElementById('recenter');
+    const testBtn = document.getElementById('testBtn');
+
     const permModal = document.getElementById('permModal');
     const enableBtn = document.getElementById('enableBtn');
     const mouseBtn = document.getElementById('mouseBtn');
     const learnLink = document.getElementById('learnLink');
 
-    learnLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      alert('This page only reads orientation angles (alpha, beta, gamma) locally to rotate the 3D model. Nothing is transmitted.');
-    });
+    // --- Diagnostics refs ---
+    const d_https = document.getElementById('d_https');
+    const d_doe = document.getElementById('d_doe');
+    const d_dme = document.getElementById('d_dme');
+    const d_ios = document.getElementById('d_ios');
+    const d_perm = document.getElementById('d_perm');
+    const d_acc = document.getElementById('d_acc');
+    const d_gyro = document.getElementById('d_gyro');
+    const d_mag = document.getElementById('d_mag');
+    const d_abs = document.getElementById('d_abs');
+    const d_rate = document.getElementById('d_rate');
+    const d_jitter = document.getElementById('d_jitter');
+    const d_g = document.getElementById('d_g');
+    const d_overall = document.getElementById('d_overall');
 
-    // Motion handling state
+    const badge = (txt, cls) => `<span class="badge ${cls}">${txt}</span>`;
+
+    // --- Motion state ---
     const targetQ = new THREE.Quaternion();
-    const displayQ = new THREE.Quaternion();
-    let baselineQ = new THREE.Quaternion().identity(); // inverse of current to recenter
-    let haveReading = false;
+    const tmpQ = new THREE.Quaternion();
+    let baselineQ = new THREE.Quaternion().identity();
+    let haveReading = false; let haveMotion = false; let absoluteFrame = false;
     let smoothing = parseFloat(smoothEl.value);
 
     const zee = new THREE.Vector3(0,0,1);
     const euler = new THREE.Euler();
     const q0 = new THREE.Quaternion();
-    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -PI/2 around X
+    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
 
-    function getScreenOrientationRad() {
+    function screenOrientRad() {
       const ang = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
       return THREE.MathUtils.degToRad(ang || 0);
     }
+    function setQFromEuler(q, alpha, beta, gamma, orient) { euler.set(beta, alpha, -gamma, 'YXZ'); q.setFromEuler(euler); q.multiply(q1); q.multiply(q0.setFromAxisAngle(zee, -orient)); }
 
-    function setObjectQuaternionFromEuler(q, alpha, beta, gamma, orient) {
-      // Replicates three.js DeviceOrientationControls mapping
-      euler.set(beta, alpha, -gamma, 'YXZ');
-      q.setFromEuler(euler);
-      q.multiply(q1);
-      q.multiply(q0.setFromAxisAngle(zee, -orient));
+    // --- Diagnostics helpers ---
+    const now = () => (performance && performance.now) ? performance.now() : Date.now();
+    function mean(a){ return a.length? a.reduce((s,x)=>s+x,0)/a.length : 0; }
+    function std(a){ if(a.length<2) return 0; const m=mean(a); return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/(a.length-1)); }
+    function circularDiffDeg(prev, curr){
+      let d = curr - prev; d = (d + 180) % 360 - 180; return d;
     }
 
-    function handleDeviceOrientation(ev) {
-      const { alpha, beta, gamma } = ev;
-      if (alpha == null || beta == null || gamma == null) return;
-      haveReading = true;
-      const a = THREE.MathUtils.degToRad(alpha);
-      const b = THREE.MathUtils.degToRad(beta);
-      const g = THREE.MathUtils.degToRad(gamma);
-      setObjectQuaternionFromEuler(targetQ, a, b, g, getScreenOrientationRad());
+    const sample = { times:[], alpha:[], beta:[], gamma:[], g:[] };
 
-      // HUD
-      alphaEl.textContent = (alpha).toFixed(0);
-      betaEl.textContent  = (beta ).toFixed(0);
-      gammaEl.textContent = (gamma).toFixed(0);
+    function resetSamples(){ sample.times.length=sample.alpha.length=sample.beta.length=sample.gamma.length=sample.g.length=0; }
+
+    // --- Listeners ---
+    function handleDeviceOrientation(ev){
+      const { alpha, beta, gamma } = ev; if(alpha==null||beta==null||gamma==null) return;
+      haveReading = true; absoluteFrame = !!ev.absolute; d_abs.innerHTML = badge(ev.absolute? 'true' : 'false', ev.absolute? 'b-ok':'b-info');
+      const a = THREE.MathUtils.degToRad(alpha); const b = THREE.MathUtils.degToRad(beta); const g = THREE.MathUtils.degToRad(gamma);
+      setQFromEuler(targetQ, a, b, g, screenOrientRad());
+      alphaEl.textContent = (alpha).toFixed(0); betaEl.textContent = (beta).toFixed(0); gammaEl.textContent = (gamma).toFixed(0);
+      // Collect for diagnostics
+      if (collecting){ sample.times.push(now()); sample.alpha.push(alpha); sample.beta.push(beta); sample.gamma.push(gamma); }
     }
 
-    function onPermissionGranted() {
+    function handleDeviceMotion(ev){
+      haveMotion = true;
+      const ag = ev.accelerationIncludingGravity; if(!ag) return;
+      const gmag = Math.sqrt((ag.x||0)**2 + (ag.y||0)**2 + (ag.z||0)**2);
+      if (collecting) sample.g.push(gmag);
+    }
+
+    function onPermissionGranted(){
       window.addEventListener('deviceorientation', handleDeviceOrientation, true);
-      statusEl.textContent = 'live';
-      statusEl.style.color = '#9cf3b2';
-      permModal.classList.add('hidden');
-      orbit.enabled = false;
+      window.addEventListener('devicemotion', handleDeviceMotion, true);
+      statusEl.textContent = 'live'; statusEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--ok');
+      permModal.classList.add('hidden'); orbit.enabled = false;
+      d_doe.innerHTML = badge('available','b-ok'); d_dme.innerHTML = badge('available','b-ok');
     }
 
-    async function requestPermissionIfNeeded() {
-      // iOS 13+ requires explicit permission; other platforms may not
-      const iOSNeedsPermission = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
-      if (iOSNeedsPermission) {
-        try {
-          // Some iOS versions also require DeviceMotion; ignore errors there
-          if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-            try { await DeviceMotionEvent.requestPermission(); } catch {}
-          }
-          const state = await DeviceOrientationEvent.requestPermission();
-          if (state === 'granted') { onPermissionGranted(); }
-          else { throw new Error('Permission denied'); }
-        } catch (err) {
-          statusEl.textContent = 'permission denied';
-          statusEl.style.color = '#ff8a80';
-          orbit.enabled = true;
-        }
+    async function requestPermission(){
+      const iOS = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+      if (iOS) {
+        try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { try { await DeviceMotionEvent.requestPermission(); } catch {} } const state = await DeviceOrientationEvent.requestPermission(); if (state === 'granted') { onPermissionGranted(); } else { throw new Error('denied'); } }
+        catch { statusEl.textContent='permission denied'; statusEl.style.color='var(--err)'; orbit.enabled=true; }
       } else {
-        // Non‑iOS
-        if ('DeviceOrientationEvent' in window) {
-          onPermissionGranted();
-        } else {
-          statusEl.textContent = 'no sensor';
-          statusEl.style.color = '#ffd27f';
-          orbit.enabled = true;
-        }
+        if ('DeviceOrientationEvent' in window) { onPermissionGranted(); } else { statusEl.textContent='no sensor'; statusEl.style.color='var(--warn)'; orbit.enabled=true; }
       }
+      updatePermissionsAPI();
     }
 
-    // UI wiring
-    enableBtn.addEventListener('click', () => requestPermissionIfNeeded());
-    mouseBtn.addEventListener('click', () => { orbit.enabled = true; permModal.classList.add('hidden'); statusEl.textContent = 'mouse'; });
+    // --- Permissions API probing (best-effort) ---
+    async function queryPerm(name){ try { const s = await navigator.permissions.query({name}); return s.state; } catch { return 'unsupported'; } }
+    async function updatePermissionsAPI(){
+      const hasAPI = 'permissions' in navigator; d_perm.innerHTML = badge(hasAPI? 'yes':'no', hasAPI? 'b-ok':'b-info');
+      if (!hasAPI) return;
+      const [acc, gyro, mag] = await Promise.all([queryPerm('accelerometer'), queryPerm('gyroscope'), queryPerm('magnetometer')]);
+      const m = (state)=> state==='granted'? 'b-ok' : state==='prompt'? 'b-info' : state==='denied'? 'b-err' : 'b-info';
+      d_acc.innerHTML = badge(acc, m(acc)); d_gyro.innerHTML = badge(gyro, m(gyro)); d_mag.innerHTML = badge(mag, m(mag));
+    }
+
+    // --- Accuracy test ---
+    let collecting = false;
+    async function runAccuracyTest(){
+      if (!haveReading) { d_overall.innerHTML = badge('no orientation data','b-err'); return; }
+      resetSamples(); collecting = true; const t0 = now();
+      await new Promise(r => setTimeout(r, 2500)); // brief window
+      collecting = false; const t1 = now();
+      const n = sample.alpha.length; const dt = (t1 - t0)/1000; const hz = n>1? (n-1)/dt : 0; d_rate.innerHTML = badge(`${hz.toFixed(1)} Hz`, hz>=40? 'b-ok' : hz>=20? 'b-info' : 'b-warn');
+      // Jitter: STD of per-step diffs for beta/gamma
+      const diffs = (arr)=>{ const out=[]; for(let i=1;i<arr.length;i++){ out.push(circularDiffDeg(arr[i-1], arr[i])); } return out; };
+      const jb = std(diffs(sample.beta)); const jg = std(diffs(sample.gamma));
+      d_jitter.innerHTML = badge(`${jb.toFixed(2)}° / ${jg.toFixed(2)}°`, (jb<1&&jg<1)?'b-ok':(jb<3&&jg<3)?'b-info':'b-warn');
+      if (sample.g.length){ const mg = mean(sample.g); const sg = std(sample.g); d_g.innerHTML = badge(`${mg.toFixed(2)}±${sg.toFixed(2)} m/s²`, (Math.abs(mg-9.81)<1 && sg<0.4)?'b-ok':'b-info'); }
+      else { d_g.innerHTML = badge('n/a','b-info'); }
+      // Overall
+      const score = (hz>=40?2:hz>=20?1:0) + ((jb<1&&jg<1)?2:(jb<3&&jg<3)?1:0) + (sample.g.length? ((Math.abs(mean(sample.g)-9.81)<1 && std(sample.g)<0.4)?2:1) : 0);
+      const label = score>=5? ['excellent','b-ok'] : score>=3? ['good','b-info'] : ['poor','b-warn'];
+      d_overall.innerHTML = badge(label[0], label[1]);
+    }
+
+    // --- UI wiring ---
     smoothEl.addEventListener('input', () => { smoothing = parseFloat(smoothEl.value); });
-    recenterBtn.addEventListener('click', () => {
-      // Make current orientation the new forward (identity)
-      baselineQ.copy(targetQ).invert();
-    });
+    recenterBtn.addEventListener('click', () => { baselineQ.copy(targetQ).invert(); });
+    testBtn.addEventListener('click', runAccuracyTest);
 
-    // Resize handling
-    addEventListener('resize', () => {
-      camera.aspect = innerWidth / innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth, innerHeight);
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    });
+    enableBtn.addEventListener('click', () => requestPermission());
+    mouseBtn.addEventListener('click', () => { orbit.enabled = true; permModal.classList.add('hidden'); statusEl.textContent = 'mouse'; });
+    learnLink.addEventListener('click', (e) => { e.preventDefault(); alert('Only local sensor angles + acceleration are read to drive the 3D model. No uploads.'); });
 
-    // Screen orientation changes affect mapping
-    const onSO = () => {};
-    if (screen.orientation && screen.orientation.addEventListener) {
-      screen.orientation.addEventListener('change', onSO);
-    } else {
-      addEventListener('orientationchange', onSO);
-    }
+    // --- Resize/orientation ---
+    addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); });
 
-    // Animation loop
-    const tmpQ = new THREE.Quaternion();
-    function animate() {
-      requestAnimationFrame(animate);
-
-      // If we have device data, compute relative quaternion baseline * target
-      if (haveReading) {
-        tmpQ.copy(baselineQ).multiply(targetQ);
-        // Smooth the visual rotation
-        THREE.Quaternion.slerp(phone.quaternion, tmpQ, phone.quaternion, 1 - Math.exp(-60 * smoothing * (renderer.info.render.frameTime || 0.016)));
-      }
-
-      orbit.update();
-      renderer.render(scene, camera);
-    }
+    // --- Render loop ---
+    function animate(){ requestAnimationFrame(animate); if(haveReading){ tmpQ.copy(baselineQ).multiply(targetQ); THREE.Quaternion.slerp(phone.quaternion, tmpQ, phone.quaternion, 1 - Math.exp(-60 * smoothing * (renderer.info.render.frameTime || 0.016))); } orbit.update(); renderer.render(scene, camera); }
     animate();
 
-    // Secure context check
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      statusEl.textContent = 'HTTPS required';
-      statusEl.style.color = '#ffd27f';
-    }
+    // --- Boot diagnostics ---
+    const httpsOK = (location.protocol === 'https:' || location.hostname === 'localhost');
+    d_https.innerHTML = badge(httpsOK? 'yes' : 'no', httpsOK? 'b-ok':'b-warn');
+    d_doe.innerHTML = badge(('DeviceOrientationEvent' in window)? 'available' : 'missing', ('DeviceOrientationEvent' in window)? 'b-ok':'b-err');
+    d_dme.innerHTML = badge(('DeviceMotionEvent' in window)? 'available' : 'missing', ('DeviceMotionEvent' in window)? 'b-ok':'b-info');
+    d_ios.innerHTML = badge((typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')? 'yes':'no', (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')? 'b-info':'b-info');
+    updatePermissionsAPI();
 
-    // Hint: auto-attempt on Android to avoid extra tap, keep modal visible on iOS
-    (async function autoTry() {
-      const iOSNeedsPermission = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
-      if (!iOSNeedsPermission) {
-        await requestPermissionIfNeeded();
-      }
-    })();
+    // --- Auto attempt (Android) ---
+    (async function autoTry(){ const iOS = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'; if(!iOS) { await requestPermission(); } })();
   </script>
 </body>
 </html>
