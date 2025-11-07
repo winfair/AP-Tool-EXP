@@ -1,4 +1,6 @@
 // geoMotion.js
+// Fetches geolocation and device motion/orientation, exposes callbacks.
+
 export class GeoMotionService {
   constructor() {
     this.geoWatchId = null;
@@ -117,6 +119,7 @@ export class GeoMotionService {
         this.onMotion && this.onMotion({ type: 'error', error: String(err) });
       }
     } else {
+      // Android / desktop
       startListeners();
     }
   }
