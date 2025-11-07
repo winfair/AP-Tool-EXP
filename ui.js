@@ -1,6 +1,4 @@
 // ui.js
-// Handles all DOM updates and drawing.
-
 export class SensorUI {
   constructor() {
     this.geoStatusEl = document.getElementById('geoStatus');
@@ -13,6 +11,9 @@ export class SensorUI {
     this.azCanvas = document.getElementById('azimuthCanvas');
     this.azLabel = document.getElementById('azimuthLabel');
     this.azCtx = this.azCanvas ? this.azCanvas.getContext('2d') : null;
+
+    this.targetStatusEl = document.getElementById('targetStatus');
+    this.pointingOutEl = document.getElementById('pointingOut');
   }
 
   setGeoStatus(text) {
@@ -57,14 +58,12 @@ export class SensorUI {
 
     ctx.clearRect(0, 0, w, h);
 
-    // outer circle
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // north tick
     ctx.beginPath();
     ctx.moveTo(cx, cy - r);
     ctx.lineTo(cx, cy - r + 14);
@@ -72,7 +71,6 @@ export class SensorUI {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // label
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
@@ -83,7 +81,6 @@ export class SensorUI {
       return;
     }
 
-    // 0° = north, clockwise
     const rad = angleDeg * Math.PI / 180;
     const vx = Math.sin(rad);
     const vy = -Math.cos(rad);
@@ -92,7 +89,6 @@ export class SensorUI {
     const endX = cx + vx * arrowLen;
     const endY = cy + vy * arrowLen;
 
-    // arrow shaft
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(endX, endY);
@@ -101,7 +97,6 @@ export class SensorUI {
     ctx.lineCap = 'round';
     ctx.stroke();
 
-    // arrow head
     ctx.beginPath();
     const headLen = 10;
     const perpX = -vy;
@@ -114,6 +109,17 @@ export class SensorUI {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    if (this.azLabel) this.azLabel.textContent = angleDeg.toFixed(1) + '° (phone top)';
+    if (this.azLabel) this.azLabel.textContent = angleDeg.toFixed(1) + '° (top edge)';
+  }
+
+  showTargetSet(azDeg, elDeg) {
+    if (this.targetStatusEl) {
+      this.targetStatusEl.textContent = `Target: az ${azDeg.toFixed(1)}°, el ${elDeg.toFixed(1)}°`;
+    }
+  }
+
+  showPointingResult(result) {
+    if (!this.pointingOutEl) return;
+    this.pointingOutEl.textContent = JSON.stringify(result, null, 2);
   }
 }
