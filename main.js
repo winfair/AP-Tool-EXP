@@ -3,28 +3,44 @@ import { GeoMotionService } from './geoMotion.js';
 import { OrientationFrame } from './orientationFrame.js';
 
 const svc = new GeoMotionService();
-const frame = new OrientationFrame({ declinationDeg: 12 }); // example declination
+const frame = new OrientationFrame({ declinationDeg: 0 }); // change to your local declination
 
+// hook up callbacks
 svc.onGeo = (data) => {
   frame.updateGeo(data);
-  // ... your existing UI stuff
+  const el = document.getElementById('geoOut');
+  if (el) el.textContent = JSON.stringify(data, null, 2);
+};
+
+svc.onGeoError = (err) => {
+  const el = document.getElementById('geoOut');
+  if (el) el.textContent = 'Geo error: ' + err.message;
 };
 
 svc.onMotion = (data) => {
   frame.updateMotion(data);
-  // ... your existing UI stuff
+  const el = document.getElementById('motionOut');
+  if (el) el.textContent = JSON.stringify(data, null, 2);
 
+  // example: derived axes
   const axes = frame.getDeviceAxes();
   if (axes) {
-    // now you can feed this to your 3D renderer
-    // e.g. updatePhoneModel(axes);
-    console.log('Device axes in world:', axes);
-  }
-
-  const heading = frame.getTrueHeadingDeg();
-  if (heading != null) {
-    console.log('True heading:', heading);
+    const axesEl = document.getElementById('axesOut');
+    if (axesEl) axesEl.textContent = JSON.stringify(axes, null, 2);
   }
 };
 
-// rest of your button wiring stays the same
+// make sure this runs AFTER DOM is there (script at bottom of HTML)
+const btnGeo = document.getElementById('btnGeo');
+if (btnGeo) {
+  btnGeo.addEventListener('click', () => {
+    svc.startGeolocation();
+  });
+}
+
+const btnMotion = document.getElementById('btnMotion');
+if (btnMotion) {
+  btnMotion.addEventListener('click', () => {
+    svc.startMotion();
+  });
+}
