@@ -73,7 +73,7 @@
       border: 1px solid rgba(255,255,255,0.03);
       border-radius: 6px;
       padding: 0.35rem 0.5rem;
-      font-family: ui-monospace, SFMono-Regular, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size: 0.7rem;
       white-space: pre-wrap;
       word-break: break-word;
@@ -114,6 +114,12 @@
       <div class="panel-title">Heading</div>
       <pre class="value" id="headingOut">—</pre>
       <div class="status">true north (declination applied in frame)</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Azimuth (phone top)</div>
+      <canvas id="azimuthCanvas" width="220" height="220" style="background:rgba(0,0,0,0.1); border-radius:6px;"></canvas>
+      <div class="status" id="azimuthLabel">—</div>
     </section>
   </main>
 
