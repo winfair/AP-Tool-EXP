@@ -1,38 +1,30 @@
 // main.js
 import { GeoMotionService } from './geoMotion.js';
+import { OrientationFrame } from './orientationFrame.js';
 
 const svc = new GeoMotionService();
+const frame = new OrientationFrame({ declinationDeg: 12 }); // example declination
 
-// set callbacks
 svc.onGeo = (data) => {
-  // do whatever: update UI, feed 3D scene, send to server...
-  console.log('GEO:', data);
-  const el = document.getElementById('geoOut');
-  if (el) {
-    el.textContent = JSON.stringify(data, null, 2);
-  }
-};
-
-svc.onGeoError = (err) => {
-  console.warn('GEO ERROR:', err);
-  const el = document.getElementById('geoOut');
-  if (el) el.textContent = 'Geo error: ' + err.message;
+  frame.updateGeo(data);
+  // ... your existing UI stuff
 };
 
 svc.onMotion = (data) => {
-  console.log('MOTION:', data);
-  const el = document.getElementById('motionOut');
-  if (el) {
-    // show last event
-    el.textContent = JSON.stringify(data, null, 2);
+  frame.updateMotion(data);
+  // ... your existing UI stuff
+
+  const axes = frame.getDeviceAxes();
+  if (axes) {
+    // now you can feed this to your 3D renderer
+    // e.g. updatePhoneModel(axes);
+    console.log('Device axes in world:', axes);
+  }
+
+  const heading = frame.getTrueHeadingDeg();
+  if (heading != null) {
+    console.log('True heading:', heading);
   }
 };
 
-// maybe bind to buttons in your actual UI
-document.getElementById('btnGeo')?.addEventListener('click', () => {
-  svc.startGeolocation();
-});
-
-document.getElementById('btnMotion')?.addEventListener('click', () => {
-  svc.startMotion();
-});
+// rest of your button wiring stays the same
