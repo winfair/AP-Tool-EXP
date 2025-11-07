@@ -1,5 +1,6 @@
 // orientationFrame.js
-// World frame: x = east, y = north (true), z = up
+// Interprets deviceorientation into a world-aligned frame (x=east, y=north, z=up)
+
 export class OrientationFrame {
   constructor({ declinationDeg = 0 } = {}) {
     this.declinationDeg = declinationDeg;
@@ -23,13 +24,13 @@ export class OrientationFrame {
     if (latitude != null) this.latitude = latitude;
     if (longitude != null) this.longitude = longitude;
 
-    // geolocation heading is usually true already, but store it
+    // geolocation heading is usually true north already
     if (heading != null) {
       this.trueHeadingDeg = this._normalizeDeg(heading);
     }
   }
 
-  // from deviceorientation
+  // from motion/orientation
   updateMotion(data) {
     if (data.type === 'orientation') {
       this.alpha = data.alpha;
@@ -39,7 +40,7 @@ export class OrientationFrame {
   }
 
   _recomputeHeading() {
-    // placeholder in case you later feed magnetic heading here
+    // placeholder for when you feed magnetic heading + declination
   }
 
   _normalizeDeg(d) {
@@ -52,14 +53,14 @@ export class OrientationFrame {
     return this.trueHeadingDeg;
   }
 
-  // Standard deviceorientation → rotation matrix (Z * X * Y)
+  // rotation matrix from DeviceOrientation (Z * X * Y)
   getRotationMatrix() {
     if (this.alpha == null || this.beta == null || this.gamma == null) return null;
 
     const deg2rad = Math.PI / 180;
-    const alpha = this.alpha * deg2rad;
-    const beta = this.beta * deg2rad;
-    const gamma = this.gamma * deg2rad;
+    const alpha = this.alpha * deg2rad; // z
+    const beta = this.beta * deg2rad;   // x
+    const gamma = this.gamma * deg2rad; // y
 
     const cA = Math.cos(alpha), sA = Math.sin(alpha);
     const cB = Math.cos(beta),  sB = Math.sin(beta);
@@ -85,7 +86,6 @@ export class OrientationFrame {
     ];
   }
 
-  // Axes in world space
   getDeviceAxes() {
     const R = this.getRotationMatrix();
     if (!R) return null;
