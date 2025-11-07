@@ -82,6 +82,20 @@
       font-size: 0.7rem;
       color: var(--muted);
     }
+    .target-row {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .target-row input {
+      width: 4.5rem;
+      background: #101218;
+      border: 1px solid #222;
+      border-radius: 4px;
+      padding: 0.2rem 0.35rem;
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -113,13 +127,26 @@
     <section class="panel">
       <div class="panel-title">Heading</div>
       <pre class="value" id="headingOut">—</pre>
-      <div class="status">true north (declination applied in frame)</div>
+      <div class="status">true north (from geo)</div>
     </section>
 
     <section class="panel">
-      <div class="panel-title">Azimuth (phone top)</div>
+      <div class="panel-title">Azimuth (phone top edge = device Y)</div>
       <canvas id="azimuthCanvas" width="220" height="220" style="background:rgba(0,0,0,0.1); border-radius:6px;"></canvas>
       <div class="status" id="azimuthLabel">—</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Target pointing</div>
+      <div class="target-row">
+        <label for="targetAz">Az°</label>
+        <input id="targetAz" type="number" value="90" />
+        <label for="targetEl">El°</label>
+        <input id="targetEl" type="number" value="30" />
+        <button class="btn" id="btnSetTarget">Set</button>
+      </div>
+      <div class="status" id="targetStatus">Target: none</div>
+      <pre class="value" id="pointingOut">—</pre>
     </section>
   </main>
 
