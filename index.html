@@ -1,16 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>App using geoMotion module</title>
+  <meta charset="UTF-8">
+  <title>Sensor test</title>
 </head>
 <body>
   <button id="btnGeo">Start Geo</button>
-  <pre id="geoOut"></pre>
+  <pre id="geoOut">geo...</pre>
 
   <button id="btnMotion">Start Motion</button>
-  <pre id="motionOut"></pre>
+  <pre id="motionOut">motion...</pre>
 
+  <h3>Derived axes (world frame)</h3>
+  <pre id="axesOut">axes...</pre>
+
+  <!-- important: load as module -->
   <script type="module" src="./main.js"></script>
 </body>
 </html>
