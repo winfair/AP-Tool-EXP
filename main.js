@@ -2,11 +2,11 @@
 import { GeoMotionService } from './geoMotion.js';
 import { OrientationFrame } from './orientationFrame.js';
 import { SensorUI } from './ui.js';
-import { computeAzimuthFromDeviceAxes } from './azimuthProjection.js';
+import { computeAzimuthFromTopEdge } from './azimuthProjection.js';
 
 const ui = new SensorUI();
 const svc = new GeoMotionService();
-const frame = new OrientationFrame({ declinationDeg: 0 }); // change if you want real declination
+const frame = new OrientationFrame({ declinationDeg: 0 });
 
 svc.onGeo = (data) => {
   ui.setGeoStatus('watching position');
@@ -30,7 +30,8 @@ svc.onMotion = (data) => {
   if (axes) {
     ui.showAxes(axes);
 
-    const azInfo = computeAzimuthFromDeviceAxes(axes);
+    // HERE: top edge azimuth
+    const azInfo = computeAzimuthFromTopEdge(axes);
     if (azInfo && azInfo.azimuthDeg != null) {
       ui.drawAzimuth(azInfo.azimuthDeg);
     } else {
