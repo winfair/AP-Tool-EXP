@@ -1,46 +1,47 @@
 // main.js
 import { GeoMotionService } from './geoMotion.js';
 import { OrientationFrame } from './orientationFrame.js';
+import { SensorUI } from './ui.js';
 
+const ui = new SensorUI();
 const svc = new GeoMotionService();
-const frame = new OrientationFrame({ declinationDeg: 0 }); // change to your local declination
 
-// hook up callbacks
+// set your actual declination here if you want real map north
+const frame = new OrientationFrame({ declinationDeg: 0 });
+
+// wire sensor callbacks
 svc.onGeo = (data) => {
+  ui.setGeoStatus('watching position');
+  ui.showGeo(data);
   frame.updateGeo(data);
-  const el = document.getElementById('geoOut');
-  if (el) el.textContent = JSON.stringify(data, null, 2);
+
+  const heading = frame.getTrueHeadingDeg();
+  if (heading != null) ui.showHeading(heading);
 };
 
 svc.onGeoError = (err) => {
-  const el = document.getElementById('geoOut');
-  if (el) el.textContent = 'Geo error: ' + err.message;
+  ui.showGeoError(err.message || String(err));
 };
 
 svc.onMotion = (data) => {
+  ui.setMotionStatus('receiving…');
+  ui.showMotion(data);
   frame.updateMotion(data);
-  const el = document.getElementById('motionOut');
-  if (el) el.textContent = JSON.stringify(data, null, 2);
 
-  // example: derived axes
   const axes = frame.getDeviceAxes();
-  if (axes) {
-    const axesEl = document.getElementById('axesOut');
-    if (axesEl) axesEl.textContent = JSON.stringify(axes, null, 2);
-  }
+  if (axes) ui.showAxes(axes);
+
+  const heading = frame.getTrueHeadingDeg();
+  if (heading != null) ui.showHeading(heading);
 };
 
-// make sure this runs AFTER DOM is there (script at bottom of HTML)
-const btnGeo = document.getElementById('btnGeo');
-if (btnGeo) {
-  btnGeo.addEventListener('click', () => {
-    svc.startGeolocation();
-  });
-}
+// buttons
+document.getElementById('btnGeo')?.addEventListener('click', () => {
+  ui.setGeoStatus('requesting…');
+  svc.startGeolocation();
+});
 
-const btnMotion = document.getElementById('btnMotion');
-if (btnMotion) {
-  btnMotion.addEventListener('click', () => {
-    svc.startMotion();
-  });
-}
+document.getElementById('btnMotion')?.addEventListener('click', () => {
+  ui.setMotionStatus('requesting permission…');
+  svc.startMotion();
+});
