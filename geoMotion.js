@@ -1,6 +1,4 @@
 // geoMotion.js
-// Fetches geolocation and device motion/orientation, exposes callbacks.
-
 export class GeoMotionService {
   constructor() {
     this.geoWatchId = null;
@@ -99,7 +97,6 @@ export class GeoMotionService {
       });
     };
 
-    // iOS permission
     if (DeviceMotionEventRef && typeof DeviceMotionEventRef.requestPermission === 'function') {
       try {
         const r1 = await DeviceMotionEventRef.requestPermission();
@@ -119,7 +116,6 @@ export class GeoMotionService {
         this.onMotion && this.onMotion({ type: 'error', error: String(err) });
       }
     } else {
-      // Android / desktop
       startListeners();
     }
   }
