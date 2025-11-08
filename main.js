@@ -2,20 +2,17 @@
 import { GeoMotionService } from './geoMotion.js';
 import { OrientationFrame } from './orientationFrame.js';
 import { SensorUI } from './ui.js';
-import { computeAzimuthFromTopEdge } from './azimuthProjection.js';
-import { TargetTracker } from './targetTracker.js';
+import { Compass3D } from './compass3d.js';
 
 const ui = new SensorUI();
 const svc = new GeoMotionService();
 const frame = new OrientationFrame({ declinationDeg: 0 });
-const tracker = new TargetTracker();
+const compass3d = new Compass3D('threeContainer');
 
-// handle geo
 svc.onGeo = (data) => {
-  ui.setGeoStatus('watching position');
+  ui.setGeoStatus('watching…');
   ui.showGeo(data);
   frame.updateGeo(data);
-
   const heading = frame.getTrueHeadingDeg();
   if (heading != null) ui.showHeading(heading);
 };
@@ -24,7 +21,6 @@ svc.onGeoError = (err) => {
   ui.showGeoError(err.message || String(err));
 };
 
-// handle motion
 svc.onMotion = (data) => {
   ui.setMotionStatus('receiving…');
   ui.showMotion(data);
@@ -33,27 +29,13 @@ svc.onMotion = (data) => {
   const axes = frame.getDeviceAxes();
   if (axes) {
     ui.showAxes(axes);
-
-    // azimuth from phone top edge (device Y)
-    const azInfo = computeAzimuthFromTopEdge(axes);
-    if (azInfo && azInfo.azimuthDeg != null) {
-      ui.drawAzimuth(azInfo.azimuthDeg);
-    } else {
-      ui.drawAzimuth(null);
-    }
-
-    // target pointing
-    const pointingResult = tracker.computeError(axes);
-    if (pointingResult) {
-      ui.showPointingResult(pointingResult);
-    }
+    compass3d.updateFromAxes(axes);
   }
 
   const heading = frame.getTrueHeadingDeg();
   if (heading != null) ui.showHeading(heading);
 };
 
-// buttons
 document.getElementById('btnGeo')?.addEventListener('click', () => {
   ui.setGeoStatus('requesting…');
   svc.startGeolocation();
@@ -64,11 +46,6 @@ document.getElementById('btnMotion')?.addEventListener('click', () => {
   svc.startMotion();
 });
 
-document.getElementById('btnSetTarget')?.addEventListener('click', () => {
-  const azInput = document.getElementById('targetAz');
-  const elInput = document.getElementById('targetEl');
-  const az = parseFloat(azInput?.value ?? '0');
-  const el = parseFloat(elInput?.value ?? '0');
-  tracker.setTarget(az, el);
-  ui.showTargetSet(az, el);
+window.addEventListener('resize', () => {
+  compass3d.onResize();
 });
