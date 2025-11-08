@@ -1,26 +1,17 @@
 // orientationFrame.js
-// Gives you device axes in world frame: x=east, y=north, z=up
-
 export class OrientationFrame {
   constructor({ declinationDeg = 0 } = {}) {
     this.declinationDeg = declinationDeg;
-    this.latitude = null;
-    this.longitude = null;
     this.trueHeadingDeg = null;
-
     this.alpha = null;
     this.beta = null;
     this.gamma = null;
   }
 
-  setDeclination(deg) {
-    this.declinationDeg = deg;
-  }
-
-  updateGeo({ latitude, longitude, heading }) {
-    if (latitude != null) this.latitude = latitude;
-    if (longitude != null) this.longitude = longitude;
-    if (heading != null) this.trueHeadingDeg = this._normalizeDeg(heading);
+  updateGeo({ heading }) {
+    if (heading != null) {
+      this.trueHeadingDeg = this._normalize(heading);
+    }
   }
 
   updateMotion(data) {
@@ -31,7 +22,7 @@ export class OrientationFrame {
     }
   }
 
-  _normalizeDeg(d) {
+  _normalize(d) {
     let x = d % 360;
     if (x < 0) x += 360;
     return x;
@@ -44,16 +35,16 @@ export class OrientationFrame {
   getRotationMatrix() {
     if (this.alpha == null || this.beta == null || this.gamma == null) return null;
 
-    const deg2rad = Math.PI / 180;
-    const alpha = this.alpha * deg2rad;
-    const beta = this.beta * deg2rad;
-    const gamma = this.gamma * deg2rad;
+    const toRad = Math.PI / 180;
+    const a = this.alpha * toRad;
+    const b = this.beta * toRad;
+    const g = this.gamma * toRad;
 
-    const cA = Math.cos(alpha), sA = Math.sin(alpha);
-    const cB = Math.cos(beta),  sB = Math.sin(beta);
-    const cG = Math.cos(gamma), sG = Math.sin(gamma);
+    const cA = Math.cos(a), sA = Math.sin(a);
+    const cB = Math.cos(b), sB = Math.sin(b);
+    const cG = Math.cos(g), sG = Math.sin(g);
 
-    // R = Rz(alpha) * Rx(beta) * Ry(gamma)
+    // Rz(a) * Rx(b) * Ry(g)
     const m11 = cA * cG + sA * sB * sG;
     const m12 = sG * cB;
     const m13 = cA * sB * sG - sA * cG;
@@ -76,10 +67,12 @@ export class OrientationFrame {
   getDeviceAxes() {
     const R = this.getRotationMatrix();
     if (!R) return null;
+
     return {
-      x: { x: R[0][0], y: R[1][0], z: R[2][0] }, // across width
-      y: { x: R[0][1], y: R[1][1], z: R[2][1] }, // along length (TOP EDGE)
-      z: { x: R[0][2], y: R[1][2], z: R[2][2] }  // out of screen (device z)
+      // x: short width, y: long side (TOP), z: out of screen
+      x: { x: R[0][0], y: R[1][0], z: R[2][0] },
+      y: { x: R[0][1], y: R[1][1], z: R[2][1] },
+      z: { x: R[0][2], y: R[1][2], z: R[2][2] }
     };
   }
 }
