@@ -3,27 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Line-of-Sight HUD — Field Align</title>
+  <title>Field Align HUD</title>
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Leaflet (map) -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <script
-    defer
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
-  <!-- Three.js (HUD) -->
+  <!-- Three.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
-  <!-- Pyodide (Python in the browser) -->
+  <!-- Pyodide -->
   <script defer src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
 
   <!-- App -->
@@ -182,6 +172,39 @@
       </menu>
     </form>
   </dialog>
+
+  <!-- Permission Wizard Modal -->
+  <dialog id="permWizard" class="wizard">
+    <div class="wizard-header">
+      <h2>Enable Sensors & Location</h2>
+    </div>
+    <div class="wizard-body">
+      <div class="wizard-col">
+        <h3>iOS (Safari)</h3>
+        <ol>
+          <li>Open <strong>Settings ▸ Safari</strong>.</li>
+          <li>Scroll to <strong>Motion & Orientation Access</strong> → turn <strong>ON</strong>.</li>
+          <li>Return here and tap <strong>Try Again</strong>.</li>
+          <li>When prompted, allow <strong>Motion/Orientation</strong> and <strong>Location</strong>.</li>
+        </ol>
+      </div>
+      <div class="wizard-col">
+        <h3>Android (Chrome)</h3>
+        <ol>
+          <li>When prompted, allow <strong>Location</strong>.</li>
+          <li>If no motion prompt appears, go to <strong>Site settings</strong> → <strong>Sensors</strong> → Allow.</li>
+          <li>Return here and tap <strong>Try Again</strong>.</li>
+        </ol>
+      </div>
+    </div>
+    <div class="wizard-actions">
+      <button id="permCancel">Close</button>
+      <button id="permTryAgain" class="primary">Try Again</button>
+    </div>
+  </dialog>
+
+  <!-- Debug strip -->
+  <pre id="debugLog" class="debug" aria-live="polite"></pre>
 
   <div id="toast" class="toast" hidden></div>
 </body>
