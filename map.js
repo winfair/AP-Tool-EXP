@@ -1,70 +1,59 @@
 // map.js
-(function (global) {
+(function () {
   "use strict";
 
-  // Gradio-aware root resolver: works both in plain pages and HF/Gradio
-  function root() {
-    try {
-      return global.gradioApp ? global.gradioApp() : document;
-    } catch {
-      return document;
-    }
-  }
-  function qs(sel) {
-    return root().querySelector(sel);
-  }
+  const AP = (window.APTool = window.APTool || {});
 
-  const AP = global.APTool = global.APTool || {};
+  let map = null;
+  let marker = null;
+  let hasSetInitialView = false;
 
   /**
-   * Create a target map controller.
-   * opts: {
-   *   containerSelector: "#map-container",
-   *   statusSelector: "#map-status",
-   *   onSelect: (lat, lon) => {}
-   * }
+   * Initialize the Leaflet map once, and reuse it.
+   *
+   * @param {HTMLElement} containerEl  The #map-container element.
+   * @param {HTMLElement} statusEl     The #map-status pill element.
+   * @param {Function} getInitialPos   () => { lat, lon } | null
+   * @param {Function} onClickLatLon   (lat, lon) => void
    */
-  AP.createTargetMap = function (opts) {
-    opts = opts || {};
-    const containerSelector = opts.containerSelector || "#map-container";
-    const statusSelector    = opts.statusSelector    || "#map-status";
-    const onSelect          = typeof opts.onSelect === "function" ? opts.onSelect : null;
-
-    let map    = null;
-    let marker = null;
-
-    function setStatus(msg) {
-      if (!statusSelector) return;
-      const el = qs(statusSelector);
-      if (el) el.textContent = msg;
+  AP.initMapOnce = function (containerEl, statusEl, getInitialPos, onClickLatLon) {
+    if (!containerEl) {
+      if (statusEl) statusEl.textContent = "Map container missing.";
+      return;
     }
 
-    function ensureMap() {
-      const el = qs(containerSelector);
-      if (!el) {
-        setStatus("Map container not found.");
-        return;
+    // If already created, just update view and status
+    if (map) {
+      if (statusEl) statusEl.textContent = "Tap on the map to set target.";
+      const pos = getInitialPos && getInitialPos();
+      if (pos && typeof pos.lat === "number" && typeof pos.lon === "number") {
+        map.setView([pos.lat, pos.lon], 15);
       }
-      if (map) return;
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 200);
+      return;
+    }
 
-      if (typeof L === "undefined") {
-        setStatus("Leaflet failed to load.");
-        return;
-      }
+    try {
+      map = L.map(containerEl).setView([0, 0], 2);
 
-      map = L.map(el).setView([0, 0], 2);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors"
+        attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
 
-      // Try to center on user location if available
-      if ("geolocation" in navigator) {
+      const pos = getInitialPos && getInitialPos();
+      if (pos && typeof pos.lat === "number" && typeof pos.lon === "number") {
+        map.setView([pos.lat, pos.lon], 15);
+        hasSetInitialView = true;
+      } else if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const c = pos.coords || {};
+          (p) => {
+            const c = p.coords || {};
             if (c.latitude != null && c.longitude != null) {
               map.setView([c.latitude, c.longitude], 15);
+              hasSetInitialView = true;
             }
           },
           () => {},
@@ -75,28 +64,28 @@
       map.on("click", (e) => {
         const lat = e.latlng.lat;
         const lon = e.latlng.lng;
+
         if (!marker) {
           marker = L.marker([lat, lon]).addTo(map);
         } else {
           marker.setLatLng([lat, lon]);
         }
-        setStatus("Point selected.");
-        if (onSelect) onSelect(lat, lon);
+
+        if (statusEl) statusEl.textContent = "Target selected. Fetching elevation…";
+
+        if (typeof onClickLatLon === "function") {
+          onClickLatLon(lat, lon);
+        }
       });
 
-      setStatus("Tap on the map to set target.");
-    }
+      if (statusEl) statusEl.textContent = "Tap on the map to set target.";
 
-    return {
-      open() {
-        ensureMap();
-        // Fix hidden-sheet sizing: give the sheet a moment, then invalidate
-        setTimeout(() => {
-          if (map) {
-            map.invalidateSize(false);
-          }
-        }, 250);
-      }
-    };
+      // Resize after sheet animation
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 200);
+    } catch (e) {
+      if (statusEl) statusEl.textContent = "Map init error: " + (e.message || e);
+    }
   };
-})(window);
+})();
