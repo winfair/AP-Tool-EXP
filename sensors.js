@@ -16,7 +16,7 @@
     gpsLon: null,
     gpsAlt: null,   // meters
     gpsAcc: null,   // meters
-    gpsStatus: "idle",   // "idle" | "requesting" | "ok" | "denied" | "error:..." | "unsupported"
+    gpsStatus: "idle",   // "idle" | "requesting" | "ok" | "denied" | "error:..." | "unsupported",
 
     // Orientation
     headingDeg: null,    // 0–360
@@ -29,6 +29,12 @@
   };
 
   var listeners = [];
+
+  function log() {
+    if (console && console.log) {
+      console.log.apply(console, ["[SensorHub]"].concat([].slice.call(arguments)));
+    }
+  }
 
   function notify() {
     for (var i = 0; i < listeners.length; i++) {
@@ -45,10 +51,6 @@
       listeners.push(cb);
       cb(state); // push current state immediately
     }
-  }
-
-  function deg2rad(d) {
-    return (d * Math.PI) / 180;
   }
 
   function norm360(d) {
@@ -72,6 +74,7 @@
     state.gpsAlt = typeof c.altitude === "number" ? c.altitude : null;
     state.gpsAcc = typeof c.accuracy === "number" ? c.accuracy : null;
     state.gpsStatus = "ok";
+    log("Geolocation success:", state.gpsLat, state.gpsLon, "acc", state.gpsAcc);
     notify();
 
     // After initial allow, start watchPosition for live updates
@@ -81,13 +84,16 @@
   }
 
   function handleGeoError(err) {
-    // PERMISSION_DENIED is code 1 in the spec
-    // https://developer.mozilla.org/docs/Web/API/GeolocationPositionError :contentReference[oaicite:1]{index=1}
-    if (err && typeof err.code === "number" && err.code === 1) {
+    var code = err && typeof err.code === "number" ? err.code : null;
+    var msg = err && err.message ? err.message : "unknown";
+
+    if (code === 1) {
+      // PERMISSION_DENIED per spec
       state.gpsStatus = "denied";
+      log("Geolocation permission denied");
     } else {
-      var msg = err && err.message ? err.message : "unknown";
       state.gpsStatus = "error:" + msg;
+      log("Geolocation error:", msg, "code:", code);
     }
     notify();
   }
@@ -95,6 +101,7 @@
   function startGeoWatch() {
     if (!("geolocation" in navigator)) {
       state.gpsStatus = "unsupported";
+      log("navigator.geolocation not available");
       notify();
       return;
     }
@@ -117,19 +124,29 @@
       },
       opts
     );
+    log("Started geolocation watchPosition");
   }
 
   function requestGeolocation() {
     if (!("geolocation" in navigator)) {
       state.gpsStatus = "unsupported";
+      log("navigator.geolocation not available (unsupported)");
+      notify();
+      return;
+    }
+
+    if (!global.isSecureContext) {
+      // Needed for modern browsers 
+      state.gpsStatus = "unsupported";
+      log("Not a secure context (https) – geolocation blocked");
       notify();
       return;
     }
 
     state.gpsStatus = "requesting";
+    log("Requesting geolocation via getCurrentPosition (user gesture)");
     notify();
 
-    // Using getCurrentPosition inside a user gesture triggers the permission prompt if needed. :contentReference[oaicite:2]{index=2}
     var opts = {
       enableHighAccuracy: true,
       maximumAge: 5000,
@@ -169,7 +186,7 @@
       state.pitchDeg = ev.beta;
     }
 
-    if (state.oriStatus === "requesting") {
+    if (state.oriStatus === "requesting" || state.oriStatus === "idle") {
       state.oriStatus = "listening";
     }
     notify();
@@ -180,13 +197,16 @@
 
     if (!("DeviceOrientationEvent" in global)) {
       state.oriStatus = "unsupported";
+      log("DeviceOrientationEvent not available (unsupported)");
       notify();
       return;
     }
 
-    global.addEventListener("deviceorientation", handleOrientation, { passive: true });
+    log("Attaching deviceorientation listener");
+    // Use boolean for older Safari / Android
+    global.addEventListener("deviceorientation", handleOrientation, false);
     state._oriAttached = true;
-    if (state.oriStatus === "idle" || state.oriStatus === "requesting") {
+    if (state.oriStatus === "idle") {
       state.oriStatus = "listening";
     }
     notify();
@@ -200,13 +220,19 @@
     }
 
     try {
-      // iOS 14.5+ requires DeviceOrientationEvent.requestPermission() inside a user gesture. :contentReference[oaicite:3]{index=3}
-      if (typeof global.DeviceOrientationEvent.requestPermission === "function") {
+      var DOE = global.DeviceOrientationEvent;
+      var hasRequest = DOE && typeof DOE.requestPermission === "function";
+
+      log("requestOrientation: has DeviceOrientationEvent =", !!DOE, "has requestPermission =", hasRequest);
+
+      if (hasRequest) {
+        // iOS 13+ needs this inside a user gesture 
         state.oriStatus = "requesting";
         notify();
 
-        global.DeviceOrientationEvent.requestPermission()
+        DOE.requestPermission()
           .then(function (res) {
+            log("DeviceOrientationEvent.requestPermission result:", res);
             if (res === "granted") {
               attachOrientationListener();
             } else {
@@ -217,15 +243,17 @@
           .catch(function (e) {
             var msg = e && e.message ? e.message : "unknown";
             state.oriStatus = "error:" + msg;
+            log("Orientation permission error:", msg);
             notify();
           });
       } else {
-        // Other browsers (Chrome, Firefox, Android) don't use requestPermission; just attach listener.
+        // Android / older iOS / other browsers
         attachOrientationListener();
       }
     } catch (e) {
       var msg2 = e && e.message ? e.message : "unknown";
       state.oriStatus = "error:" + msg2;
+      log("Orientation init exception:", msg2);
       notify();
     }
   }
@@ -233,7 +261,8 @@
   // --- Combined start ---
 
   function startAll() {
-    // MUST be called from a click/tap handler so iOS treats as user gesture. :contentReference[oaicite:4]{index=4}
+    // MUST be called from a click/tap handler so iOS treats as user gesture. 
+    log("startAll() called – secureContext =", global.isSecureContext);
     requestGeolocation();
     requestOrientation();
   }
@@ -249,4 +278,9 @@
       return state;
     }
   };
+
+  log("SensorHub init. geolocation in navigator =", "geolocation" in navigator,
+      "DeviceOrientationEvent in window =", "DeviceOrientationEvent" in global,
+      "secureContext =", global.isSecureContext);
+
 })(window);
