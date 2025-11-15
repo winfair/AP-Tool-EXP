@@ -1,4 +1,3 @@
-
 // sensors.js
 (function () {
   "use strict";
@@ -15,20 +14,51 @@
       if (el) el.textContent = v;
     };
     if (!gps) {
-      ["gps-lat","gps-lon","gps-acc","gps-speed","gps-heading","gps-alt"].forEach(id => set(id,"–"));
+      set("gps-lat", "—");
+      set("gps-lon", "—");
+      set("gps-alt", "—");
+      set("gps-acc", "—");
       return;
     }
-    set("gps-lat", gps.lat != null ? gps.lat.toFixed(6) : "–");
-    set("gps-lon", gps.lon != null ? gps.lon.toFixed(6) : "–");
-    set("gps-acc", gps.acc != null ? gps.acc.toFixed(1) : "–");
-    set("gps-speed", gps.speed != null ? gps.speed.toFixed(2) : "–");
-    set(
-      "gps-heading",
-      typeof gps.heading === "number" && !Number.isNaN(gps.heading)
-        ? gps.heading.toFixed(1)
-        : "–"
+
+    set("gps-lat", gps.lat.toFixed(5));
+    set("gps-lon", gps.lon.toFixed(5));
+    set("gps-alt", `${gps.alt.toFixed(1)} m`);
+    set("gps-acc", `${gps.acc.toFixed(1)} m`);
+  }
+
+  function startGPS() {
+    if (!navigator.geolocation) {
+      AP.setSensorStatus("No geolocation available.");
+      return;
+    }
+
+    const opts = {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 20000,
+    };
+
+    gpsWatchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const c = pos.coords;
+        const gps = {
+          lat: c.latitude,
+          lon: c.longitude,
+          alt: typeof c.altitude === "number" ? c.altitude : 0,
+          acc: typeof c.accuracy === "number" ? c.accuracy : NaN,
+        };
+        AP.setGPS(gps);
+        updateGPSDisplay();
+        AP.setSensorStatus("GPS running.");
+        AP.scheduleUpdate();
+      },
+      (err) => {
+        AP.setGPSError(err.message || String(err));
+        AP.setSensorStatus("GPS error: " + (err.message || err.code));
+      },
+      opts
     );
-    set("gps-alt", gps.alt != null ? gps.alt.toFixed(1) : "–");
   }
 
   function updateOriDisplay() {
@@ -37,79 +67,29 @@
       const el = document.getElementById(id);
       if (el) el.textContent = v;
     };
+
     if (!ori) {
-      ["ori-alpha","ori-beta","ori-gamma","ori-abs"].forEach(id => set(id,"–"));
+      set("ori-alpha", "—");
+      set("ori-beta", "—");
+      set("ori-gamma", "—");
       return;
     }
+
     set(
       "ori-alpha",
-      ori.alpha != null && !Number.isNaN(ori.alpha)
-        ? ori.alpha.toFixed(1)
-        : "–"
+      ori.alpha == null ? "—" : `${ori.alpha.toFixed(1)}°`
     );
-    set(
-      "ori-beta",
-      ori.beta != null && !Number.isNaN(ori.beta)
-        ? ori.beta.toFixed(1)
-        : "–"
-    );
-    set(
-      "ori-gamma",
-      ori.gamma != null && !Number.isNaN(ori.gamma)
-        ? ori.gamma.toFixed(1)
-        : "–"
-    );
-    set(
-      "ori-abs",
-      ori.absolute === true
-        ? "true"
-        : ori.absolute === false
-        ? "false"
-        : "unknown"
-    );
-  }
-
-  function startGPS() {
-    if (!("geolocation" in navigator)) {
-      AP.setSensorStatus("No geolocation support.");
-      return;
-    }
-    try {
-      if (gpsWatchId != null) {
-        navigator.geolocation.clearWatch(gpsWatchId);
-      }
-      gpsWatchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const c = pos.coords || {};
-          s.gps = {
-            lat: c.latitude,
-            lon: c.longitude,
-            acc: c.accuracy,
-            speed: c.speed,
-            heading: c.heading,
-            alt: c.altitude,
-          };
-          updateGPSDisplay();
-          AP.setSensorStatus("GPS ok");
-          AP.scheduleUpdate();
-        },
-        (err) => {
-          AP.setSensorStatus("GPS error: " + err.message);
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 10000,
-        }
-      );
-    } catch (e) {
-      AP.setSensorStatus("GPS init error: " + e.message);
-    }
+    set("ori-beta", ori.beta == null ? "—" : `${ori.beta.toFixed(1)}°`);
+    set("ori-gamma", ori.gamma == null ? "—" : `${ori.gamma.toFixed(1)}°`);
   }
 
   function startOrientation() {
     const handle = (ev) => {
-      const { heading } = AP.compassFromEvent(ev);
+      const result = AP.compassFromEvent(ev);
+      const heading =
+        result && typeof result.heading === "number"
+          ? result.heading
+          : result.heading;
 
       s.orientation = {
         alpha: ev.alpha != null ? ev.alpha : null,
@@ -122,13 +102,16 @@
         s.lastHeadingRaw = AP.ema(s.lastHeadingRaw, heading);
       }
 
-      const estPitch = AP.estimatePitch(ev.beta, ev.gamma);
+      const estPitch = AP.estimatePitch(
+        ev.beta != null ? ev.beta : null,
+        ev.gamma != null ? ev.gamma : null
+      );
       if (estPitch != null) {
         s.lastPitchRaw = AP.ema(s.lastPitchRaw, estPitch);
       }
 
       updateOriDisplay();
-      AP.setSensorStatus("Sensors running");
+      AP.setSensorStatus("Orientation running.");
       AP.scheduleUpdate();
     };
 
@@ -149,8 +132,8 @@
               AP.setSensorStatus("Orientation denied on iOS.");
             }
           })
-          .catch((err) => {
-            AP.setSensorStatus("Orientation error: " + err.message);
+          .catch((e) => {
+            AP.setSensorStatus("Orientation permission error: " + e.message);
           });
       } else if (window.DeviceOrientationEvent) {
         window.addEventListener("deviceorientation", handle, { passive: true });
