@@ -5,24 +5,6 @@
   const AP = (window.APTool = window.APTool || {});
   const s = AP.state;
 
-  // Local UI helpers so buttons always show something.
-  function uiLive(msg) {
-    const el = document.getElementById("live-status");
-    if (el) el.textContent = msg;
-    if (AP.setLiveStatus) {
-      try { AP.setLiveStatus(msg); } catch (e) { console.error(e); }
-    }
-  }
-
-  function uiSensor(msg) {
-    const el = document.getElementById("sensor-status");
-    if (el) el.textContent = msg;
-    if (AP.setSensorStatus) {
-      try { AP.setSensorStatus(msg); } catch (e) { console.error(e); }
-    }
-  }
-
-
   function openBackdrop(id) {
     const el = document.getElementById(id);
     if (el) el.classList.add("open");
@@ -38,11 +20,11 @@
     const gps = s.gps;
     const tgt = s.target;
     if (!gps || !tgt || typeof tgt.lat !== "number" || typeof tgt.lon !== "number") {
-      uiLive("Need GPS + target to calibrate.");
+      AP.setLiveStatus("Need GPS + target to calibrate.");
       return;
     }
     if (s.lastHeadingRaw == null) {
-      uiLive("Move/rotate phone to get heading first.");
+      AP.setLiveStatus("Move/rotate phone to get heading first.");
       return;
     }
 
@@ -55,32 +37,34 @@
     }
 
     s.headingOffset = AP.wrap180(bearing - h);
-    uiLive("Calibrated heading to target.");
-    if (AP.scheduleUpdate) AP.scheduleUpdate();
+    AP.setLiveStatus("Calibrated heading to target.");
+    AP.scheduleUpdate();
   }
 
   function quickLevel() {
     if (s.lastPitchRaw == null) {
-      uiLive("Move/tilt phone first to get pitch.");
+      AP.setLiveStatus("Move/tilt phone first to get pitch.");
       return;
     }
     s.pitchZeroOffset = -(s.pitchSign * s.lastPitchRaw);
-    uiLive("Quick level: current pitch set as 0°.");
-    if (AP.scheduleUpdate) AP.scheduleUpdate();
+    AP.setLiveStatus("Quick level: current pitch set as 0°.");
+    AP.scheduleUpdate();
   }
 
   function resetAxes() {
     s.headingOffset = 0;
     s.pitchZeroOffset = 0;
     s.pitchSign = 1;
-    uiLive("Axes reset.");
-    if (AP.scheduleUpdate) AP.scheduleUpdate();
+    AP.setLiveStatus("Axes reset.");
+    AP.scheduleUpdate();
   }
 
   function flipPitchAxis() {
     s.pitchSign *= -1;
-    uiLive(`Pitch axis now ${s.pitchSign === 1 ? "normal" : "inverted"}.`);
-    if (AP.scheduleUpdate) AP.scheduleUpdate();
+    AP.setLiveStatus(
+      `Pitch axis now ${s.pitchSign === 1 ? "normal" : "inverted"}.`
+    );
+    AP.scheduleUpdate();
   }
 
   // ---- Settings wiring ----
@@ -104,11 +88,13 @@
           manualDeclRange.value = String(s.manualDeclination || 0);
         if (manualDeclNumber)
           manualDeclNumber.value = String(s.manualDeclination || 0);
-        if (selectAltMode) selectAltMode.value = s.altMode;
+
+        if (selectAltMode)
+          selectAltMode.value = s.altMode === "manual" ? "manual" : "gps";
+
         if (inputManualObs)
           inputManualObs.value = String(s.manualObserverElev || 0);
-        if (inputInstH)
-          inputInstH.value = String(s.instrumentHeight || 1.5);
+        if (inputInstH) inputInstH.value = String(s.instrumentHeight || 1.5);
         if (inputGeoidOffset)
           inputGeoidOffset.value = String(s.gpsGeoidOffset || 0);
 
@@ -125,7 +111,7 @@
     if (toggleDecl) {
       toggleDecl.addEventListener("change", () => {
         s.applyDeclination = toggleDecl.checked;
-        if (AP.scheduleUpdate) AP.scheduleUpdate();
+        AP.scheduleUpdate();
       });
     }
 
@@ -134,7 +120,7 @@
       s.manualDeclination = val;
       if (manualDeclRange) manualDeclRange.value = String(val);
       if (manualDeclNumber) manualDeclNumber.value = String(val);
-      if (AP.scheduleUpdate) AP.scheduleUpdate();
+      AP.scheduleUpdate();
     }
 
     if (manualDeclRange) {
@@ -151,7 +137,7 @@
     if (selectAltMode) {
       selectAltMode.addEventListener("change", () => {
         s.altMode = selectAltMode.value === "manual" ? "manual" : "gps";
-        if (AP.scheduleUpdate) AP.scheduleUpdate();
+        AP.scheduleUpdate();
       });
     }
 
@@ -159,7 +145,7 @@
       inputManualObs.addEventListener("change", () => {
         const v = parseFloat(inputManualObs.value);
         s.manualObserverElev = isFinite(v) ? v : 0;
-        if (AP.scheduleUpdate) AP.scheduleUpdate();
+        AP.scheduleUpdate();
       });
     }
 
@@ -167,7 +153,7 @@
       inputInstH.addEventListener("change", () => {
         const v = parseFloat(inputInstH.value);
         s.instrumentHeight = isFinite(v) ? v : 1.5;
-        if (AP.scheduleUpdate) AP.scheduleUpdate();
+        AP.scheduleUpdate();
       });
     }
 
@@ -175,7 +161,7 @@
       inputGeoidOffset.addEventListener("change", () => {
         const v = parseFloat(inputGeoidOffset.value);
         s.gpsGeoidOffset = isFinite(v) ? v : 0;
-        if (AP.scheduleUpdate) AP.scheduleUpdate();
+        AP.scheduleUpdate();
       });
     }
   }
@@ -191,33 +177,39 @@
 
     if (btnEdit) {
       btnEdit.addEventListener("click", () => {
-        if (!s.target) s.target = { lat: null, lon: null, elev: null, src: "–" };
-        if (input) {
-          const e = s.target.elev != null ? s.target.elev : 0;
-          input.value = String(e.toFixed ? e.toFixed(1) : e);
-        }
-        if (info) {
-          info.textContent =
-            "If you know the absolute elevation (m) of the target, enter it here.";
-        }
-        openBackdrop("sheet-target-backdrop");
-      });
-    }
-    if (btnClose) {
-      btnClose.addEventListener("click", () => {
-        closeBackdrop("sheet-target-backdrop");
-      });
-    }
-    if (btnSave && input) {
-      btnSave.addEventListener("click", () => {
-        const v = parseFloat(input.value);
-        if (!isFinite(v)) {
-          if (info) info.textContent = "Invalid elevation value.";
+        if (!s.target || typeof s.target.elev !== "number") {
+          if (info) info.textContent = "No target elevation to edit yet.";
           return;
         }
-        if (!s.target) s.target = { lat: null, lon: null, elev: null, src: "–" };
-        s.target.elev = v;
-        s.target.src = "manual";
+        if (input) input.value = String(s.target.elev);
+        if (info)
+          info.textContent =
+            "Enter elevation in meters for the current target point.";
+        openBackdrop("sheet-target-elev-backdrop");
+      });
+    }
+
+    if (btnClose) {
+      btnClose.addEventListener("click", () => {
+        closeBackdrop("sheet-target-elev-backdrop");
+      });
+    }
+
+    if (btnSave && input) {
+      btnSave.addEventListener("click", () => {
+        if (!s.target) {
+          if (info) info.textContent = "No target selected.";
+          return;
+        }
+        const v = parseFloat(input.value);
+        if (!isFinite(v)) {
+          if (info) info.textContent = "Please enter a valid number.";
+          return;
+        }
+        s.target = Object.assign({}, s.target, {
+          elev: v,
+          source: "manual",
+        });
 
         const elevEl = document.getElementById("target-elev");
         const srcEl = document.getElementById("target-elev-src");
@@ -227,7 +219,7 @@
         if (srcEl) srcEl.textContent = "manual";
         if (statusEl) statusEl.textContent = "Target elevation set";
 
-        if (AP.scheduleUpdate) AP.scheduleUpdate();
+        AP.scheduleUpdate();
       });
     }
   }
@@ -247,22 +239,12 @@
       btnSensors.addEventListener("click", () => {
         btnSensors.disabled = true;
         btnSensors.textContent = "Sensors running";
-        uiSensor("Starting sensors…");
-        if (AP.startSensors) {
-          AP.startSensors();
-        } else {
-          uiSensor("AP.startSensors is missing");
-        }
+        AP.startSensors();
       });
     }
     if (btnMap) {
       btnMap.addEventListener("click", () => {
-        uiLive("Opening map…");
-        if (AP.openMapSheet) {
-          AP.openMapSheet();
-        } else {
-          uiLive("AP.openMapSheet is missing");
-        }
+        AP.openMapSheet();
       });
     }
     if (btnCloseMap) {
@@ -293,11 +275,13 @@
   }
 
   window.addEventListener("DOMContentLoaded", () => {
-    uiLive("Ready");
-    uiSensor("Sensors idle");
+    if (AP.setLiveStatus) AP.setLiveStatus("Ready");
+    if (AP.setSensorStatus) AP.setSensorStatus("Sensors idle");
+
     wireMainUI();
     wireSettings();
     wireTargetElevSheet();
+
     if (AP.scheduleUpdate) AP.scheduleUpdate();
   });
 })();
