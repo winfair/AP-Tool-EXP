@@ -1,598 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <title>AP Tool — Azimuth Multi-Tool</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-
   <style>
-    :root {
-      --bg: #020617;
-      --card: #020617;
-      --ink: #e5e7eb;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --ok: #22c55e;
-      --warn: #fbbf24;
-      --vio: #a855f7;
-      --line: rgba(148,163,184,.25);
-    }
-
+    :root { --bg:#020617; --card:#0b1220; --ink:#e5e7eb; --muted:#94a3b8; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --vio:#a855f7; --line:rgba(148,163,184,.2); }
     * { box-sizing: border-box; }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: radial-gradient(circle at top, #0b1120 0, #020617 55%);
-      color: var(--ink);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    #ap-root {
-      min-height: 100vh;
-      max-width: 480px;
-      margin: 0 auto;
-      padding: 12px 10px 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .appbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .title-block {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .app-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      letter-spacing: .04em;
-    }
-
-    .app-sub {
-      font-size: .75rem;
-      color: var(--muted);
-    }
-
-    .btn {
-      border: none;
-      border-radius: 999px;
-      padding: 10px 14px;
-      font-weight: 600;
-      font-size: .85rem;
-      cursor: pointer;
-      background: #1f2937;
-      color: var(--ink);
-      transition: transform .06s ease, box-shadow .06s ease, background .12s ease, opacity .12s ease;
-      box-shadow: 0 8px 20px rgba(15,23,42,.85);
-      white-space: nowrap;
-    }
-
-    .btn:disabled {
-      opacity: .6;
-      cursor: default;
-      box-shadow: none;
-      transform: none;
-    }
-
-    .btn:not(:disabled):active {
-      transform: translateY(1px) scale(.99);
-      box-shadow: 0 4px 14px rgba(15,23,42,.9);
-    }
-
-    .btn-icon {
-      padding: 6px 10px;
-      aspect-ratio: 1 / 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: .9rem;
-      background: #111827;
-      border-radius: 999px;
-    }
-
-    .btn-green { background: var(--ok); color: #022c22; }
-    .btn-blue  { background: #0ea5e9; color: #02131d; }
-    .btn-vio   { background: var(--vio); color: #17052a; }
-    .btn-amber { background: #f59e0b; color: #271400; }
-    .btn-slate { background: #1f2937; color: var(--ink); }
-
-    .card {
-      background: rgba(15,23,42,.96);
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      padding: 10px 12px;
-      box-shadow:
-        0 20px 45px rgba(15,23,42,.9),
-        0 0 0 1px rgba(15,23,42,.8) inset;
-      backdrop-filter: blur(16px);
-    }
-
-    .status-card {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .status-main {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .status-label {
-      font-size: .75rem;
-      text-transform: uppercase;
-      letter-spacing: .12em;
-      color: var(--muted);
-    }
-
-    .status-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 6px;
-      font-size: .78rem;
-    }
-
-    .status-item {
-      padding: 6px 8px;
-      border-radius: 10px;
-      background: radial-gradient(circle at top, #0b1120 0, #020617 80%);
-      border: 1px solid rgba(51,65,85,.65);
-    }
-
-    .status-item .k {
-      font-size: .7rem;
-      color: var(--muted);
-    }
-
-    .status-item .v {
-      display: block;
-      font-weight: 600;
-      margin-top: 2px;
-    }
-
-    .pill {
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(15,23,42,.86);
-      border: 1px solid var(--line);
-      font-size: .72rem;
-      color: var(--muted);
-      white-space: nowrap;
-    }
-
-    .pill-strong {
-      background: radial-gradient(circle at top left, rgba(56,189,248,.35), rgba(8,47,73,.95));
-      color: #e0f2fe;
-      border-color: rgba(56,189,248,.7);
-    }
-
-    .pill-ghost {
-      background: rgba(15,23,42,.9);
-    }
-
-    .pill.warn {
-      border-color: rgba(248,250,252,.2);
-      color: #fbbf24;
-    }
-
-    .main-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-      gap: 10px;
-      align-items: stretch;
-    }
-
-    @media (max-width: 520px) {
-      .main-grid {
-        grid-template-columns: minmax(0, 1fr);
-      }
-    }
-
-    .gauges-card {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .actions-row {
-      display: flex;
-      gap: 6px;
-    }
-
-    .actions-row.secondary {
-      margin-top: 4px;
-    }
-
-    .actions-row .btn {
-      flex: 1;
-    }
-
-    .gauges-wrapper {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 8px;
-      margin-top: 4px;
-    }
-
-    @media (min-width: 420px) {
-      .gauges-wrapper {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    .gauge {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    #compass,
-    #compass-elev {
-      width: 100%;
-      display: block;
-      border-radius: 14px;
-      border: 1px solid rgba(51,65,85,.8);
-      background: radial-gradient(circle at top, #020617 0, #020617 40%, #020617 100%);
-    }
-
-    #compass { height: 220px; }
-    #compass-elev { height: 160px; }
-
-    #compass.on-target,
-    #compass-elev.on-target {
-      border-color: rgba(34,197,94,.9);
-      box-shadow: 0 0 0 1px rgba(34,197,94,.7);
-    }
-
-    .caption {
-      font-size: .75rem;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 6px 10px;
-      font-size: .8rem;
-      margin-top: 4px;
-    }
-
-    .metric-grid .k {
-      opacity: .75;
-      font-size: .72rem;
-    }
-
-    .metric-grid .v {
-      font-weight: 500;
-    }
-
-    .live-metrics {
-      margin-top: 4px;
-    }
-
-    .bottom-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 6px;
-    }
-
-    .bottom-row .btn {
-      flex: 1;
-    }
-
-    .side-column {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .card-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .card-head .title {
-      font-weight: 700;
-      font-size: .9rem;
-    }
-
-    .target-actions {
-      display: flex;
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .target-actions .btn {
-      flex: 1;
-    }
-
-    .pill-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    /* Sheets (map, settings, elevation) */
-
-    .sheet {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: -100%;
-      z-index: 60;
-      transition: bottom .25s ease;
-    }
-
-    .sheet.open {
-      bottom: 0;
-    }
-
-    .sheet .panel {
-      margin: 0 auto;
-      max-width: 480px;
-      height: 75svh;
-      background: #020617;
-      border-top-left-radius: 16px;
-      border-top-right-radius: 16px;
-      border: 1px solid var(--line);
-      border-bottom: none;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 -18px 40px rgba(15,23,42,.96);
-    }
-
-    .sheet .head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 12px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .sheet .head .title {
-      font-weight: 700;
-      font-size: .9rem;
-    }
-
-    .sheet .body {
-      flex: 1;
-      padding: 10px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      overflow: auto;
-    }
-
-    .sheet .close {
-      border: none;
-      background: #ef4444;
-      color: #111827;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-weight: 700;
-      cursor: pointer;
-      font-size: .78rem;
-    }
-
-    #map-container {
-      flex: 1;
-      width: 100%;
-      min-height: 260px;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid rgba(51,65,85,.7);
-    }
-
-    input[type="number"],
-    input[type="range"],
-    select {
-      accent-color: var(--accent);
-    }
-
-    input[type="number"],
-    select {
-      width: 100%;
-      background: #020617;
-      border: 1px solid #334155;
-      color: var(--ink);
-      border-radius: 10px;
-      padding: 6px 8px;
-      font-size: .82rem;
-    }
-
-    .row-ctrl {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 6px;
-      font-size: .8rem;
-    }
-
-    .settings-body {
-      font-size: .8rem;
-    }
-
-    #manual-decl-range {
-      flex: 1;
-    }
-
-    #manual-decl-number {
-      max-width: 90px;
-    }
-
-    textarea#gps-json,
-    textarea#ori-json,
-    textarea#target-json {
-      display: none;
-    }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    #ap-root { height:100svh; max-width:480px; margin:0 auto; display:flex; flex-direction:column; }
+    .appbar { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--line); }
+    .appbar .title { font-weight:700; letter-spacing:.3px; }
+    .content { flex:1; overflow:auto; padding:10px; display:flex; flex-direction:column; gap:10px; }
+    .grid-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .btn { border:none; border-radius:12px; padding:12px; font-weight:700; font-size:.9rem; cursor:pointer; }
+    .btn:disabled { opacity:.6; cursor:default; }
+    .btn-green{ background:var(--ok); color:#062e22; }
+    .btn-blue { background:#0ea5e9; color:#02131d; }
+    .btn-vio  { background:var(--vio); color:#17052a; }
+    .btn-amber{ background:var(--warn); color:#271400; }
+    .btn-slate{ background:#64748b; color:#0b1220; }
+    .card { background:#030712; border:1px solid var(--line); border-radius:12px; padding:10px; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .row-ctrl { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; font-size:.85rem; }
+    .metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; font-size:.85rem; }
+    .metric-grid .k { opacity:.75; font-size:.78rem; }
+    .pill { padding:5px 8px; border-radius:999px; background:#0b1220; border:1px solid var(--line); font-size:.72rem; color:var(--muted); }
+    .warn { color:#fbbf24; }
+    .sheet { position:fixed; left:0; right:0; bottom:-100%; transition:bottom .25s ease; z-index:60; }
+    .sheet.open { bottom:0; }
+    .sheet .panel { margin:0 auto; max-width:480px; height:70svh; background:var(--card); border-top-left-radius:16px; border-top-right-radius:16px; border:1px solid var(--line); border-bottom:none; display:flex; flex-direction:column; }
+    .sheet .head { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--line); }
+    .sheet .body { flex:1; overflow:auto; padding:10px; }
+    .sheet .close { border:none; background:#ef4444; color:#111827; border-radius:999px; padding:6px 10px; font-weight:700; cursor:pointer; }
+    #map-container { width:100%; height:100%; border-radius:10px; overflow:hidden; }
+    input[type="number"], input[type="range"], select { accent-color: var(--accent); }
+    input[type="number"] { width:120px; background:#0f172a; border:1px solid #334155; color:var(--ink); border-radius:8px; padding:6px; }
+    select { background:#0f172a; border:1px solid #334155; color:var(--ink); border-radius:8px; padding:6px; }
+    #compass, #compass-elev { display:block; width:100%; border-radius:12px; background:#0b1220; border:1px solid var(--line); }
+    #compass { height:220px; } #compass-elev { height:180px; }
+    #compass.on-target, #compass-elev.on-target { border-color:rgba(34,197,94,.9); box-shadow:0 0 0 1px rgba(34,197,94,.7); }
+    .caption { font-size:.75rem; color:var(--muted); margin-top:4px; text-align:center; }
   </style>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 </head>
 <body>
   <div id="ap-root">
-    <header class="appbar">
-      <div class="title-block">
-        <div class="app-title">AP Tool</div>
-        <div class="app-sub">Azimuth multi-tool</div>
+    <div class="appbar">
+      <div class="title">AP Tool</div>
+      <button id="btn-settings" class="btn btn-slate" style="padding:8px 10px;font-weight:600;">Settings</button>
+    </div>
+
+    <div class="content">
+      <div class="grid-actions">
+        <button id="btn-sensors" class="btn btn-green">Start Sensors</button>
+        <button id="btn-map" class="btn btn-blue">Pick Target</button>
+        <button id="btn-calib-target" class="btn btn-vio">Calibrate to Target</button>
+        <button id="btn-calib-axes" class="btn btn-amber">Axes Calibration</button>
       </div>
-      <button id="btn-settings" class="btn btn-slate btn-icon" title="Settings">⚙</button>
-    </header>
 
-    <section class="card status-card">
-      <div class="status-main">
-        <div class="status-label">Live status</div>
-        <div id="live-status" class="pill pill-strong">Start sensors &amp; set target</div>
-      </div>
-      <div class="status-grid">
-        <div class="status-item">
-          <span class="k">Heading</span>
-          <span id="live-heading" class="v">–</span>
-        </div>
-        <div class="status-item">
-          <span class="k">Turn</span>
-          <span id="live-turn" class="v">–</span>
-        </div>
-        <div class="status-item">
-          <span class="k">Distance</span>
-          <span id="live-distance" class="v">–</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="main-grid">
-      <!-- Left: gauges + live metrics -->
-      <div class="card gauges-card">
-        <div class="actions-row">
-          <button id="btn-sensors" class="btn btn-green">Start sensors</button>
-          <button id="btn-map" class="btn btn-blue">Pick target</button>
-        </div>
-        <div class="actions-row secondary">
-          <button id="btn-calib-target" class="btn btn-vio">Calibrate to target</button>
-          <button id="btn-calib-axes" class="btn btn-amber">Flip pitch axis</button>
+      <div class="card">
+        <div class="row" style="margin-bottom:8px;">
+          <div style="font-weight:700;">Live</div>
+          <div id="live-status" class="pill">Start sensors & set target</div>
         </div>
 
-        <div class="gauges-wrapper">
-          <div class="gauge">
-            <canvas id="compass"></canvas>
-            <div class="caption">Azimuth — target vs heading</div>
-          </div>
-          <div class="gauge">
-            <canvas id="compass-elev"></canvas>
-            <div class="caption">Elevation — required vs pitch</div>
-          </div>
+        <canvas id="compass"></canvas>
+        <div class="caption">Azimuth — target vs heading</div>
+
+        <div style="height:8px"></div>
+
+        <canvas id="compass-elev"></canvas>
+        <div class="caption">Elevation — required vs pitch</div>
+
+        <div class="metric-grid" style="margin-top:8px;">
+          <div><div class="k">Azimuth → target</div><div><span id="live-azimuth">–</span>°</div></div>
+          <div><div class="k">Heading</div><div><span id="live-heading">–</span></div></div>
+          <div><div class="k">Turn</div><div><span id="live-turn">–</span></div></div>
+          <div><div class="k">Distance</div><div><span id="live-distance">–</span></div></div>
+          <div><div class="k">Required elevation</div><div><span id="live-elev-angle">–</span></div></div>
+          <div><div class="k">Pitch</div><div><span id="live-pitch">–</span></div></div>
+          <div><div class="k">Tilt</div><div><span id="live-tilt">–</span></div></div>
+          <div><div class="k">Declination</div><div><span id="live-decl">–</span></div></div>
+          <div><div class="k">Obs elev used</div><div><span id="live-obs-elev">–</span></div></div>
+          <div><div class="k">ΔZ (tgt−obs)</div><div><span id="live-dz">–</span></div></div>
         </div>
 
-        <div class="metric-grid live-metrics">
-          <div>
-            <div class="k">Azimuth → target</div>
-            <div class="v"><span id="live-azimuth">–</span>°</div>
-          </div>
-          <div>
-            <div class="k">Required elevation</div>
-            <div class="v"><span id="live-elev-angle">–</span></div>
-          </div>
-          <div>
-            <div class="k">Pitch</div>
-            <div class="v"><span id="live-pitch">–</span></div>
-          </div>
-          <div>
-            <div class="k">Tilt</div>
-            <div class="v"><span id="live-tilt">–</span></div>
-          </div>
-          <div>
-            <div class="k">Declination</div>
-            <div class="v"><span id="live-decl">–</span></div>
-          </div>
-          <div>
-            <div class="k">Obs elev used</div>
-            <div class="v"><span id="live-obs-elev">–</span></div>
-          </div>
-          <div>
-            <div class="k">ΔZ (tgt−obs)</div>
-            <div class="v"><span id="live-dz">–</span></div>
-          </div>
-        </div>
-
-        <div class="bottom-row">
-          <button id="btn-quick-level" class="btn btn-slate">Quick level</button>
-          <button id="btn-reset-axes" class="btn btn-slate">Reset axes</button>
+        <div class="row" style="margin-top:10px;gap:8px;">
+          <button id="btn-quick-level" class="btn btn-slate" style="flex:1;">Quick Level</button>
+          <button id="btn-reset-axes" class="btn btn-slate" style="flex:1;">Reset Axes</button>
         </div>
       </div>
 
-      <!-- Right: sensors + target -->
-      <div class="side-column">
-        <div class="card sensors-card">
-          <div class="card-head">
-            <div class="title">Sensors</div>
-            <div id="sensor-status" class="pill">Idle</div>
-          </div>
-          <div class="metric-grid">
-            <div>Lat: <span id="gps-lat">–</span></div>
-            <div>Lon: <span id="gps-lon">–</span></div>
-            <div>Alt (m): <span id="gps-alt">–</span></div>
-            <div>Acc (m): <span id="gps-acc">–</span></div>
-            <div>Speed (m/s): <span id="gps-speed">–</span></div>
-            <div>GPS head (°): <span id="gps-heading">–</span></div>
-            <div>Alpha (°): <span id="ori-alpha">–</span></div>
-            <div>Beta (°): <span id="ori-beta">–</span></div>
-            <div>Gamma (°): <span id="ori-gamma">–</span></div>
-            <div>Abs: <span id="ori-abs">–</span></div>
-          </div>
+      <div class="card">
+        <div class="row" style="margin-bottom:6px;">
+          <div style="font-weight:700;">Sensors</div>
+          <div id="sensor-status" class="pill">Idle</div>
         </div>
-
-        <div class="card target-card">
-          <div class="card-head">
-            <div class="title">Target</div>
-            <div class="pill-row">
-              <div id="target-status" class="pill">Tap map</div>
-            </div>
-          </div>
-          <div class="metric-grid">
-            <div>Lat: <span id="target-lat">–</span></div>
-            <div>Lon: <span id="target-lon">–</span></div>
-            <div>Elev (m): <span id="target-elev">–</span></div>
-            <div>Src: <span id="target-elev-src">–</span></div>
-          </div>
-          <div class="target-actions">
-            <button id="btn-edit-target-elev" class="btn btn-slate">Edit elevation</button>
-            <button id="btn-retry-elev" class="btn btn-blue">Retry elevation</button>
-          </div>
+        <div class="metric-grid">
+          <div>Lat: <span id="gps-lat">–</span></div>
+          <div>Lon: <span id="gps-lon">–</span></div>
+          <div>Alt (m): <span id="gps-alt">–</span></div>
+          <div>Acc (m): <span id="gps-acc">–</span></div>
+          <div>Speed (m/s): <span id="gps-speed">–</span></div>
+          <div>GPS head (°): <span id="gps-heading">–</span></div>
+          <div>Alpha (°): <span id="ori-alpha">–</span></div>
+          <div>Beta (°): <span id="ori-beta">–</span></div>
+          <div>Gamma (°): <span id="ori-gamma">–</span></div>
+          <div>Abs: <span id="ori-abs">–</span></div>
         </div>
       </div>
-    </section>
 
-    <!-- JSON debug textareas (used by JS) -->
-    <textarea id="gps-json"></textarea>
-    <textarea id="ori-json"></textarea>
-    <textarea id="target-json"></textarea>
+      <div class="card">
+        <div class="row" style="margin-bottom:6px;">
+          <div style="font-weight:700;">Target</div>
+          <div class="row" style="gap:8px;">
+            <div id="target-status" class="pill">Tap map</div>
+            <button id="btn-edit-target-elev" class="btn btn-slate" style="padding:6px 10px;">Edit elevation</button>
+            <button id="btn-retry-elev" class="btn btn-blue" style="padding:6px 10px;">Retry elevation</button>
+          </div>
+        </div>
+        <div class="metric-grid">
+          <div>Lat: <span id="target-lat">–</span></div>
+          <div>Lon: <span id="target-lon">–</span></div>
+          <div>Elev (m): <span id="target-elev">–</span></div>
+          <div>Src: <span id="target-elev-src">–</span></div>
+        </div>
+      </div>
+    </div>
+
+    <textarea id="gps-json" style="display:none;"></textarea>
+    <textarea id="ori-json" style="display:none;"></textarea>
+    <textarea id="target-json" style="display:none;"></textarea>
   </div>
 
   <!-- MAP SHEET -->
   <div id="sheet-map" class="sheet">
     <div class="panel">
       <div class="head">
-        <div class="title">Map picker</div>
+        <div style="font-weight:700;">Map Picker</div>
         <button id="btn-close-map" class="close">Close</button>
       </div>
       <div class="body">
-        <div id="map-status" class="pill pill-ghost">Tap near your AP / target</div>
+        <div id="map-status" class="pill" style="margin-bottom:8px;">Tap near your AP / target</div>
         <div id="map-container"></div>
       </div>
     </div>
@@ -602,10 +155,10 @@
   <div id="sheet-settings" class="sheet">
     <div class="panel">
       <div class="head">
-        <div class="title">Settings</div>
+        <div style="font-weight:700;">Settings</div>
         <button id="btn-close-settings" class="close">Close</button>
       </div>
-      <div class="body settings-body">
+      <div class="body">
         <div class="row-ctrl">
           <input id="toggle-decl" type="checkbox" />
           <label for="toggle-decl">Apply magnetic declination</label>
@@ -614,7 +167,7 @@
         <div class="row-ctrl" style="gap:12px;">
           <label style="opacity:.9;">Altitude mode</label>
           <select id="select-alt-mode">
-            <option value="dem" selected>DEM for observer &amp; target (recommended)</option>
+            <option value="dem" selected>DEM for observer & target (recommended)</option>
             <option value="gps">GPS altitude for observer</option>
             <option value="manual">Manual observer elevation</option>
           </select>
@@ -639,7 +192,6 @@
           <label style="opacity:.9;">Multi-source elevation</label>
           <input id="toggle-multi-elev" type="checkbox" checked />
         </div>
-
         <div class="row-ctrl" style="gap:12px;">
           <label style="opacity:.9;">Elevation aggregator</label>
           <select id="select-elev-agg">
@@ -648,15 +200,13 @@
           </select>
         </div>
 
-        <div style="opacity:.9; margin:6px 0 4px;">
-          Manual declination offset (°) — adds to model
-        </div>
+        <div style="opacity:.9;margin:6px 0 4px;">Manual declination offset (°) — adds to model</div>
         <div class="row-ctrl">
-          <input id="manual-decl-range" type="range" min="-30" max="30" step="0.1" value="0" />
+          <input id="manual-decl-range" type="range" min="-30" max="30" step="0.1" value="0" style="flex:1;" />
           <input id="manual-decl-number" type="number" min="-30" max="30" step="0.1" value="0" />
         </div>
-        <div id="settings-decl-preview" class="pill pill-ghost">Declination: –</div>
-        <div id="settings-alt-preview" class="pill pill-ghost" style="margin-top:6px;">Altitude: –</div>
+        <div id="settings-decl-preview" class="pill">Declination: –</div>
+        <div id="settings-alt-preview" class="pill" style="margin-top:6px;">Altitude: –</div>
       </div>
     </div>
   </div>
@@ -665,18 +215,18 @@
   <div id="sheet-target-elev" class="sheet">
     <div class="panel">
       <div class="head">
-        <div class="title">Target elevation</div>
+        <div style="font-weight:700;">Target Elevation</div>
         <button id="btn-close-target-elev" class="close">Close</button>
       </div>
       <div class="body">
-        <div id="elev-sources" class="pill pill-ghost" style="margin-bottom:8px;">No sources yet.</div>
+        <div id="elev-sources" class="pill" style="margin-bottom:8px;">No sources yet.</div>
         <div id="elev-errors" class="pill warn" style="margin-bottom:8px; display:none;"></div>
         <div class="row-ctrl">
           <label>Manual elevation (m)</label>
           <input id="edit-target-elev" type="number" step="0.1" value="0" />
           <button id="btn-elev-save" class="btn btn-vio" style="padding:8px 12px;">Save</button>
         </div>
-        <div class="row-ctrl" style="gap:8px; margin-top:8px;">
+        <div class="row" style="gap:8px; margin-top:8px;">
           <button id="btn-elev-use-avg" class="btn btn-blue" style="flex:1;">Use averaged</button>
           <button id="btn-elev-use-gps" class="btn btn-amber" style="flex:1;">Use GPS alt</button>
         </div>
@@ -688,8 +238,8 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="map.js"></script>
-  <script src="app.js"></script>
+  <!-- Leaflet JS + main app script -->
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script defer src="app.js"></script>
 </body>
 </html>
