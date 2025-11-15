@@ -1,3 +1,4 @@
+
 // sensors.js
 (function () {
   "use strict";
@@ -111,17 +112,17 @@
       const { heading } = AP.compassFromEvent(ev);
 
       s.orientation = {
-        alpha: ev.alpha ?? null,
-        beta: ev.beta ?? null,
-        gamma: ev.gamma ?? null,
-        absolute: ev.absolute ?? null,
+        alpha: ev.alpha != null ? ev.alpha : null,
+        beta: ev.beta != null ? ev.beta : null,
+        gamma: ev.gamma != null ? ev.gamma : null,
+        absolute: ev.absolute != null ? ev.absolute : null,
       };
 
       if (heading != null) {
         s.lastHeadingRaw = AP.ema(s.lastHeadingRaw, heading);
       }
 
-      const estPitch = AP.estimatePitch(ev.beta ?? null, ev.gamma ?? null);
+      const estPitch = AP.estimatePitch(ev.beta, ev.gamma);
       if (estPitch != null) {
         s.lastPitchRaw = AP.ema(s.lastPitchRaw, estPitch);
       }
