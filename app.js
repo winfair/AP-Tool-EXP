@@ -5,6 +5,24 @@
   const AP = (window.APTool = window.APTool || {});
   const s = AP.state;
 
+  // Local UI helpers so buttons always show something.
+  function uiLive(msg) {
+    const el = document.getElementById("live-status");
+    if (el) el.textContent = msg;
+    if (AP.setLiveStatus) {
+      try { AP.setLiveStatus(msg); } catch (e) { console.error(e); }
+    }
+  }
+
+  function uiSensor(msg) {
+    const el = document.getElementById("sensor-status");
+    if (el) el.textContent = msg;
+    if (AP.setSensorStatus) {
+      try { AP.setSensorStatus(msg); } catch (e) { console.error(e); }
+    }
+  }
+
+
   function openBackdrop(id) {
     const el = document.getElementById(id);
     if (el) el.classList.add("open");
@@ -20,11 +38,11 @@
     const gps = s.gps;
     const tgt = s.target;
     if (!gps || !tgt || typeof tgt.lat !== "number" || typeof tgt.lon !== "number") {
-      AP.setLiveStatus("Need GPS + target to calibrate.");
+      uiLive("Need GPS + target to calibrate.");
       return;
     }
     if (s.lastHeadingRaw == null) {
-      AP.setLiveStatus("Move/rotate phone to get heading first.");
+      uiLive("Move/rotate phone to get heading first.");
       return;
     }
 
@@ -37,34 +55,32 @@
     }
 
     s.headingOffset = AP.wrap180(bearing - h);
-    AP.setLiveStatus("Calibrated heading to target.");
-    AP.scheduleUpdate();
+    uiLive("Calibrated heading to target.");
+    if (AP.scheduleUpdate) AP.scheduleUpdate();
   }
 
   function quickLevel() {
     if (s.lastPitchRaw == null) {
-      AP.setLiveStatus("Move/tilt phone first to get pitch.");
+      uiLive("Move/tilt phone first to get pitch.");
       return;
     }
     s.pitchZeroOffset = -(s.pitchSign * s.lastPitchRaw);
-    AP.setLiveStatus("Quick level: current pitch set as 0°.");
-    AP.scheduleUpdate();
+    uiLive("Quick level: current pitch set as 0°.");
+    if (AP.scheduleUpdate) AP.scheduleUpdate();
   }
 
   function resetAxes() {
     s.headingOffset = 0;
     s.pitchZeroOffset = 0;
     s.pitchSign = 1;
-    AP.setLiveStatus("Axes reset.");
-    AP.scheduleUpdate();
+    uiLive("Axes reset.");
+    if (AP.scheduleUpdate) AP.scheduleUpdate();
   }
 
   function flipPitchAxis() {
     s.pitchSign *= -1;
-    AP.setLiveStatus(
-      `Pitch axis now ${s.pitchSign === 1 ? "normal" : "inverted"}.`
-    );
-    AP.scheduleUpdate();
+    uiLive(`Pitch axis now ${s.pitchSign === 1 ? "normal" : "inverted"}.`);
+    if (AP.scheduleUpdate) AP.scheduleUpdate();
   }
 
   // ---- Settings wiring ----
@@ -109,7 +125,7 @@
     if (toggleDecl) {
       toggleDecl.addEventListener("change", () => {
         s.applyDeclination = toggleDecl.checked;
-        AP.scheduleUpdate();
+        if (AP.scheduleUpdate) AP.scheduleUpdate();
       });
     }
 
@@ -118,7 +134,7 @@
       s.manualDeclination = val;
       if (manualDeclRange) manualDeclRange.value = String(val);
       if (manualDeclNumber) manualDeclNumber.value = String(val);
-      AP.scheduleUpdate();
+      if (AP.scheduleUpdate) AP.scheduleUpdate();
     }
 
     if (manualDeclRange) {
@@ -135,7 +151,7 @@
     if (selectAltMode) {
       selectAltMode.addEventListener("change", () => {
         s.altMode = selectAltMode.value === "manual" ? "manual" : "gps";
-        AP.scheduleUpdate();
+        if (AP.scheduleUpdate) AP.scheduleUpdate();
       });
     }
 
@@ -143,7 +159,7 @@
       inputManualObs.addEventListener("change", () => {
         const v = parseFloat(inputManualObs.value);
         s.manualObserverElev = isFinite(v) ? v : 0;
-        AP.scheduleUpdate();
+        if (AP.scheduleUpdate) AP.scheduleUpdate();
       });
     }
 
@@ -151,7 +167,7 @@
       inputInstH.addEventListener("change", () => {
         const v = parseFloat(inputInstH.value);
         s.instrumentHeight = isFinite(v) ? v : 1.5;
-        AP.scheduleUpdate();
+        if (AP.scheduleUpdate) AP.scheduleUpdate();
       });
     }
 
@@ -159,7 +175,7 @@
       inputGeoidOffset.addEventListener("change", () => {
         const v = parseFloat(inputGeoidOffset.value);
         s.gpsGeoidOffset = isFinite(v) ? v : 0;
-        AP.scheduleUpdate();
+        if (AP.scheduleUpdate) AP.scheduleUpdate();
       });
     }
   }
@@ -211,7 +227,7 @@
         if (srcEl) srcEl.textContent = "manual";
         if (statusEl) statusEl.textContent = "Target elevation set";
 
-        AP.scheduleUpdate();
+        if (AP.scheduleUpdate) AP.scheduleUpdate();
       });
     }
   }
@@ -231,12 +247,22 @@
       btnSensors.addEventListener("click", () => {
         btnSensors.disabled = true;
         btnSensors.textContent = "Sensors running";
-        AP.startSensors();
+        uiSensor("Starting sensors…");
+        if (AP.startSensors) {
+          AP.startSensors();
+        } else {
+          uiSensor("AP.startSensors is missing");
+        }
       });
     }
     if (btnMap) {
       btnMap.addEventListener("click", () => {
-        AP.openMapSheet();
+        uiLive("Opening map…");
+        if (AP.openMapSheet) {
+          AP.openMapSheet();
+        } else {
+          uiLive("AP.openMapSheet is missing");
+        }
       });
     }
     if (btnCloseMap) {
@@ -267,11 +293,11 @@
   }
 
   window.addEventListener("DOMContentLoaded", () => {
-    AP.setLiveStatus("Ready");
-    AP.setSensorStatus("Sensors idle");
+    uiLive("Ready");
+    uiSensor("Sensors idle");
     wireMainUI();
     wireSettings();
     wireTargetElevSheet();
-    AP.scheduleUpdate();
+    if (AP.scheduleUpdate) AP.scheduleUpdate();
   });
 })();
