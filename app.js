@@ -1,5 +1,6 @@
 // app.js
-// Minimal UI that uses SensorHub for lat/lon/elev/heading/pitch.
+// Minimal UI that consumes SensorHub and shows permission + sensor state.
+
 (function () {
   "use strict";
 
@@ -12,20 +13,13 @@
   function render(state) {
     if (!state) return;
 
-    // Live status: combine high-level summary
+    // Combined status line
     if (els.liveStatus) {
-      var msg = "Sensors idle";
-      if (state.gpsStatus && state.oriStatus) {
-        msg =
-          "GPS: " +
-          state.gpsStatus +
-          " · ORI: " +
-          state.oriStatus;
-      }
-      els.liveStatus.textContent = msg;
+      els.liveStatus.textContent =
+        "GPS: " + state.gpsStatus + " · ORI: " + state.oriStatus;
     }
 
-    // GPS
+    // GPS values
     if (els.gpsLat) {
       els.gpsLat.textContent =
         typeof state.gpsLat === "number" ? state.gpsLat.toFixed(6) : "—";
@@ -65,7 +59,6 @@
   }
 
   function init() {
-    // Grab DOM references
     els.liveStatus = $("live-status");
 
     els.gpsLat = $("gps-lat");
@@ -85,22 +78,21 @@
       return;
     }
 
-    // Subscribe to updates from SensorHub
     window.SensorHub.onUpdate(render);
 
-    // Wire Start button
     if (btnStart) {
       btnStart.addEventListener("click", function () {
         if (els.liveStatus) {
           els.liveStatus.textContent = "Requesting permissions…";
         }
-        // IMPORTANT: this call happens *inside* a user gesture.
+        // MUST be in this click for iOS orientation & browser geolocation rules.
         window.SensorHub.startAll();
       });
     }
 
     if (els.liveStatus) {
-      els.liveStatus.textContent = "Ready. Tap 'Start sensors' to request permissions.";
+      els.liveStatus.textContent =
+        "JS loaded. Tap 'Start sensors' to request GPS + orientation.";
     }
   }
 
