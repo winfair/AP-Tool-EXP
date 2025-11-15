@@ -2,7 +2,14 @@
 (function () {
   "use strict";
 
-  // ---- Root / query helper (Gradio-aware) ----
+  // Show JS errors in the Live pill for debugging
+  window.addEventListener("error", (e) => {
+    try {
+      const el = document.querySelector("#live-status");
+      if (el) el.textContent = "JS error: " + e.message;
+    } catch {}
+  });
+
   const root = () => {
     try {
       return window.gradioApp ? window.gradioApp() : document;
@@ -12,30 +19,30 @@
   };
   const q = (sel) => root().querySelector(sel);
 
-  const setLiveStatus   = (msg) => { const el = q("#live-status");   if (el) el.textContent = msg; };
-  const setSensorStatus = (msg) => { const el = q("#sensor-status"); if (el) el.textContent = msg; };
-  const setMapStatus    = (msg) => { const el = q("#map-status");    if (el) el.textContent = msg; };
+  const setLiveStatus = (msg) => {
+    const el = q("#live-status");
+    if (el) el.textContent = msg;
+  };
+  const setSensorStatus = (msg) => {
+    const el = q("#sensor-status");
+    if (el) el.textContent = msg;
+  };
+  const setMapStatus = (msg) => {
+    const el = q("#map-status");
+    if (el) el.textContent = msg;
+  };
 
-  // Show JS errors in the Live pill for quick debugging
-  window.addEventListener("error", (e) => {
-    try {
-      const el = q("#live-status");
-      if (el) el.textContent = "JS error: " + e.message;
-    } catch {}
-  });
-
-  // ---- App state ----
-  const AP = window.APTool = window.APTool || {};
-
-  AP.currentGPS         = null;
-  AP.currentTarget      = null;
+  // --- App state ---
+  const AP = (window.APTool = window.APTool || {});
+  AP.currentGPS = null;
+  AP.currentTarget = null;
   AP.currentOrientation = null;
 
-  AP.headingOffset   = 0;
-  AP.pitchZeroOffset = 0;
+  AP.headingOffset = 0; // calibration offset for heading (deg)
+  AP.pitchZeroOffset = 0; // offset so "quick level" makes current pitch = 0
   AP.calibration = {
     version: 2,
-    pitchSign: 1      // +1 normal, -1 inverted
+    pitchSign: 1, // flip if a device reports pitch inverted
   };
 
   AP.settings = {
@@ -44,10 +51,10 @@
     multiElev: true,
     elevAgg: "mean",
     lockManualElev: false,
-    altMode: "dem",            // "dem", "gps", "manual"
+    altMode: "dem", // "dem", "gps", "manual"
     manualObserverElev: 0,
     instrumentHeight: 1.5,
-    gpsGeoidOffset: 0
+    gpsGeoidOffset: 0,
   };
 
   AP.elevationSources = {
@@ -57,7 +64,7 @@
     aggregate: null,
     method: "mean",
     disagree: false,
-    errors: []
+    errors: [],
   };
   AP.observerSources = {
     openMeteo: null,
@@ -68,48 +75,51 @@
     disagree: false,
     errors: [],
     lastLat: null,
-    lastLon: null
+    lastLon: null,
   };
 
+  // Caches for DEM lookups (rounded ~11m)
   AP._elevCache = new Map();
-  AP._obsCache  = new Map();
+  AP._obsCache = new Map();
 
-  AP._rafPending   = false;
-  AP._gpsWatchId   = null;
+  AP._rafPending = false;
+  AP._gpsWatchId = null;
   AP.lastHeadingRaw = null;
-  AP.lastPitchRaw   = null;
-  AP.lastAlpha      = null;
+  AP.lastPitchRaw = null;
+  AP.lastAlpha = null;
 
-  // Colors
-  const css = (typeof window !== "undefined")
-    ? getComputedStyle(document.documentElement)
-    : null;
+  const css =
+    typeof window !== "undefined"
+      ? getComputedStyle(document.documentElement)
+      : null;
 
   const COLORS = {
-    bg   : css ? (css.getPropertyValue("--bg")    || "#020617").trim() : "#020617",
-    card : css ? (css.getPropertyValue("--card")  || "#0b1220").trim() : "#0b1220",
-    ink  : css ? (css.getPropertyValue("--ink")   || "#e5e7eb").trim() : "#e5e7eb",
+    bg: css ? (css.getPropertyValue("--bg") || "#020617").trim() : "#020617",
+    card: css ? (css.getPropertyValue("--card") || "#0b1220").trim() : "#0b1220",
+    ink: css ? (css.getPropertyValue("--ink") || "#e5e7eb").trim() : "#e5e7eb",
     muted: css ? (css.getPropertyValue("--muted") || "#94a3b8").trim() : "#94a3b8",
-    accent: css ? (css.getPropertyValue("--accent") || "#38bdf8").trim(): "#38bdf8",
-    ok   : css ? (css.getPropertyValue("--ok")    || "#22c55e").trim() : "#22c55e",
-    warn : css ? (css.getPropertyValue("--warn")  || "#f59e0b").trim() : "#f59e0b",
-    vio  : css ? (css.getPropertyValue("--vio")   || "#a855f7").trim() : "#a855f7",
-    line : css ? (css.getPropertyValue("--line")  || "rgba(148,163,184,.2)").trim() : "rgba(148,163,184,.2)"
+    accent: css ? (css.getPropertyValue("--accent") || "#38bdf8").trim() : "#38bdf8",
+    ok: css ? (css.getPropertyValue("--ok") || "#22c55e").trim() : "#22c55e",
+    warn: css ? (css.getPropertyValue("--warn") || "#f59e0b").trim() : "#f59e0b",
+    vio: css ? (css.getPropertyValue("--vio") || "#a855f7").trim() : "#a855f7",
+    line: css
+      ? (css.getPropertyValue("--line") || "rgba(148,163,184,.2)").trim()
+      : "rgba(148,163,184,.2)",
   };
 
-  // ---- Math helpers ----
-  const deg2rad = (d) => d * Math.PI / 180;
-  const rad2deg = (r) => r * 180 / Math.PI;
-  const norm360 = (d) => (d % 360 + 360) % 360;
+  // --- Math helpers ---
+  const deg2rad = (d) => (d * Math.PI) / 180;
+  const rad2deg = (r) => (r * 180) / Math.PI;
+  const norm360 = (d) => ((d % 360) + 360) % 360;
   const wrap180 = (d) => {
     let x = ((d + 180) % 360) - 180;
     return x < -180 ? x + 360 : x;
   };
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const ema   = (prev, next, alpha = 0.25) => (prev == null ? next : (alpha * next + (1 - alpha) * prev));
+  const ema = (prev, next, alpha = 0.25) =>
+    prev == null ? next : alpha * next + (1 - alpha) * prev;
 
   const round90 = (a) => Math.round(norm360(a) / 90) * 90;
-
   const screenAngle = () => {
     const so = screen.orientation;
     if (so && typeof so.angle === "number") return so.angle;
@@ -119,16 +129,24 @@
 
   const cacheKey = (lat, lon) => `${lat.toFixed(4)},${lon.toFixed(4)}`;
 
-  // Vincenty inverse with fallback
+  // Vincenty with fallback
   function vincentyInverse(lat1, lon1, lat2, lon2) {
-    const a = 6378137.0, f = 1 / 298.257223563, b = a * (1 - f);
-    const φ1 = deg2rad(lat1), φ2 = deg2rad(lat2), L = deg2rad(lon2 - lon1);
+    const a = 6378137.0,
+      f = 1 / 298.257223563,
+      b = a * (1 - f);
+    const φ1 = deg2rad(lat1),
+      φ2 = deg2rad(lat2),
+      L = deg2rad(lon2 - lon1);
     const U1 = Math.atan((1 - f) * Math.tan(φ1));
     const U2 = Math.atan((1 - f) * Math.tan(φ2));
-    const sinU1 = Math.sin(U1), cosU1 = Math.cos(U1);
-    const sinU2 = Math.sin(U2), cosU2 = Math.cos(U2);
+    const sinU1 = Math.sin(U1),
+      cosU1 = Math.cos(U1);
+    const sinU2 = Math.sin(U2),
+      cosU2 = Math.cos(U2);
 
-    let λ = L, λP, iter = 0;
+    let λ = L,
+      λP,
+      iter = 0;
     let sinλ, cosλ, sinσ, cosσ, σ, sinα, cos2α, cos2σm, C;
 
     do {
@@ -136,35 +154,51 @@
       cosλ = Math.cos(λ);
       sinσ = Math.sqrt(
         (cosU2 * sinλ) ** 2 +
-        (cosU1 * sinU2 - sinU1 * cosU2 * cosλ) ** 2
+          (cosU1 * sinU2 - sinU1 * cosU2 * cosλ) ** 2
       );
       if (sinσ === 0) return { distance: 0, initialBearing: 0 };
       cosσ = sinU1 * sinU2 + cosU1 * cosU2 * cosλ;
       σ = Math.atan2(sinσ, cosσ);
       sinα = (cosU1 * cosU2 * sinλ) / sinσ;
       cos2α = 1 - sinα * sinα;
-      cos2σm = (cos2α === 0) ? 0 : (cosσ - 2 * sinU1 * sinU2 / cos2α);
+      cos2σm = cos2α === 0 ? 0 : cosσ - (2 * sinU1 * sinU2) / cos2α;
       C = (f / 16) * cos2α * (4 + f * (4 - 3 * cos2α));
       λP = λ;
-      λ = L + (1 - C) * f * sinα * (
-        σ + C * sinσ * (cos2σm + C * cosσ * (-1 + 2 * cos2σm * cos2σm))
-      );
-    } while (Math.abs(λ - λP) > 1e-12 && (++iter) < 200);
+      λ =
+        L +
+        (1 - C) *
+          f *
+          sinα *
+          (σ +
+            C *
+              sinσ *
+              (cos2σm +
+                C * cosσ * (-1 + 2 * cos2σm * cos2σm)));
+    } while (Math.abs(λ - λP) > 1e-12 && ++iter < 200);
 
     if (iter >= 200 || !isFinite(λ)) return null;
 
-    const uSq = cos2α * (a * a - b * b) / (b * b);
-    const A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
-    const B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
-    const Δσ = B * sinσ * (
-      cos2σm + B / 4 * (
-        cosσ * (-1 + 2 * cos2σm * cos2σm) -
-        B / 6 * cos2σm * (-3 + 4 * sinσ * sinσ) * (-3 + 4 * cos2σm * cos2σm)
-      )
-    );
+    const uSq = (cos2α * (a * a - b * b)) / (b * b);
+    const A =
+      1 +
+      (uSq / 16384) *
+        (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
+    const B =
+      (uSq / 1024) *
+      (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
+    const Δσ =
+      B *
+      sinσ *
+      (cos2σm +
+        (B / 4) *
+          (cosσ * (-1 + 2 * cos2σm * cos2σm) -
+            (B / 6) *
+              cos2σm *
+              (-3 + 4 * sinσ * sinσ) *
+              (-3 + 4 * cos2σm * cos2σm)));
 
     const s = b * A * (σ - Δσ);
-    let α1  = Math.atan2(
+    let α1 = Math.atan2(
       cosU2 * sinλ,
       cosU1 * sinU2 - sinU1 * cosU2 * cosλ
     );
@@ -172,32 +206,49 @@
   }
 
   function fallbackBearing(lat1, lon1, lat2, lon2) {
-    const φ1 = deg2rad(lat1), φ2 = deg2rad(lat2);
+    const φ1 = deg2rad(lat1),
+      φ2 = deg2rad(lat2);
     const dφ = deg2rad(lat2 - lat1);
     const dλ = deg2rad(lon2 - lon1);
 
     const y = Math.sin(dλ) * Math.cos(φ2);
-    const x = Math.cos(φ1) * Math.sin(φ2) -
-              Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ);
-    const θ     = Math.atan2(y, x);
-    const R     = 6371000;
-    const a     = Math.sin(dφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ / 2) ** 2;
-    const c     = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const dist  = R * c;
+    const x =
+      Math.cos(φ1) * Math.sin(φ2) -
+      Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ);
+    const θ = Math.atan2(y, x);
+    const R = 6371000;
+    const a =
+      Math.sin(dφ / 2) ** 2 +
+      Math.cos(φ1) *
+        Math.cos(φ2) *
+        Math.sin(dλ / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const dist = R * c;
     return { distance: dist, initialBearing: norm360(rad2deg(θ)) };
   }
 
-  // Simple declination model (good enough for pointing)
+  // --- Simple declination model (just needs to be roughly right) ---
   function declinationDeg(lat, lon) {
     if (lat == null || lon == null) return 0;
-    const g10 = -29404.8, g11 = -1450.9, h11 = 4652.5;
+    const g10 = -29404.8,
+      g11 = -1450.9,
+      h11 = 4652.5;
     const θ = deg2rad(90 - lat);
     const φ = deg2rad(lon);
-    const cosθ = Math.cos(θ), sinθ = Math.sin(θ);
-    const cosφ = Math.cos(φ), sinφ = Math.sin(φ);
+    const cosθ = Math.cos(θ),
+      sinθ = Math.sin(θ);
+    const cosφ = Math.cos(φ),
+      sinφ = Math.sin(φ);
 
-    const Br = -2 * (g10 * cosθ + g11 * sinθ * cosφ + h11 * sinθ * sinφ);
-    const Bθ = -(-g10 * sinθ + g11 * cosθ * cosφ + h11 * cosθ * sinφ);
+    const Br =
+      -2 *
+      (g10 * cosθ +
+        g11 * sinθ * cosφ +
+        h11 * sinθ * sinφ);
+    const Bθ =
+      -(-g10 * sinθ +
+        g11 * cosθ * cosφ +
+        h11 * cosθ * sinφ);
     const Bφ = -(-g11 * sinφ + h11 * cosφ);
 
     const X = -Bθ;
@@ -205,9 +256,13 @@
     return rad2deg(Math.atan2(Y, X));
   }
 
-  // ---- Drawing helpers: Compass ----
+  // --- Drawing helpers ---
   const Compass = {
-    el: null, ctx: null, w: 0, h: 0, lastState: null,
+    el: null,
+    ctx: null,
+    w: 0,
+    h: 0,
+    lastState: null,
     init() {
       this.el = q("#compass");
       if (!this.el) return;
@@ -219,7 +274,7 @@
       if (!this.el || !this.ctx) return;
       const rect = this.el.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
-      this.el.width  = rect.width;
+      this.el.width = rect.width;
       this.el.height = rect.height;
       this.w = rect.width;
       this.h = rect.height;
@@ -229,14 +284,14 @@
       this.lastState = state || {};
       if (!this.ctx || !this.el) return;
       const ctx = this.ctx;
-      const w   = this.el.width;
-      const h   = this.el.height;
+      const w = this.el.width;
+      const h = this.el.height;
       ctx.clearRect(0, 0, w, h);
       if (!w || !h) return;
 
       const cx = w / 2;
       const cy = h / 2;
-      const r  = Math.min(w, h) / 2 - 14;
+      const r = Math.min(w, h) / 2 - 14;
 
       // Background circle
       ctx.beginPath();
@@ -251,13 +306,13 @@
       for (let d = 0; d < 360; d += 30) {
         const inner = r - 10;
         const outer = r;
-        const ang   = deg2rad(d);
+        const ang = deg2rad(d);
         const sx = cx + inner * Math.sin(ang);
         const sy = cy - inner * Math.cos(ang);
         const ex = cx + outer * Math.sin(ang);
         const ey = cy - outer * Math.cos(ang);
         ctx.strokeStyle = COLORS.line;
-        ctx.lineWidth = (d % 90 === 0) ? 2.2 : 1;
+        ctx.lineWidth = d % 90 === 0 ? 2.2 : 1;
         ctx.beginPath();
         ctx.moveTo(sx, sy);
         ctx.lineTo(ex, ey);
@@ -269,10 +324,15 @@
       ctx.font = "11px system-ui, -apple-system, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const labels = [["N", 0], ["E", 90], ["S", 180], ["W", 270]];
+      const labels = [
+        ["N", 0],
+        ["E", 90],
+        ["S", 180],
+        ["W", 270],
+      ];
       for (const [txt, deg] of labels) {
         const ang = deg2rad(deg);
-        const rr  = r - 22;
+        const rr = r - 22;
         const x = cx + rr * Math.sin(ang);
         const y = cy - rr * Math.cos(ang);
         ctx.fillText(txt, x, y);
@@ -281,20 +341,18 @@
       if (state.bearing == null || state.heading == null) {
         ctx.fillStyle = COLORS.muted;
         ctx.font = "12px system-ui, -apple-system, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
         ctx.fillText("Need heading + target", cx, cy);
         return;
       }
 
       const bearing = state.bearing;
       const heading = state.heading;
-      const azOk    = !!state.azOk;
-      const delta   = state.deltaAz || 0;
+      const azOk = !!state.azOk;
+      const delta = state.deltaAz || 0;
 
       const drawArrow = (deg, color, lengthOffset) => {
         const ang = deg2rad(deg);
-        const rr  = r - 28;
+        const rr = r - 28;
         const x2 = cx + rr * Math.sin(ang);
         const y2 = cy - rr * Math.cos(ang);
         const x1 = cx + (rr - lengthOffset) * Math.sin(ang);
@@ -309,7 +367,7 @@
         ctx.stroke();
 
         const headLen = 7;
-        const leftAng  = ang + deg2rad(150);
+        const leftAng = ang + deg2rad(150);
         const rightAng = ang - deg2rad(150);
         ctx.beginPath();
         ctx.moveTo(x2, y2);
@@ -325,7 +383,7 @@
         ctx.stroke();
       };
 
-      const targetColor  = azOk ? COLORS.ok : COLORS.warn;
+      const targetColor = azOk ? COLORS.ok : COLORS.warn;
       const headingColor = azOk ? COLORS.ok : COLORS.accent;
 
       // target = bearing
@@ -338,14 +396,21 @@
       ctx.font = "11px system-ui, -apple-system, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const centerText = azOk ? "On azimuth" : (delta > 0 ? "Turn right" : "Turn left");
+      const centerText = azOk
+        ? "On azimuth"
+        : delta > 0
+        ? "Turn right"
+        : "Turn left";
       ctx.fillText(centerText, cx, cy + r * 0.55);
-    }
+    },
   };
 
-  // ---- Elevation gauge ----
   const ElevGauge = {
-    el: null, ctx: null, w: 0, h: 0, lastState: null,
+    el: null,
+    ctx: null,
+    w: 0,
+    h: 0,
+    lastState: null,
     init() {
       this.el = q("#compass-elev");
       if (!this.el) return;
@@ -357,7 +422,7 @@
       if (!this.el || !this.ctx) return;
       const rect = this.el.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
-      this.el.width  = rect.width;
+      this.el.width = rect.width;
       this.el.height = rect.height;
       this.w = rect.width;
       this.h = rect.height;
@@ -367,15 +432,15 @@
       this.lastState = state || {};
       if (!this.ctx || !this.el) return;
       const ctx = this.ctx;
-      const w   = this.el.width;
-      const h   = this.el.height;
+      const w = this.el.width;
+      const h = this.el.height;
       ctx.clearRect(0, 0, w, h);
       if (!w || !h) return;
 
       const padX = 18;
       const midY = h / 2;
       const minDeg = -60;
-      const maxDeg =  60;
+      const maxDeg = 60;
 
       const xFor = (a) => {
         const v = clamp(a, minDeg, maxDeg);
@@ -403,7 +468,7 @@
 
       for (let d = -60; d <= 60; d += 30) {
         const x = xFor(d);
-        const tickH = (d === 0) ? 10 : 6;
+        const tickH = d === 0 ? 10 : 6;
         ctx.beginPath();
         ctx.moveTo(x, midY - tickH / 2);
         ctx.lineTo(x, midY + tickH / 2);
@@ -417,15 +482,19 @@
         ctx.font = "12px system-ui, -apple-system, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
-        ctx.fillText("Need target elevation + pitch", w / 2, midY - 4);
+        ctx.fillText(
+          "Need target elevation + pitch",
+          w / 2,
+          midY - 4
+        );
         return;
       }
 
-      const req   = state.required;
+      const req = state.required;
       const pitch = state.pitch;
-      const elOk  = !!state.elOk;
+      const elOk = !!state.elOk;
 
-      const xReq   = xFor(req);
+      const xReq = xFor(req);
       const xPitch = xFor(pitch);
 
       // Required elevation marker
@@ -452,12 +521,14 @@
       const delta = state.delta || 0;
       const txt = elOk
         ? "On elevation"
-        : (delta > 0 ? "Tilt up" : "Tilt down");
+        : delta > 0
+        ? "Tilt up"
+        : "Tilt down";
       ctx.fillText(txt, w / 2, midY - 20);
-    }
+    },
   };
 
-  // ---- Elevation helpers (multi-source) ----
+  // --- Elevation helpers (multi-source) ---
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   async function fetchJSON(url, abortCtl, timeoutMs = 7000) {
@@ -500,7 +571,7 @@
         h = j.results[0].elevation;
       }
     } catch {}
-    return (typeof h === "number") ? h : null;
+    return typeof h === "number" ? h : null;
   }
 
   async function fetchOpenTopoSRTM(lat, lon, slot) {
@@ -516,7 +587,7 @@
         h = j.results[0].elevation;
       }
     } catch {}
-    return (typeof h === "number") ? h : null;
+    return typeof h === "number" ? h : null;
   }
 
   async function fetchOpenMeteoElevation(lat, lon, slot) {
@@ -532,16 +603,18 @@
         h = j.elevation[0];
       }
     } catch {}
-    return (typeof h === "number") ? h : null;
+    return typeof h === "number" ? h : null;
   }
 
   function aggregateElev(vals, method) {
-    const xs = vals.filter((v) => typeof v === "number" && isFinite(v));
+    const xs = vals.filter(
+      (v) => typeof v === "number" && isFinite(v)
+    );
     if (!xs.length) return null;
     if (method === "median") {
       const s = xs.slice().sort((a, b) => a - b);
       const m = Math.floor(s.length / 2);
-      return (s.length % 2) ? s[m] : (s[m - 1] + s[m]) / 2;
+      return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
     }
     const sum = xs.reduce((a, b) => a + b, 0);
     return sum / xs.length;
@@ -550,7 +623,9 @@
   function updateTargetJSON() {
     const el = q("#target-json");
     if (el) {
-      el.value = AP.currentTarget ? JSON.stringify(AP.currentTarget) : "";
+      el.value = AP.currentTarget
+        ? JSON.stringify(AP.currentTarget)
+        : "";
     }
   }
 
@@ -559,11 +634,11 @@
     AP.currentTarget.lat = lat;
     AP.currentTarget.lon = lon;
 
-    const agg       = pack.agg;
-    const values    = pack.values || [null, null, null];
-    const method    = pack.method || AP.settings.elevAgg || "mean";
-    const disagree  = !!pack.disagree;
-    const errs      = pack.errs || [];
+    const agg = pack.agg;
+    const values = pack.values || [null, null, null];
+    const method = pack.method || AP.settings.elevAgg || "mean";
+    const disagree = !!pack.disagree;
+    const errs = pack.errs || [];
     const [om, oe, ot] = values;
 
     AP.elevationSources = {
@@ -573,35 +648,48 @@
       aggregate: agg,
       method,
       disagree,
-      errors: errs
+      errors: errs,
     };
 
+    // Only auto-apply DEM elevation if not locked
     if (!AP.settings.lockManualElev) {
-      const firstNonNull = (om != null ? om : (oe != null ? oe : (ot != null ? ot : null)));
-      AP.currentTarget.elev = (agg != null) ? agg : firstNonNull;
+      const firstNonNull =
+        om != null
+          ? om
+          : oe != null
+          ? oe
+          : ot != null
+          ? ot
+          : null;
+      AP.currentTarget.elev = agg != null ? agg : firstNonNull;
     }
 
-    const latEl   = q("#target-lat");
-    const lonEl   = q("#target-lon");
-    const elevEl  = q("#target-elev");
-    const srcEl   = q("#target-elev-src");
-    const status  = q("#target-status");
+    const latEl = q("#target-lat");
+    const lonEl = q("#target-lon");
+    const elevEl = q("#target-elev");
+    const srcEl = q("#target-elev-src");
+    const status = q("#target-status");
 
-    if (latEl)  latEl.textContent  = lat.toFixed(6);
-    if (lonEl)  lonEl.textContent  = lon.toFixed(6);
-    if (elevEl) elevEl.textContent = (AP.currentTarget.elev != null)
-      ? AP.currentTarget.elev.toFixed(1)
-      : "–";
+    if (latEl) latEl.textContent = lat.toFixed(6);
+    if (lonEl) lonEl.textContent = lon.toFixed(6);
+    if (elevEl)
+      elevEl.textContent =
+        AP.currentTarget.elev != null
+          ? AP.currentTarget.elev.toFixed(1)
+          : "–";
 
     const srcLabel = (() => {
       if (AP.settings.lockManualElev) return "manual (locked)";
-      if (agg != null) return disagree ? `avg (${method}, ⚠︎)` : `avg (${method})`;
-      if (om != null || oe != null || ot != null) return "single source";
+      if (agg != null)
+        return disagree ? `avg (${method}, ⚠︎)` : `avg (${method})`;
+      if (om != null || oe != null || ot != null)
+        return "single source";
       return "–";
     })();
     if (srcEl) srcEl.textContent = srcLabel;
     if (status) status.textContent = "Target set";
 
+    // Target elevation panel
     const srcBox = q("#elev-sources");
     const errBox = q("#elev-errors");
 
@@ -609,22 +697,33 @@
     if (om != null) parts.push(`Open-Meteo ${om.toFixed(1)} m`);
     if (oe != null) parts.push(`Open-Elevation ${oe.toFixed(1)} m`);
     if (ot != null) parts.push(`OpenTopo ${ot.toFixed(1)} m`);
-    if (agg != null) parts.push(`→ ${method} ${agg.toFixed(1)} m${disagree ? " (⚠︎)" : ""}`);
+    if (agg != null)
+      parts.push(
+        `→ ${method} ${agg.toFixed(1)} m${
+          disagree ? " (⚠︎)" : ""
+        }`
+      );
 
     if (srcBox) {
-      srcBox.textContent = parts.length ? parts.join(" · ") : "No elevation from providers.";
+      srcBox.textContent = parts.length
+        ? parts.join(" · ")
+        : "No elevation from providers.";
       srcBox.classList.toggle("warn", disagree);
     }
     if (errBox) {
       if (parts.length === 0) {
         errBox.style.display = "";
-        errBox.textContent = `All providers failed. Enter manual elevation. Details: ${errs.slice(-3).join(" · ")}`;
+        errBox.textContent = `All providers failed. Enter manual elevation. Details: ${errs
+          .slice(-3)
+          .join(" · ")}`;
       } else {
         errBox.style.display = "none";
       }
     }
 
-    setMapStatus(parts.length ? parts.join(" · ") : "Elevation unavailable.");
+    setMapStatus(
+      parts.length ? parts.join(" · ") : "Elevation unavailable."
+    );
     updateTargetJSON();
     scheduleUpdate();
   }
@@ -641,24 +740,32 @@
     const errs = [];
     const useMulti = AP.settings.multiElev;
 
-    const r1 = await tryProvider("Open-Meteo", () => fetchOpenMeteoElevation(lat, lon, "_elevAbortOM"));
+    const r1 = await tryProvider("Open-Meteo", () =>
+      fetchOpenMeteoElevation(lat, lon, "_elevAbortOM")
+    );
     errs.push(...r1.errors);
 
-    let r2 = { value: null, errors: [] }, r3 = { value: null, errors: [] };
+    let r2 = { value: null, errors: [] },
+      r3 = { value: null, errors: [] };
     if (useMulti) {
-      r2 = await tryProvider("Open-Elevation", () => fetchOpenElevation(lat, lon, "_elevAbortOE"));
+      r2 = await tryProvider("Open-Elevation", () =>
+        fetchOpenElevation(lat, lon, "_elevAbortOE")
+      );
       errs.push(...r2.errors);
-      r3 = await tryProvider("OpenTopo SRTM", () => fetchOpenTopoSRTM(lat, lon, "_elevAbortOT"));
+      r3 = await tryProvider("OpenTopo SRTM", () =>
+        fetchOpenTopoSRTM(lat, lon, "_elevAbortOT")
+      );
       errs.push(...r3.errors);
     }
 
     const method = AP.settings.elevAgg || "mean";
     const values = [r1.value, r2.value, r3.value];
-    const agg    = aggregateElev(values, method);
+    const agg = aggregateElev(values, method);
 
     const nonNull = values.filter((v) => v != null);
-    const disagree = nonNull.length >= 2 &&
-                     (Math.max(...nonNull) - Math.min(...nonNull) > 20);
+    const disagree =
+      nonNull.length >= 2 &&
+      Math.max(...nonNull) - Math.min(...nonNull) > 20;
 
     const pack = {
       agg,
@@ -669,8 +776,8 @@
       sources: {
         openMeteo: r1.value,
         openElevation: r2.value,
-        openTopoSRTM: r3.value
-      }
+        openTopoSRTM: r3.value,
+      },
     };
 
     AP._elevCache.set(key, pack);
@@ -688,23 +795,31 @@
     const errs = [];
     const useMulti = AP.settings.multiElev;
 
-    const r1 = await tryProvider("Open-Meteo", () => fetchOpenMeteoElevation(lat, lon, "_obsAbortOM"));
+    const r1 = await tryProvider("Open-Meteo", () =>
+      fetchOpenMeteoElevation(lat, lon, "_obsAbortOM")
+    );
     errs.push(...r1.errors);
 
-    let r2 = { value: null, errors: [] }, r3 = { value: null, errors: [] };
+    let r2 = { value: null, errors: [] },
+      r3 = { value: null, errors: [] };
     if (useMulti) {
-      r2 = await tryProvider("Open-Elevation", () => fetchOpenElevation(lat, lon, "_obsAbortOE"));
+      r2 = await tryProvider("Open-Elevation", () =>
+        fetchOpenElevation(lat, lon, "_obsAbortOE")
+      );
       errs.push(...r2.errors);
-      r3 = await tryProvider("OpenTopo SRTM", () => fetchOpenTopoSRTM(lat, lon, "_obsAbortOT"));
+      r3 = await tryProvider("OpenTopo SRTM", () =>
+        fetchOpenTopoSRTM(lat, lon, "_obsAbortOT")
+      );
       errs.push(...r3.errors);
     }
 
     const method = AP.settings.elevAgg || "mean";
     const values = [r1.value, r2.value, r3.value];
-    const agg    = aggregateElev(values, method);
+    const agg = aggregateElev(values, method);
     const nonNull = values.filter((v) => v != null);
-    const disagree = nonNull.length >= 2 &&
-                     (Math.max(...nonNull) - Math.min(...nonNull) > 20);
+    const disagree =
+      nonNull.length >= 2 &&
+      Math.max(...nonNull) - Math.min(...nonNull) > 20;
 
     const pack = {
       openMeteo: r1.value,
@@ -715,7 +830,7 @@
       disagree,
       errors: errs,
       lastLat: lat,
-      lastLon: lon
+      lastLon: lon,
     };
 
     AP._obsCache.set(key, pack);
@@ -728,20 +843,31 @@
     if (L.lastLat == null || L.lastLon == null) return true;
     const dLat = Math.abs(lat - L.lastLat);
     const dLon = Math.abs(lon - L.lastLon);
-    return (dLat > 0.0005 || dLon > 0.0005); // ~55 m threshold
+    return dLat > 0.0005 || dLon > 0.0005; // ~55 m threshold
   }
 
-  // ---- Orientation helpers ----
+  // --- Orientation helpers ---
   function compassFromEvent(ev) {
     if (!ev) return { heading: null, source: null };
-    if (typeof ev.webkitCompassHeading === "number" && !Number.isNaN(ev.webkitCompassHeading)) {
+    if (
+      typeof ev.webkitCompassHeading === "number" &&
+      !Number.isNaN(ev.webkitCompassHeading)
+    ) {
       // iOS Safari gives degrees clockwise from magnetic north
-      return { heading: norm360(ev.webkitCompassHeading), source: "iOS compass" };
+      return {
+        heading: norm360(ev.webkitCompassHeading),
+        source: "iOS compass",
+      };
     }
-    if (ev.absolute === true && typeof ev.alpha === "number" && !Number.isNaN(ev.alpha)) {
+    if (
+      ev.absolute === true &&
+      typeof ev.alpha === "number" &&
+      !Number.isNaN(ev.alpha)
+    ) {
+      // Absolute orientation
       return {
         heading: norm360(ev.alpha + screenAngle()),
-        source: "absolute orientation"
+        source: "absolute orientation",
       };
     }
     if (typeof ev.alpha === "number") {
@@ -756,93 +882,126 @@
     if (beta == null && gamma == null) return null;
 
     if (s === 0) {
+      // Portrait
       return clamp(beta ?? 0, -90, 90);
     } else if (s === 180) {
+      // Upside-down portrait
       return clamp(-(beta ?? 0), -90, 90);
     } else if (s === 90) {
+      // Landscape (buttons on left)
       return clamp(gamma ?? 0, -90, 90);
     } else if (s === 270) {
+      // Landscape (buttons on right)
       return clamp(-(gamma ?? 0), -90, 90);
     }
+    // Fallback treat as portrait
     return clamp(beta ?? 0, -90, 90);
   };
 
-  // ---- Main update loop ----
+  // --- Main update loop ---
   function update() {
     AP._rafPending = false;
 
     const gps = AP.currentGPS;
     const tgt = AP.currentTarget;
 
-    const azEl    = q("#live-azimuth");
-    const headEl  = q("#live-heading");
-    const turnEl  = q("#live-turn");
-    const distEl  = q("#live-distance");
-    const elevEl  = q("#live-elev-angle");
+    const azEl = q("#live-azimuth");
+    const headEl = q("#live-heading");
+    const turnEl = q("#live-turn");
+    const distEl = q("#live-distance");
+    const elevEl = q("#live-elev-angle");
     const pitchEl = q("#live-pitch");
-    const tiltEl  = q("#live-tilt");
-    const declEl  = q("#live-decl");
-    const obsEl   = q("#live-obs-elev");
-    const dzEl    = q("#live-dz");
+    const tiltEl = q("#live-tilt");
+    const declEl = q("#live-decl");
+    const obsEl = q("#live-obs-elev");
+    const dzEl = q("#live-dz");
     const declPrev = q("#settings-decl-preview");
-    const altPrev  = q("#settings-alt-preview");
+    const altPrev = q("#settings-alt-preview");
 
     // Declination model + manual offset
-    let Dmodel = null, Dman = AP.settings.manualDeclination || 0, Dtot = null;
+    let Dmodel = null,
+      Dman = AP.settings.manualDeclination || 0,
+      Dtot = null;
     if (gps && typeof gps.lat === "number" && typeof gps.lon === "number") {
       Dmodel = declinationDeg(gps.lat, gps.lon);
-      Dtot   = (Dmodel || 0) + Dman;
+      Dtot = (Dmodel || 0) + Dman;
       if (declEl) {
-        declEl.textContent = `${Dtot.toFixed(1)}° ${AP.settings.applyDeclination ? "(applied)" : "(off)"}`;
+        declEl.textContent = `${Dtot.toFixed(1)}° ${
+          AP.settings.applyDeclination ? "(applied)" : "(off)"
+        }`;
       }
       if (declPrev) {
-        declPrev.textContent = `Decl: model ${Dmodel.toFixed(1)}° + manual ${Dman.toFixed(1)}° = ${Dtot.toFixed(1)}°`;
+        declPrev.textContent = `Decl: model ${Dmodel.toFixed(
+          1
+        )}° + manual ${Dman.toFixed(1)}° = ${Dtot.toFixed(1)}°`;
       }
     } else {
-      if (declEl)   declEl.textContent   = "–";
-      if (declPrev) declPrev.textContent = "Declination: waiting for GPS…";
+      if (declEl) declEl.textContent = "–";
+      if (declPrev)
+        declPrev.textContent = "Declination: waiting for GPS…";
     }
 
     if (!gps || !tgt) {
       setLiveStatus("Need GPS fix + target point.");
-      for (const el of [azEl, headEl, turnEl, distEl, elevEl, pitchEl, tiltEl, obsEl, dzEl]) {
+      for (const el of [
+        azEl,
+        headEl,
+        turnEl,
+        distEl,
+        elevEl,
+        pitchEl,
+        tiltEl,
+        obsEl,
+        dzEl,
+      ]) {
         if (el) el.textContent = "–";
       }
       Compass.draw({});
       ElevGauge.draw({});
       const compassCanvas = q("#compass");
-      const elevCanvas    = q("#compass-elev");
-      if (compassCanvas) compassCanvas.classList.remove("on-target");
-      if (elevCanvas)    elevCanvas.classList.remove("on-target");
+      const elevCanvas = q("#compass-elev");
+      if (compassCanvas)
+        compassCanvas.classList.remove("on-target");
+      if (elevCanvas) elevCanvas.classList.remove("on-target");
       return;
     }
 
     // DEM for observer if needed
-    if (AP.settings.altMode === "dem" &&
-        typeof gps.lat === "number" && typeof gps.lon === "number" &&
-        needObserverRefetch(gps.lat, gps.lon)) {
+    if (
+      AP.settings.altMode === "dem" &&
+      typeof gps.lat === "number" &&
+      typeof gps.lon === "number" &&
+      needObserverRefetch(gps.lat, gps.lon)
+    ) {
       fetchObserverDEM(gps.lat, gps.lon);
     }
 
     // Distance & bearing to target
-    const inv = vincentyInverse(gps.lat, gps.lon, tgt.lat, tgt.lon) ||
-                fallbackBearing(gps.lat, gps.lon, tgt.lat, tgt.lon);
+    const inv =
+      vincentyInverse(gps.lat, gps.lon, tgt.lat, tgt.lon) ||
+      fallbackBearing(gps.lat, gps.lon, tgt.lat, tgt.lon);
 
     const bearing = inv.initialBearing;
-    const dist    = inv.distance;
+    const dist = inv.distance;
 
-    if (azEl)   azEl.textContent   = bearing.toFixed(1);
-    if (distEl) distEl.textContent = dist >= 1000
-      ? (dist / 1000).toFixed(3) + " km"
-      : dist.toFixed(1) + " m";
+    if (azEl) azEl.textContent = bearing.toFixed(1);
+    if (distEl)
+      distEl.textContent =
+        dist >= 1000
+          ? (dist / 1000).toFixed(3) + " km"
+          : dist.toFixed(1) + " m";
 
     // Heading from GPS and/or orientation
     let heading = null;
     let headingSrc = "";
 
-    if (typeof gps.heading === "number" && !Number.isNaN(gps.heading)) {
+    if (
+      typeof gps.heading === "number" &&
+      !Number.isNaN(gps.heading)
+    ) {
+      // Only trust GPS heading when actually moving
       if (gps.speed != null && gps.speed > 0.5) {
-        heading    = norm360(gps.heading);
+        heading = norm360(gps.heading);
         headingSrc = "GPS";
       }
     }
@@ -853,11 +1012,13 @@
         h = norm360(h + Dtot);
       }
       h = norm360(h + AP.headingOffset);
-      heading    = h;
-      headingSrc = `orientation${AP.settings.applyDeclination ? "+decl" : ""}`;
+      heading = h;
+      headingSrc = `orientation${
+        AP.settings.applyDeclination ? "+decl" : ""
+      }`;
     }
 
-    let azOk   = false;
+    let azOk = false;
     let deltaAz = 0;
 
     if (heading == null) {
@@ -865,7 +1026,8 @@
       if (turnEl) turnEl.textContent = "Move a bit or calibrate.";
       setLiveStatus("No heading yet (move or calibrate).");
     } else {
-      if (headEl) headEl.textContent = `${heading.toFixed(1)}° (${headingSrc})`;
+      if (headEl)
+        headEl.textContent = `${heading.toFixed(1)}° (${headingSrc})`;
       deltaAz = wrap180(bearing - heading);
       const dead = 5;
       azOk = Math.abs(deltaAz) < dead;
@@ -873,48 +1035,54 @@
         if (azOk) {
           turnEl.textContent = `On target (±${dead}°)`;
         } else {
-          turnEl.textContent = `Turn ${deltaAz > 0 ? "right" : "left"} ${Math.abs(deltaAz).toFixed(1)}°`;
+          turnEl.textContent = `Turn ${
+            deltaAz > 0 ? "right" : "left"
+          } ${Math.abs(deltaAz).toFixed(1)}°`;
         }
       }
-      setLiveStatus(azOk ? "Azimuth on target." : "Align azimuth to target.");
+      setLiveStatus(
+        azOk ? "Azimuth on target." : "Align azimuth to target."
+      );
     }
 
     // Observer elevation
     let obsElev = null;
-    let obsSrc  = "–";
+    let obsSrc = "–";
     if (AP.settings.altMode === "dem") {
       const agg = AP.observerSources.aggregate;
       if (agg != null) {
         obsElev = agg;
-        obsSrc  = AP.observerSources.disagree
+        obsSrc = AP.observerSources.disagree
           ? `DEM avg (${AP.observerSources.method}, ⚠︎)`
           : `DEM avg (${AP.observerSources.method})`;
       }
     } else if (AP.settings.altMode === "gps") {
       if (typeof gps.alt === "number" && isFinite(gps.alt)) {
         obsElev = gps.alt + (AP.settings.gpsGeoidOffset || 0);
-        obsSrc  = "GPS alt + offset";
+        obsSrc = "GPS alt + offset";
       }
     } else if (AP.settings.altMode === "manual") {
       obsElev = AP.settings.manualObserverElev;
-      obsSrc  = "manual obs elev";
+      obsSrc = "manual obs elev";
     }
 
     if (obsElev != null) {
-      obsElev += (AP.settings.instrumentHeight || 0);
+      obsElev += AP.settings.instrumentHeight || 0;
     }
 
     if (obsEl) {
-      obsEl.textContent = (obsElev != null) ? `${obsElev.toFixed(1)} m` : "–";
+      obsEl.textContent =
+        obsElev != null ? `${obsElev.toFixed(1)} m` : "–";
     }
     if (altPrev) {
-      altPrev.textContent =
-        `Alt mode: ${AP.settings.altMode.toUpperCase()} · ` +
-        `Obs=${obsElev != null ? obsElev.toFixed(1) + " m" : "–"} ` +
-        `(${obsSrc}) · Hinst=${(AP.settings.instrumentHeight || 0).toFixed(1)} m`;
+      altPrev.textContent = `Alt mode: ${AP.settings.altMode.toUpperCase()} · Obs=${
+        obsElev != null ? obsElev.toFixed(1) + " m" : "–"
+      } (${obsSrc}) · Hinst=${(
+        AP.settings.instrumentHeight || 0
+      ).toFixed(1)} m`;
     }
 
-    // Required elevation angle
+    // Required elevation angle between observer and target
     const te = tgt.elev;
     let requiredElev = null;
     let dz = null;
@@ -925,31 +1093,46 @@
     }
 
     if (dzEl) {
-      dzEl.textContent = (dz != null) ? `${dz.toFixed(1)} m` : "–";
+      dzEl.textContent =
+        dz != null ? `${dz.toFixed(1)} m` : "–";
     }
     if (elevEl) {
       if (requiredElev == null) {
         elevEl.textContent = "–";
       } else {
-        const dir = requiredElev > 0 ? "up" : (requiredElev < 0 ? "down" : "level");
-        elevEl.textContent = `${Math.abs(requiredElev).toFixed(1)}° ${dir}`;
+        const dir =
+          requiredElev > 0
+            ? "up"
+            : requiredElev < 0
+            ? "down"
+            : "level";
+        elevEl.textContent = `${Math.abs(
+          requiredElev
+        ).toFixed(1)}° ${dir}`;
       }
     }
 
     // Pitch
-    const pitchMapped = (AP.lastPitchRaw == null)
-      ? null
-      : clamp(AP.calibration.pitchSign * AP.lastPitchRaw + AP.pitchZeroOffset, -90, 90);
+    const pitchMapped =
+      AP.lastPitchRaw == null
+        ? null
+        : clamp(
+            AP.calibration.pitchSign * AP.lastPitchRaw +
+              AP.pitchZeroOffset,
+            -90,
+            90
+          );
 
     if (pitchEl) {
-      pitchEl.textContent = (pitchMapped != null)
-        ? `${pitchMapped.toFixed(1)}°`
-        : "–";
+      pitchEl.textContent =
+        pitchMapped != null
+          ? `${pitchMapped.toFixed(1)}°`
+          : "–";
     }
 
     // Tilt guidance
     let elOk = false;
-    let dp   = 0;
+    let dp = 0;
     if (requiredElev == null || pitchMapped == null) {
       if (tiltEl) tiltEl.textContent = "–";
     } else {
@@ -960,29 +1143,33 @@
         if (elOk) {
           tiltEl.textContent = `On angle (±${deadEl}°)`;
         } else {
-          tiltEl.textContent = `Tilt ${dp > 0 ? "up" : "down"} ${Math.abs(dp).toFixed(1)}°`;
+          tiltEl.textContent = `Tilt ${
+            dp > 0 ? "up" : "down"
+          } ${Math.abs(dp).toFixed(1)}°`;
         }
       }
     }
 
     // Canvas highlight on-target
     const compassCanvas = q("#compass");
-    const elevCanvas    = q("#compass-elev");
-    if (compassCanvas) compassCanvas.classList.toggle("on-target", azOk);
-    if (elevCanvas)    elevCanvas.classList.toggle("on-target", elOk);
+    const elevCanvas = q("#compass-elev");
+    if (compassCanvas)
+      compassCanvas.classList.toggle("on-target", azOk);
+    if (elevCanvas)
+      elevCanvas.classList.toggle("on-target", elOk);
 
     // Draw gauges
     Compass.draw({
       bearing,
       heading,
       azOk,
-      deltaAz
+      deltaAz,
     });
     ElevGauge.draw({
       required: requiredElev,
       pitch: pitchMapped,
       elOk,
-      delta: dp
+      delta: dp,
     });
   }
 
@@ -992,7 +1179,7 @@
     requestAnimationFrame(update);
   }
 
-  // ---- Sensors ----
+  // --- Sensors ---
   function initSensors() {
     // GPS
     if (!("geolocation" in navigator)) {
@@ -1002,50 +1189,79 @@
         if (AP._gpsWatchId != null) {
           navigator.geolocation.clearWatch(AP._gpsWatchId);
         }
-        AP._gpsWatchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            const c = pos.coords || {};
-            const lat = c.latitude;
-            const lon = c.longitude;
-            const acc = c.accuracy;
-            const spd = c.speed;
-            const hdg = c.heading;
-            const alt = c.altitude;
+        AP._gpsWatchId =
+          navigator.geolocation.watchPosition(
+            (pos) => {
+              const c = pos.coords || {};
+              const lat = c.latitude;
+              const lon = c.longitude;
+              const acc = c.accuracy;
+              const spd = c.speed;
+              const hdg = c.heading;
+              const alt = c.altitude;
 
-            AP.currentGPS = { lat, lon, acc, speed: spd, heading: hdg, alt };
+              AP.currentGPS = {
+                lat,
+                lon,
+                acc,
+                speed: spd,
+                heading: hdg,
+                alt,
+              };
 
-            const latEl = q("#gps-lat"), lonEl = q("#gps-lon"), accEl = q("#gps-acc");
-            const spdEl = q("#gps-speed"), hdgEl = q("#gps-heading"), altEl = q("#gps-alt");
-            const jsonEl = q("#gps-json");
+              const latEl = q("#gps-lat"),
+                lonEl = q("#gps-lon"),
+                accEl = q("#gps-acc");
+              const spdEl = q("#gps-speed"),
+                hdgEl = q("#gps-heading"),
+                altEl = q("#gps-alt");
+              const jsonEl = q("#gps-json");
 
-            if (latEl) latEl.textContent = lat != null ? lat.toFixed(6) : "–";
-            if (lonEl) lonEl.textContent = lon != null ? lon.toFixed(6) : "–";
-            if (accEl) accEl.textContent = acc != null ? acc.toFixed(1)  : "–";
-            if (spdEl) spdEl.textContent = spd != null ? spd.toFixed(2)  : "–";
-            if (hdgEl) hdgEl.textContent = (typeof hdg === "number" && !Number.isNaN(hdg))
-              ? hdg.toFixed(1) : "–";
-            if (altEl) altEl.textContent = alt != null ? alt.toFixed(1)  : "–";
-            if (jsonEl) jsonEl.value = JSON.stringify(AP.currentGPS);
+              if (latEl)
+                latEl.textContent =
+                  lat != null ? lat.toFixed(6) : "–";
+              if (lonEl)
+                lonEl.textContent =
+                  lon != null ? lon.toFixed(6) : "–";
+              if (accEl)
+                accEl.textContent =
+                  acc != null ? acc.toFixed(1) : "–";
+              if (spdEl)
+                spdEl.textContent =
+                  spd != null ? spd.toFixed(2) : "–";
+              if (hdgEl)
+                hdgEl.textContent =
+                  typeof hdg === "number" && !Number.isNaN(hdg)
+                    ? hdg.toFixed(1)
+                    : "–";
+              if (altEl)
+                altEl.textContent =
+                  alt != null ? alt.toFixed(1) : "–";
+              if (jsonEl)
+                jsonEl.value = JSON.stringify(AP.currentGPS);
 
-            if (AP.settings.altMode === "dem" &&
-                typeof lat === "number" && typeof lon === "number") {
-              if (needObserverRefetch(lat, lon)) {
-                fetchObserverDEM(lat, lon);
+              if (
+                AP.settings.altMode === "dem" &&
+                typeof lat === "number" &&
+                typeof lon === "number"
+              ) {
+                if (needObserverRefetch(lat, lon)) {
+                  fetchObserverDEM(lat, lon);
+                }
               }
-            }
 
-            setSensorStatus("GPS ok");
-            scheduleUpdate();
-          },
-          (err) => {
-            setSensorStatus(`GPS error: ${err.message}`);
-          },
-          {
-            enableHighAccuracy: true,
-            maximumAge: 1000,
-            timeout: 10000
-          }
-        );
+              setSensorStatus("GPS ok");
+              scheduleUpdate();
+            },
+            (err) => {
+              setSensorStatus(`GPS error: ${err.message}`);
+            },
+            {
+              enableHighAccuracy: true,
+              maximumAge: 1000,
+              timeout: 10000,
+            }
+          );
       } catch (e) {
         setSensorStatus("GPS init error: " + e.message);
       }
@@ -1056,49 +1272,84 @@
       const { heading } = compassFromEvent(ev);
       AP.currentOrientation = {
         alpha: ev.alpha ?? null,
-        beta : ev.beta  ?? null,
+        beta: ev.beta ?? null,
         gamma: ev.gamma ?? null,
-        absolute: ev.absolute ?? null
+        absolute: ev.absolute ?? null,
       };
-      AP.lastAlpha = (typeof ev.alpha === "number") ? ev.alpha : null;
+      AP.lastAlpha =
+        typeof ev.alpha === "number" ? ev.alpha : null;
 
       if (heading != null) {
         AP.lastHeadingRaw = ema(AP.lastHeadingRaw, heading);
       }
 
-      const estPitch = estimatePitchRaw(ev.beta ?? null, ev.gamma ?? null);
+      const estPitch = estimatePitchRaw(
+        ev.beta ?? null,
+        ev.gamma ?? null
+      );
       if (estPitch != null) {
         AP.lastPitchRaw = ema(AP.lastPitchRaw, estPitch);
       }
 
-      const aEl = q("#ori-alpha"), bEl = q("#ori-beta"), gEl = q("#ori-gamma");
-      const absEl = q("#ori-abs"), jsonEl = q("#ori-json");
-      if (aEl)   aEl.textContent   = ev.alpha != null ? ev.alpha.toFixed(1) : "–";
-      if (bEl)   bEl.textContent   = ev.beta  != null ? ev.beta.toFixed(1)  : "–";
-      if (gEl)   gEl.textContent   = ev.gamma != null ? ev.gamma.toFixed(1) : "–";
-      if (absEl) absEl.textContent = (ev.absolute === true ? "true" : (ev.absolute === false ? "false" : "unknown"));
-      if (jsonEl) jsonEl.value     = JSON.stringify(AP.currentOrientation);
+      const aEl = q("#ori-alpha"),
+        bEl = q("#ori-beta"),
+        gEl = q("#ori-gamma");
+      const absEl = q("#ori-abs"),
+        jsonEl = q("#ori-json");
+      if (aEl)
+        aEl.textContent =
+          ev.alpha != null ? ev.alpha.toFixed(1) : "–";
+      if (bEl)
+        bEl.textContent =
+          ev.beta != null ? ev.beta.toFixed(1) : "–";
+      if (gEl)
+        gEl.textContent =
+          ev.gamma != null ? ev.gamma.toFixed(1) : "–";
+      if (absEl)
+        absEl.textContent =
+          ev.absolute === true
+            ? "true"
+            : ev.absolute === false
+            ? "false"
+            : "unknown";
+      if (jsonEl)
+        jsonEl.value = JSON.stringify(AP.currentOrientation);
 
       setSensorStatus("Sensors running.");
       scheduleUpdate();
     };
 
     try {
-      if (window.DeviceOrientationEvent &&
-          typeof DeviceOrientationEvent.requestPermission === "function") {
+      if (
+        window.DeviceOrientationEvent &&
+        typeof DeviceOrientationEvent.requestPermission ===
+          "function"
+      ) {
         // iOS
-        DeviceOrientationEvent.requestPermission().then((state) => {
-          if (state === "granted") {
-            addEventListener("deviceorientation", handleOrientation, { passive: true });
-            setSensorStatus("Sensors running (iOS).");
-          } else {
-            setSensorStatus("Orientation denied on iOS.");
-          }
-        }).catch((err) => {
-          setSensorStatus("Orientation error: " + err.message);
-        });
+        DeviceOrientationEvent.requestPermission()
+          .then((state) => {
+            if (state === "granted") {
+              addEventListener(
+                "deviceorientation",
+                handleOrientation,
+                { passive: true }
+              );
+              setSensorStatus("Sensors running (iOS).");
+            } else {
+              setSensorStatus("Orientation denied on iOS.");
+            }
+          })
+          .catch((err) => {
+            setSensorStatus(
+              "Orientation error: " + err.message
+            );
+          });
       } else if (window.DeviceOrientationEvent) {
-        addEventListener("deviceorientation", handleOrientation, { passive: true });
+        addEventListener(
+          "deviceorientation",
+          handleOrientation,
+          { passive: true }
+        );
         setSensorStatus("Sensors running.");
       } else {
         setSensorStatus("No DeviceOrientation support.");
@@ -1108,7 +1359,7 @@
     }
   }
 
-  // ---- Sheets ----
+  // --- Sheet helpers (map/settings/target) ---
   function openSheet(id) {
     const sh = q(id);
     if (sh) sh.classList.add("open");
@@ -1118,31 +1369,39 @@
     if (sh) sh.classList.remove("open");
   }
 
-  // ---- Calibration helpers ----
+  // --- Calibration helpers ---
   function calibrateToTarget() {
     const gps = AP.currentGPS;
     const tgt = AP.currentTarget;
 
     if (!gps || !tgt) {
-      setLiveStatus("Need GPS + target to calibrate to target.");
+      setLiveStatus(
+        "Need GPS + target to calibrate to target."
+      );
       return;
     }
     if (AP.lastHeadingRaw == null) {
-      setLiveStatus("No orientation heading yet; move/rotate phone first.");
+      setLiveStatus(
+        "No orientation heading yet; move/rotate phone first."
+      );
       return;
     }
 
     let Dmodel = declinationDeg(gps.lat, gps.lon);
-    let Dtot   = (Dmodel || 0) + (AP.settings.manualDeclination || 0);
+    let Dtot =
+      (Dmodel || 0) + (AP.settings.manualDeclination || 0);
 
-    const inv = vincentyInverse(gps.lat, gps.lon, tgt.lat, tgt.lon) ||
-                fallbackBearing(gps.lat, gps.lon, tgt.lat, tgt.lon);
+    const inv =
+      vincentyInverse(gps.lat, gps.lon, tgt.lat, tgt.lon) ||
+      fallbackBearing(gps.lat, gps.lon, tgt.lat, tgt.lon);
     const bearing = inv.initialBearing;
 
+    // Base heading from raw sensor
     let h = AP.lastHeadingRaw;
     if (AP.settings.applyDeclination) {
       h = norm360(h + Dtot);
     }
+    // Choose headingOffset so heading == bearing
     AP.headingOffset = wrap180(bearing - h);
 
     setLiveStatus("Calibrated heading to current target.");
@@ -1151,16 +1410,22 @@
 
   function quickLevel() {
     if (AP.lastPitchRaw == null) {
-      setLiveStatus("Move/tilt phone to get pitch before quick level.");
+      setLiveStatus(
+        "Move/tilt phone to get pitch before quick level."
+      );
       return;
     }
-    AP.pitchZeroOffset = -(AP.calibration.pitchSign * AP.lastPitchRaw);
-    setLiveStatus("Pitch zero set to current orientation.");
+    AP.pitchZeroOffset = -(
+      AP.calibration.pitchSign * AP.lastPitchRaw
+    );
+    setLiveStatus(
+      "Pitch zero set to current orientation."
+    );
     scheduleUpdate();
   }
 
   function resetAxes() {
-    AP.headingOffset   = 0;
+    AP.headingOffset = 0;
     AP.pitchZeroOffset = 0;
     AP.calibration.pitchSign = 1;
     setLiveStatus("Axes reset.");
@@ -1169,35 +1434,62 @@
 
   function axesFlipPitch() {
     AP.calibration.pitchSign *= -1;
-    setLiveStatus(`Pitch axis ${AP.calibration.pitchSign === 1 ? "normal" : "inverted"}.`);
+    setLiveStatus(
+      `Pitch axis ${
+        AP.calibration.pitchSign === 1 ? "normal" : "inverted"
+      }.`
+    );
     scheduleUpdate();
   }
 
-  // ---- Settings wiring ----
+  // --- Settings wiring ---
   function wireSettings() {
-    const btnSettings       = q("#btn-settings");
-    const btnCloseSettings  = q("#btn-close-settings");
-    const toggleDecl        = q("#toggle-decl");
-    const manualDeclRange   = q("#manual-decl-range");
-    const manualDeclNumber  = q("#manual-decl-number");
-    const selectAltMode     = q("#select-alt-mode");
-    const inputInstH        = q("#input-instrument-h");
-    const inputManualObs    = q("#input-manual-obs");
-    const inputGeoidOffset  = q("#input-geoid-offset");
-    const toggleMultiElev   = q("#toggle-multi-elev");
-    const selectElevAgg     = q("#select-elev-agg");
+    const btnSettings = q("#btn-settings");
+    const btnCloseSettings = q("#btn-close-settings");
+    const toggleDecl = q("#toggle-decl");
+    const manualDeclRange = q("#manual-decl-range");
+    const manualDeclNumber = q("#manual-decl-number");
+    const selectAltMode = q("#select-alt-mode");
+    const inputInstH = q("#input-instrument-h");
+    const inputManualObs = q("#input-manual-obs");
+    const inputGeoidOffset = q("#input-geoid-offset");
+    const toggleMultiElev = q("#toggle-multi-elev");
+    const selectElevAgg = q("#select-elev-agg");
 
     if (btnSettings) {
       btnSettings.addEventListener("click", () => {
-        if (toggleDecl)       toggleDecl.checked      = !!AP.settings.applyDeclination;
-        if (manualDeclRange)  manualDeclRange.value   = String(AP.settings.manualDeclination || 0);
-        if (manualDeclNumber) manualDeclNumber.value  = String(AP.settings.manualDeclination || 0);
-        if (selectAltMode)    selectAltMode.value     = AP.settings.altMode;
-        if (inputInstH)       inputInstH.value        = String(AP.settings.instrumentHeight || 1.5);
-        if (inputManualObs)   inputManualObs.value    = String(AP.settings.manualObserverElev || 0);
-        if (inputGeoidOffset) inputGeoidOffset.value  = String(AP.settings.gpsGeoidOffset || 0);
-        if (toggleMultiElev)  toggleMultiElev.checked = !!AP.settings.multiElev;
-        if (selectElevAgg)    selectElevAgg.value     = AP.settings.elevAgg || "mean";
+        // Sync toggles with state
+        if (toggleDecl)
+          toggleDecl.checked =
+            !!AP.settings.applyDeclination;
+        if (manualDeclRange)
+          manualDeclRange.value = String(
+            AP.settings.manualDeclination || 0
+          );
+        if (manualDeclNumber)
+          manualDeclNumber.value = String(
+            AP.settings.manualDeclination || 0
+          );
+        if (selectAltMode)
+          selectAltMode.value = AP.settings.altMode;
+        if (inputInstH)
+          inputInstH.value = String(
+            AP.settings.instrumentHeight || 1.5
+          );
+        if (inputManualObs)
+          inputManualObs.value = String(
+            AP.settings.manualObserverElev || 0
+          );
+        if (inputGeoidOffset)
+          inputGeoidOffset.value = String(
+            AP.settings.gpsGeoidOffset || 0
+          );
+        if (toggleMultiElev)
+          toggleMultiElev.checked =
+            !!AP.settings.multiElev;
+        if (selectElevAgg)
+          selectElevAgg.value =
+            AP.settings.elevAgg || "mean";
 
         openSheet("#sheet-settings");
       });
@@ -1209,7 +1501,7 @@
     }
 
     if (toggleDecl) {
-      toggleDecl.checked = true;
+      toggleDecl.checked = true; // default on
       AP.settings.applyDeclination = true;
       toggleDecl.addEventListener("change", () => {
         AP.settings.applyDeclination = toggleDecl.checked;
@@ -1220,19 +1512,25 @@
     function syncManualDecl(val) {
       const v = clamp(val, -30, 30);
       AP.settings.manualDeclination = v;
-      if (manualDeclRange)  manualDeclRange.value  = String(v);
-      if (manualDeclNumber) manualDeclNumber.value = String(v);
+      if (manualDeclRange)
+        manualDeclRange.value = String(v);
+      if (manualDeclNumber)
+        manualDeclNumber.value = String(v);
       scheduleUpdate();
     }
 
     if (manualDeclRange) {
       manualDeclRange.addEventListener("input", (e) => {
-        syncManualDecl(parseFloat(e.target.value) || 0);
+        syncManualDecl(
+          parseFloat(e.target.value) || 0
+        );
       });
     }
     if (manualDeclNumber) {
       manualDeclNumber.addEventListener("input", (e) => {
-        syncManualDecl(parseFloat(e.target.value) || 0);
+        syncManualDecl(
+          parseFloat(e.target.value) || 0
+        );
       });
     }
 
@@ -1253,7 +1551,9 @@
     if (inputManualObs) {
       inputManualObs.addEventListener("change", () => {
         const v = parseFloat(inputManualObs.value);
-        AP.settings.manualObserverElev = isFinite(v) ? v : 0;
+        AP.settings.manualObserverElev = isFinite(v)
+          ? v
+          : 0;
         scheduleUpdate();
       });
     }
@@ -1268,12 +1568,24 @@
     function reconfigureElevCache() {
       AP._elevCache.clear();
       AP._obsCache.clear();
-      if (AP.currentTarget && typeof AP.currentTarget.lat === "number" && typeof AP.currentTarget.lon === "number") {
-        fetchElevationMulti(AP.currentTarget.lat, AP.currentTarget.lon);
+      // Re-fetch current target & observer if present
+      if (
+        AP.currentTarget &&
+        typeof AP.currentTarget.lat === "number" &&
+        typeof AP.currentTarget.lon === "number"
+      ) {
+        fetchElevationMulti(
+          AP.currentTarget.lat,
+          AP.currentTarget.lon
+        );
       }
       const gps = AP.currentGPS;
-      if (gps && typeof gps.lat === "number" && typeof gps.lon === "number" &&
-          AP.settings.altMode === "dem") {
+      if (
+        gps &&
+        typeof gps.lat === "number" &&
+        typeof gps.lon === "number" &&
+        AP.settings.altMode === "dem"
+      ) {
         fetchObserverDEM(gps.lat, gps.lon);
       }
     }
@@ -1293,24 +1605,27 @@
     }
   }
 
-  // ---- Target elevation panel wiring ----
+  // --- Target elevation panel wiring ---
   function wireTargetElevationPanel() {
     const btnEditTargetElev = q("#btn-edit-target-elev");
-    const btnCloseTarget    = q("#btn-close-target-elev");
-    const btnElevSave       = q("#btn-elev-save");
-    const btnUseAvg         = q("#btn-elev-use-avg");
-    const btnUseGPS         = q("#btn-elev-use-gps");
-    const toggleLockElev    = q("#toggle-lock-elev");
-    const editInput         = q("#edit-target-elev");
-    const retryBtn          = q("#btn-retry-elev");
+    const btnCloseTarget = q("#btn-close-target-elev");
+    const btnElevSave = q("#btn-elev-save");
+    const btnUseAvg = q("#btn-elev-use-avg");
+    const btnUseGPS = q("#btn-elev-use-gps");
+    const toggleLockElev = q("#toggle-lock-elev");
+    const editInput = q("#edit-target-elev");
+    const retryBtn = q("#btn-retry-elev");
 
     if (btnEditTargetElev) {
       btnEditTargetElev.addEventListener("click", () => {
         if (editInput) {
-          const val = (AP.currentTarget && AP.currentTarget.elev != null)
-            ? AP.currentTarget.elev
-            : 0;
-          editInput.value = String(val.toFixed ? val.toFixed(1) : val);
+          const val =
+            AP.currentTarget && AP.currentTarget.elev != null
+              ? AP.currentTarget.elev
+              : 0;
+          editInput.value = String(
+            val.toFixed ? val.toFixed(1) : val
+          );
         }
         openSheet("#sheet-target-elev");
       });
@@ -1324,16 +1639,23 @@
     if (btnElevSave && editInput) {
       btnElevSave.addEventListener("click", () => {
         const v = parseFloat(editInput.value);
-        if (!AP.currentTarget) AP.currentTarget = { lat: null, lon: null, elev: null };
+        if (!AP.currentTarget)
+          AP.currentTarget = {
+            lat: null,
+            lon: null,
+            elev: null,
+          };
         if (!isFinite(v)) {
           setLiveStatus("Invalid manual elevation.");
           return;
         }
         AP.currentTarget.elev = v;
-        AP.settings.lockManualElev = !!(toggleLockElev && toggleLockElev.checked);
+        AP.settings.lockManualElev = !!(
+          toggleLockElev && toggleLockElev.checked
+        );
 
         const elevEl = q("#target-elev");
-        const srcEl  = q("#target-elev-src");
+        const srcEl = q("#target-elev-src");
         if (elevEl) elevEl.textContent = v.toFixed(1);
         if (srcEl) {
           srcEl.textContent = AP.settings.lockManualElev
@@ -1352,16 +1674,23 @@
           const errBox = q("#elev-errors");
           if (errBox) {
             errBox.style.display = "";
-            errBox.textContent = "No averaged elevation available yet.";
+            errBox.textContent =
+              "No averaged elevation available yet.";
           }
           return;
         }
-        if (!AP.currentTarget) AP.currentTarget = { lat: null, lon: null, elev: null };
+        if (!AP.currentTarget)
+          AP.currentTarget = {
+            lat: null,
+            lon: null,
+            elev: null,
+          };
         AP.currentTarget.elev = agg;
         const elevEl = q("#target-elev");
-        const srcEl  = q("#target-elev-src");
+        const srcEl = q("#target-elev-src");
         if (elevEl) elevEl.textContent = agg.toFixed(1);
-        if (srcEl)  srcEl.textContent  = "avg (manual override)";
+        if (srcEl)
+          srcEl.textContent = "avg (manual override)";
         updateTargetJSON();
         scheduleUpdate();
       });
@@ -1374,17 +1703,23 @@
           const errBox = q("#elev-errors");
           if (errBox) {
             errBox.style.display = "";
-            errBox.textContent = "No GPS altitude available yet.";
+            errBox.textContent =
+              "No GPS altitude available yet.";
           }
           return;
         }
-        if (!AP.currentTarget) AP.currentTarget = { lat: null, lon: null, elev: null };
+        if (!AP.currentTarget)
+          AP.currentTarget = {
+            lat: null,
+            lon: null,
+            elev: null,
+          };
         const val = gps.alt + (AP.settings.gpsGeoidOffset || 0);
         AP.currentTarget.elev = val;
         const elevEl = q("#target-elev");
-        const srcEl  = q("#target-elev-src");
+        const srcEl = q("#target-elev-src");
         if (elevEl) elevEl.textContent = val.toFixed(1);
-        if (srcEl)  srcEl.textContent  = "GPS alt";
+        if (srcEl) srcEl.textContent = "GPS alt";
         updateTargetJSON();
         scheduleUpdate();
       });
@@ -1394,55 +1729,58 @@
       toggleLockElev.addEventListener("change", () => {
         AP.settings.lockManualElev = toggleLockElev.checked;
         const srcEl = q("#target-elev-src");
-        if (srcEl && AP.currentTarget && AP.currentTarget.elev != null) {
-          srcEl.textContent = AP.settings.lockManualElev ? "manual (locked)" : "manual";
+        if (
+          srcEl &&
+          AP.currentTarget &&
+          AP.currentTarget.elev != null
+        ) {
+          srcEl.textContent = AP.settings.lockManualElev
+            ? "manual (locked)"
+            : "manual";
         }
       });
     }
 
     if (retryBtn) {
       retryBtn.addEventListener("click", () => {
-        if (AP.currentTarget &&
-            typeof AP.currentTarget.lat === "number" &&
-            typeof AP.currentTarget.lon === "number") {
+        if (
+          AP.currentTarget &&
+          typeof AP.currentTarget.lat === "number" &&
+          typeof AP.currentTarget.lon === "number"
+        ) {
           setMapStatus("Retrying elevation…");
-          fetchElevationMulti(AP.currentTarget.lat, AP.currentTarget.lon);
+          fetchElevationMulti(
+            AP.currentTarget.lat,
+            AP.currentTarget.lon
+          );
         }
       });
     }
   }
 
-  // ---- Main UI setup ----
+  // --- Main UI setup ---
   function setup(retry = 0) {
     Compass.init();
     ElevGauge.init();
 
-    const btnSensors     = q("#btn-sensors");
-    const btnMap         = q("#btn-map");
+    const btnSensors = q("#btn-sensors");
+    const btnMap = q("#btn-map");
     const btnCalibTarget = q("#btn-calib-target");
-    const btnCalibAxes   = q("#btn-calib-axes");
-    const btnQuickLevel  = q("#btn-quick-level");
-    const btnResetAxes   = q("#btn-reset-axes");
-    const btnCloseMap    = q("#btn-close-map");
+    const btnCalibAxes = q("#btn-calib-axes");
+    const btnQuickLevel = q("#btn-quick-level");
+    const btnResetAxes = q("#btn-reset-axes");
+    const btnCloseMap = q("#btn-close-map");
 
-    if (!btnSensors || !btnMap || !btnCalibTarget || !btnCalibAxes) {
+    if (
+      !btnSensors ||
+      !btnMap ||
+      !btnCalibTarget ||
+      !btnCalibAxes
+    ) {
       if (retry < 30) {
         setTimeout(() => setup(retry + 1), 150);
       }
       return;
-    }
-
-    // Create map module instance if available
-    let targetMap = null;
-    if (window.APTool && typeof window.APTool.createTargetMap === "function") {
-      targetMap = window.APTool.createTargetMap({
-        containerSelector: "#map-container",
-        statusSelector: "#map-status",
-        onSelect(lat, lon) {
-          setMapStatus("Fetching elevation for target…");
-          fetchElevationMulti(lat, lon);
-        }
-      });
     }
 
     btnSensors.addEventListener("click", () => {
@@ -1451,16 +1789,43 @@
       initSensors();
     });
 
-    if (btnMap) {
-      btnMap.addEventListener("click", () => {
-        openSheet("#sheet-map");
-        if (targetMap) {
-          targetMap.open();
-        } else {
-          setMapStatus("Map module not available.");
+    btnMap.addEventListener("click", () => {
+      openSheet("#sheet-map");
+      const container = q("#map-container");
+      const statusEl = q("#map-status");
+      if (statusEl) statusEl.textContent = "Loading map…";
+
+      const getInitial = () => {
+        const gps = AP.currentGPS;
+        if (
+          gps &&
+          typeof gps.lat === "number" &&
+          typeof gps.lon === "number"
+        ) {
+          return { lat: gps.lat, lon: gps.lon };
         }
-      });
-    }
+        return null;
+      };
+
+      if (
+        window.APTool &&
+        typeof window.APTool.initMapOnce === "function" &&
+        container &&
+        statusEl
+      ) {
+        window.APTool.initMapOnce(
+          container,
+          statusEl,
+          getInitial,
+          (lat, lon) => {
+            setMapStatus("Fetching elevation for target…");
+            fetchElevationMulti(lat, lon);
+          }
+        );
+      } else if (statusEl) {
+        statusEl.textContent = "Map module not loaded.";
+      }
+    });
 
     if (btnCloseMap) {
       btnCloseMap.addEventListener("click", () => {
@@ -1469,24 +1834,33 @@
     }
 
     if (btnCalibTarget) {
-      btnCalibTarget.addEventListener("click", () => calibrateToTarget());
+      btnCalibTarget.addEventListener("click", () =>
+        calibrateToTarget()
+      );
     }
 
     if (btnCalibAxes) {
-      btnCalibAxes.addEventListener("click", () => axesFlipPitch());
+      btnCalibAxes.addEventListener("click", () =>
+        axesFlipPitch()
+      );
     }
 
     if (btnQuickLevel) {
-      btnQuickLevel.addEventListener("click", () => quickLevel());
+      btnQuickLevel.addEventListener("click", () =>
+        quickLevel()
+      );
     }
 
     if (btnResetAxes) {
-      btnResetAxes.addEventListener("click", () => resetAxes());
+      btnResetAxes.addEventListener("click", () =>
+        resetAxes()
+      );
     }
 
     wireSettings();
     wireTargetElevationPanel();
 
+    // Initial render
     scheduleUpdate();
   }
 
