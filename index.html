@@ -2,67 +2,454 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Basic Sensor Test</title>
+  <title>AP-Tool Sensor Core</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <style>
+    :root {
+      --bg: #020617;
+      --card: #0b1220;
+      --ink: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.15);
+      --border: rgba(148, 163, 184, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: radial-gradient(circle at top, #020617 0, #020617 40%, #000 100%);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+    }
+
+    #app {
+      min-height: 100vh;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px 12px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .appbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .app-title {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+
+    .app-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .badge {
+      font-size: 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      padding: 3px 10px;
+      color: var(--muted);
+      background: rgba(15, 23, 42, 0.9);
+      white-space: nowrap;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.85);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    .status-pill {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      max-width: 50%;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status-text {
+      font-size: 13px;
+      margin: 0;
+      color: var(--ink);
+      min-height: 18px;
+    }
+
+    .status-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .start-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #0f172a;
+      background: var(--accent);
+      box-shadow: 0 12px 30px rgba(56, 189, 248, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button:active {
+      transform: translateY(1px) scale(0.99);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.9);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    @media (min-width: 520px) {
+      .grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .data-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .data-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .data-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .data-value.large {
+      font-size: 14px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .mini-pill {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--muted);
+    }
+
+    .mini-pill.ok {
+      border-color: rgba(34, 197, 94, 0.6);
+      background: rgba(34, 197, 94, 0.08);
+      color: #4ade80;
+    }
+
+    .mini-pill.bad {
+      border-color: rgba(248, 113, 113, 0.7);
+      background: rgba(248, 113, 113, 0.1);
+      color: #fecaca;
+    }
+
+    .mini-pill.warn {
+      border-color: rgba(250, 204, 21, 0.8);
+      background: rgba(250, 204, 21, 0.08);
+      color: #facc15;
+    }
+
+    .accent-box {
+      margin-top: 6px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      background: radial-gradient(circle at top left, var(--accent-soft), transparent);
+      font-size: 11px;
+      color: var(--muted);
+    }
+  </style>
 </head>
 <body>
-  <h1>Basic Sensor Test</h1>
+  <div id="app">
+    <header class="appbar">
+      <div class="title-group">
+        <div class="app-title">AP-Tool</div>
+        <div class="app-subtitle">Sensor core · GPS + orientation only</div>
+      </div>
+      <div class="badge">Core module</div>
+    </header>
 
-  <button id="startBtn">Start sensors (GPS + orientation)</button>
+    <!-- Global status + start button -->
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">Sensor Session</div>
+        <div class="status-pill" id="comboStatus">Idle</div>
+      </div>
+      <div class="status-label">Status</div>
+      <p class="status-text" id="statusText">
+        Ready. Tap “Start sensors” once and accept the browser prompts on your phone.
+      </p>
+      <div class="start-row">
+        <button id="startBtn">
+          ▶ Start sensors
+        </button>
+        <span class="hint">Must be tapped on-device (user gesture).</span>
+      </div>
+    </section>
 
-  <h2>GPS</h2>
-  <div>Status: <span id="gpsStatus">idle</span></div>
-  <div>Lat: <span id="gpsLat">—</span></div>
-  <div>Lon: <span id="gpsLon">—</span></div>
-  <div>Error: <span id="gpsError">—</span></div>
+    <!-- GPS + Orientation cards -->
+    <section class="grid">
+      <!-- GPS -->
+      <article class="card">
+        <div class="card-header">
+          <div class="card-title">Location (GPS)</div>
+          <div class="status-pill" id="gpsStatusPill">gps: idle</div>
+        </div>
 
-  <h2>Orientation</h2>
-  <div>Status: <span id="oriStatus">idle</span></div>
-  <div>Heading: <span id="heading">—</span></div>
-  <div>Pitch: <span id="pitch">—</span></div>
-  <div>Error: <span id="oriError">—</span></div>
+        <div class="data-row">
+          <div class="data-label">Latitude</div>
+          <div class="data-value large" id="gpsLat">—</div>
+        </div>
+        <div class="data-row">
+          <div class="data-label">Longitude</div>
+          <div class="data-value large" id="gpsLon">—</div>
+        </div>
 
+        <div class="accent-box" id="gpsErrorBox" style="display:none;">
+          <strong>GPS error:</strong>
+          <span id="gpsError">—</span>
+        </div>
+      </article>
+
+      <!-- Orientation -->
+      <article class="card">
+        <div class="card-header">
+          <div class="card-title">Orientation</div>
+          <div class="status-pill" id="oriStatusPill">ori: idle</div>
+        </div>
+
+        <div class="data-row">
+          <div class="data-label">Heading</div>
+          <div class="data-value large" id="headingVal">—</div>
+        </div>
+        <div class="data-row">
+          <div class="data-label">Pitch</div>
+          <div class="data-value large" id="pitchVal">—</div>
+        </div>
+
+        <div class="accent-box" id="oriErrorBox" style="display:none;">
+          <strong>Orientation error:</strong>
+          <span id="oriError">—</span>
+        </div>
+
+        <div class="pill-row" id="oriHintRow">
+          <span class="mini-pill" id="oriSupportPill">Checking support…</span>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <!-- Sensor core (unchanged) -->
   <script src="sensors.js"></script>
+
+  <!-- UI wiring -->
   <script>
     (function () {
-      var btn       = document.getElementById('startBtn');
-      var gpsStatus = document.getElementById('gpsStatus');
-      var gpsLat    = document.getElementById('gpsLat');
-      var gpsLon    = document.getElementById('gpsLon');
-      var gpsError  = document.getElementById('gpsError');
+      var startBtn       = document.getElementById('startBtn');
+      var comboStatusEl  = document.getElementById('comboStatus');
+      var statusTextEl   = document.getElementById('statusText');
 
-      var oriStatus = document.getElementById('oriStatus');
-      var heading   = document.getElementById('heading');
-      var pitch     = document.getElementById('pitch');
-      var oriError  = document.getElementById('oriError');
+      var gpsStatusPill  = document.getElementById('gpsStatusPill');
+      var gpsLatEl       = document.getElementById('gpsLat');
+      var gpsLonEl       = document.getElementById('gpsLon');
+      var gpsErrorBox    = document.getElementById('gpsErrorBox');
+      var gpsErrorEl     = document.getElementById('gpsError');
+
+      var oriStatusPill  = document.getElementById('oriStatusPill');
+      var headingEl      = document.getElementById('headingVal');
+      var pitchEl        = document.getElementById('pitchVal');
+      var oriErrorBox    = document.getElementById('oriErrorBox');
+      var oriErrorEl     = document.getElementById('oriError');
+      var oriSupportPill = document.getElementById('oriSupportPill');
+
+      function shortStatus(gps, ori) {
+        return 'gps: ' + gps + ' · ori: ' + ori;
+      }
 
       function render(state) {
         if (!state) return;
 
-        gpsStatus.textContent = state.gpsStatus;
-        gpsLat.textContent =
+        // GPS
+        gpsStatusPill.textContent = 'gps: ' + state.gpsStatus;
+        gpsLatEl.textContent =
           typeof state.gpsLat === 'number' ? state.gpsLat.toFixed(6) : '—';
-        gpsLon.textContent =
+        gpsLonEl.textContent =
           typeof state.gpsLon === 'number' ? state.gpsLon.toFixed(6) : '—';
-        gpsError.textContent = state.gpsError || '—';
 
-        oriStatus.textContent = state.oriStatus;
-        heading.textContent =
-          typeof state.headingDeg === 'number' ? state.headingDeg.toFixed(1) : '—';
-        pitch.textContent =
-          typeof state.pitchDeg === 'number' ? state.pitchDeg.toFixed(1) : '—';
-        oriError.textContent = state.oriError || '—';
+        if (state.gpsError) {
+          gpsErrorBox.style.display = 'block';
+          gpsErrorEl.textContent = state.gpsError;
+        } else {
+          gpsErrorBox.style.display = 'none';
+          gpsErrorEl.textContent = '—';
+        }
+
+        // Orientation
+        oriStatusPill.textContent = 'ori: ' + state.oriStatus;
+        headingEl.textContent =
+          typeof state.headingDeg === 'number'
+            ? state.headingDeg.toFixed(1) + '°'
+            : '—';
+        pitchEl.textContent =
+          typeof state.pitchDeg === 'number'
+            ? state.pitchDeg.toFixed(1) + '°'
+            : '—';
+
+        if (state.oriError) {
+          oriErrorBox.style.display = 'block';
+          oriErrorEl.textContent = state.oriError;
+        } else {
+          oriErrorBox.style.display = 'none';
+          oriErrorEl.textContent = '—';
+        }
+
+        // Orientation support mini pill
+        if (state.oriStatus === 'unsupported') {
+          oriSupportPill.textContent = 'Orientation not supported here';
+          oriSupportPill.className = 'mini-pill bad';
+        } else if (state.oriStatus === 'denied') {
+          oriSupportPill.textContent = 'Permission denied – check browser settings';
+          oriSupportPill.className = 'mini-pill bad';
+        } else if (state.oriStatus === 'listening') {
+          oriSupportPill.textContent = 'Orientation live';
+          oriSupportPill.className = 'mini-pill ok';
+        } else if (state.oriStatus === 'requesting') {
+          oriSupportPill.textContent = 'Requesting permission…';
+          oriSupportPill.className = 'mini-pill warn';
+        } else {
+          oriSupportPill.textContent = 'Waiting for start…';
+          oriSupportPill.className = 'mini-pill';
+        }
+
+        // Combined status
+        comboStatusEl.textContent = shortStatus(state.gpsStatus, state.oriStatus);
+
+        // Top info text
+        if (state.gpsStatus === 'ok' || state.oriStatus === 'listening') {
+          statusTextEl.textContent = 'Sensors are live. Move and rotate the phone to see updates.';
+        } else if (state.gpsStatus === 'denied' || state.oriStatus === 'denied') {
+          statusTextEl.textContent =
+            'One or more permissions were denied. Check your browser/site settings and try again.';
+        } else if (state.gpsStatus === 'unsupported' || state.oriStatus === 'unsupported') {
+          statusTextEl.textContent =
+            'This browser environment does not support at least one of the sensors.';
+        } else if (state.gpsStatus === 'requesting' || state.oriStatus === 'requesting') {
+          statusTextEl.textContent =
+            'Waiting for permission. If you don’t see a prompt, check browser settings.';
+        } else {
+          statusTextEl.textContent =
+            'Ready. Tap “Start sensors” once and accept the browser prompts on your phone.';
+        }
       }
 
-      if (window.Sensors) {
-        window.Sensors.onUpdate(render);
-
-        btn.addEventListener('click', function () {
-          window.Sensors.start();
-        });
-      } else {
-        gpsStatus.textContent = 'Sensors.js not loaded';
+      if (!window.Sensors) {
+        comboStatusEl.textContent = 'Error: sensors.js not loaded';
+        statusTextEl.textContent =
+          'The Sensors core script is missing. Make sure sensors.js is in the same folder.';
+        startBtn.disabled = true;
+        return;
       }
+
+      // Wire sensors → UI
+      window.Sensors.onUpdate(render);
+
+      // Button click = user gesture → start sensors
+      startBtn.addEventListener('click', function () {
+        startBtn.disabled = true; // prevent spam; we only need to start once
+        window.Sensors.start();
+      });
     })();
   </script>
 </body>
