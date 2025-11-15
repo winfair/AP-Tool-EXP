@@ -2,17 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AP-Tool EXP (Rewritten)</title>
+  <title>Sensor Debug – AP-Tool</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-
   <style>
     :root {
       --bg: #020617;
@@ -20,31 +11,28 @@
       --ink: #e5e7eb;
       --muted: #94a3b8;
       --accent: #38bdf8;
-      --danger: #f97373;
-      --ok: #22c55e;
-      --line: rgba(148, 163, 184, 0.25);
+      --line: rgba(148, 163, 184, 0.3);
     }
 
     * {
       box-sizing: border-box;
     }
 
-    html,
-    body {
+    html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      background: radial-gradient(circle at top, #020617 0, #020617 40%, #020617 100%);
+      background: radial-gradient(circle at top, #020617 0, #020617 40%, #000 100%);
       color: var(--ink);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
         "Segoe UI", sans-serif;
     }
 
-    #app-root {
+    #root {
       min-height: 100vh;
       max-width: 480px;
       margin: 0 auto;
-      padding: 12px 12px 16px;
+      padding: 16px 12px 24px;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -58,15 +46,16 @@
       box-shadow: 0 18px 40px rgba(15, 23, 42, 0.8);
     }
 
-    .app-header {
+    .title-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      margin-bottom: 6px;
     }
 
-    .app-title {
-      font-size: 18px;
+    .title {
+      font-size: 16px;
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
@@ -74,110 +63,45 @@
     }
 
     .badge {
-      border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      padding: 2px 8px;
       font-size: 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      padding: 2px 8px;
       color: var(--muted);
-      white-space: nowrap;
-    }
-
-    .status-row {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 12px;
-      margin-top: 8px;
     }
 
     .status-label {
-      color: var(--muted);
+      font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 2px;
     }
 
-    .status-text {
+    #live-status {
       min-height: 16px;
-    }
-
-    .grid-two {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 6px;
-    }
-
-    .metric {
-      border-radius: 12px;
-      background: radial-gradient(circle at top, rgba(56, 189, 248, 0.04), transparent 60%);
-      border: 1px solid var(--line);
-      padding: 8px 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .metric-label {
-      font-size: 11px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .metric-main {
-      font-size: 20px;
-      font-weight: 600;
-    }
-
-    .metric-sub {
-      font-size: 11px;
-      color: var(--muted);
+      font-size: 13px;
     }
 
     .btn-row {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      margin-top: 8px;
+      margin-top: 10px;
     }
 
     button {
       border: none;
       border-radius: 999px;
-      padding: 8px 10px;
+      padding: 8px 12px;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       color: #0f172a;
       background: var(--accent);
-      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s;
       box-shadow: 0 10px 24px rgba(56, 189, 248, 0.35);
     }
 
     button:active {
       transform: translateY(1px) scale(0.99);
       box-shadow: 0 4px 14px rgba(15, 23, 42, 0.9);
-    }
-
-    button.secondary {
-      background: #020617;
-      color: var(--ink);
-      border: 1px solid var(--line);
-      box-shadow: none;
-    }
-
-    button.danger {
-      background: #450a0a;
-      color: #fecaca;
-      border: 1px solid rgba(248, 113, 113, 0.7);
-      box-shadow: 0 10px 24px rgba(248, 113, 113, 0.3);
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: default;
-      box-shadow: none;
     }
 
     .section-title {
@@ -188,214 +112,84 @@
       margin-bottom: 6px;
     }
 
-    .small-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 6px;
-      font-size: 11px;
-    }
-
-    .small-label {
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .small-value {
+    table {
+      width: 100%;
+      border-collapse: collapse;
       font-size: 12px;
     }
 
-    /* Map modal */
-
-    #map-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.9);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-      padding: 16px;
+    th, td {
+      padding: 4px 0;
+      text-align: left;
     }
 
-    #map-modal.open {
-      display: flex;
-    }
-
-    #map-container {
-      width: 100%;
-      max-width: 480px;
-      height: 75vh;
-      background: var(--card);
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    #map-header {
-      padding: 8px 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    #map-header-title {
-      font-size: 13px;
+    th {
+      font-weight: 500;
+      color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    #map {
-      flex: 1 1 auto;
-    }
-
-    #map-footer {
-      padding: 6px 10px;
       font-size: 11px;
-      color: var(--muted);
-      border-top: 1px solid var(--line);
     }
 
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      margin-left: 4px;
-      font-size: 10px;
+    td.value {
+      font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
   </style>
 </head>
 <body>
-  <div id="app-root">
+  <div id="root">
     <div class="card">
-      <div class="app-header">
-        <div class="app-title">AP-Tool EXP</div>
-        <div class="badge">Rewritten core</div>
+      <div class="title-row">
+        <div class="title">AP-Tool Sensors</div>
+        <div class="badge">Debug module</div>
       </div>
-
-      <div class="status-row">
-        <div>
-          <div class="status-label">Live status</div>
-          <div id="live-status" class="status-text">Initializing…</div>
-        </div>
-        <div>
-          <div class="status-label">Sensor status</div>
-          <div id="sensor-status" class="status-text">Idle</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="section-title">Orientation</div>
-      <div class="grid-two">
-        <div class="metric">
-          <div class="metric-label">Heading</div>
-          <div class="metric-main" id="heading-value">—</div>
-          <div class="metric-sub" id="heading-sub">No data</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Pitch</div>
-          <div class="metric-main" id="pitch-value">—</div>
-          <div class="metric-sub" id="pitch-sub">No data</div>
-        </div>
-      </div>
-
+      <div class="status-label">Status</div>
+      <div id="live-status">Loading…</div>
       <div class="btn-row">
-        <button id="btn-start-sensors">Start sensors</button>
-        <button id="btn-open-map" class="secondary">Pick target on map</button>
-      </div>
-
-      <div class="btn-row">
-        <button id="btn-calibrate-heading" class="secondary">Calibrate to target</button>
-        <button id="btn-quick-level" class="secondary">Quick level</button>
-      </div>
-
-      <div class="btn-row">
-        <button id="btn-reset-calibration" class="danger">Reset calibration</button>
+        <button id="btn-start-sensors">Start sensors (GPS + orientation)</button>
       </div>
     </div>
 
     <div class="card">
       <div class="section-title">GPS</div>
-      <div class="small-grid">
-        <div>
-          <div class="small-label">Latitude</div>
-          <div id="gps-lat" class="small-value">—</div>
-        </div>
-        <div>
-          <div class="small-label">Longitude</div>
-          <div id="gps-lon" class="small-value">—</div>
-        </div>
-        <div>
-          <div class="small-label">Accuracy (m)</div>
-          <div id="gps-acc" class="small-value">—</div>
-        </div>
-      </div>
+      <table>
+        <tr>
+          <th>Latitude</th>
+          <td class="value" id="gps-lat">—</td>
+        </tr>
+        <tr>
+          <th>Longitude</th>
+          <td class="value" id="gps-lon">—</td>
+        </tr>
+        <tr>
+          <th>Elevation</th>
+          <td class="value" id="gps-alt">—</td>
+        </tr>
+        <tr>
+          <th>Accuracy</th>
+          <td class="value" id="gps-acc">—</td>
+        </tr>
+      </table>
     </div>
 
     <div class="card">
-      <div class="section-title">Target</div>
-      <div class="small-grid">
-        <div>
-          <div class="small-label">Target lat</div>
-          <div id="target-lat" class="small-value">—</div>
-        </div>
-        <div>
-          <div class="small-label">Target lon</div>
-          <div id="target-lon" class="small-value">—</div>
-        </div>
-        <div>
-          <div class="small-label">Distance</div>
-          <div id="target-distance" class="small-value">—</div>
-        </div>
-        <div>
-          <div class="small-label">Bearing</div>
-          <div id="target-bearing" class="small-value">—</div>
-        </div>
-        <div>
-          <div class="small-label">Relative</div>
-          <div id="target-rel-bearing" class="small-value">—</div>
-        </div>
-      </div>
+      <div class="section-title">Orientation</div>
+      <table>
+        <tr>
+          <th>Heading</th>
+          <td class="value" id="heading">—</td>
+        </tr>
+        <tr>
+          <th>Pitch</th>
+          <td class="value" id="pitch">—</td>
+        </tr>
+      </table>
     </div>
   </div>
 
-  <!-- Map modal -->
-  <div id="map-modal">
-    <div id="map-container">
-      <div id="map-header">
-        <div id="map-header-title">
-          Select target on map
-          <span class="pill">Tap to set target</span>
-        </div>
-        <button id="btn-close-map" class="secondary" style="padding-inline:10px;font-size:11px;">
-          Close
-        </button>
-      </div>
-      <div id="map"></div>
-      <div id="map-footer">
-        Centered on your GPS if available. Tap anywhere to set a target. That target will update the “Target”
-        card and relative bearing.
-      </div>
-    </div>
-  </div>
-
-  <!-- Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o9N1j7kGStG3tHfLrCtdGZo3x0iAqjzCfevkpP5u5wE="
-    crossorigin=""
-  ></script>
-
-  <!-- App JS -->
+  <!-- Dedicated sensor module -->
+  <script src="sensors.js"></script>
+  <!-- UI layer that consumes SensorHub -->
   <script src="app.js"></script>
 </body>
 </html>
