@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Sensor Debug – AP-Tool</title>
+  <title>AP-Tool Sensor Debug</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <style>
     :root {
@@ -14,9 +14,7 @@
       --line: rgba(148, 163, 184, 0.3);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     html, body {
       margin: 0;
@@ -25,7 +23,7 @@
       background: radial-gradient(circle at top, #020617 0, #020617 40%, #000 100%);
       color: var(--ink);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-        "Segoe UI", sans-serif;
+                   "Segoe UI", sans-serif;
     }
 
     #root {
@@ -83,9 +81,7 @@
       font-size: 13px;
     }
 
-    .btn-row {
-      margin-top: 10px;
-    }
+    .btn-row { margin-top: 10px; }
 
     button {
       border: none;
@@ -132,7 +128,8 @@
     }
 
     td.value {
-      font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono",
+                   "Courier New", monospace;
     }
   </style>
 </head>
@@ -141,10 +138,10 @@
     <div class="card">
       <div class="title-row">
         <div class="title">AP-Tool Sensors</div>
-        <div class="badge">Debug module</div>
+        <div class="badge">Permission debug</div>
       </div>
       <div class="status-label">Status</div>
-      <div id="live-status">Loading…</div>
+      <div id="live-status">Loading JS…</div>
       <div class="btn-row">
         <button id="btn-start-sensors">Start sensors (GPS + orientation)</button>
       </div>
@@ -187,9 +184,8 @@
     </div>
   </div>
 
-  <!-- Dedicated sensor module -->
+  <!-- Order matters: sensors.js first, then app.js -->
   <script src="sensors.js"></script>
-  <!-- UI layer that consumes SensorHub -->
   <script src="app.js"></script>
 </body>
 </html>
