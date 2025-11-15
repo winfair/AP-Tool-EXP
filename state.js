@@ -85,17 +85,20 @@
     const sAng = Math.round(AP.norm360(screenAngle()) / 90) * 90;
     if (beta == null && gamma == null) return null;
 
+    const b = beta != null ? beta : 0;
+    const g = gamma != null ? gamma : 0;
+
     let raw;
     if (sAng === 0) {
-      raw = beta ?? 0; // portrait
+      raw = b; // portrait
     } else if (sAng === 180) {
-      raw = -(beta ?? 0);
+      raw = -b;
     } else if (sAng === 90) {
-      raw = gamma ?? 0;
+      raw = g;
     } else if (sAng === 270) {
-      raw = -(gamma ?? 0);
+      raw = -g;
     } else {
-      raw = beta ?? 0;
+      raw = b;
     }
     return AP.clamp(raw, -90, 90);
   };
