@@ -1,28 +1,29 @@
 // sensors.js
-// Dedicated module for GPS + orientation permissions and parsed values.
+// Dedicated module for geolocation + orientation permissions and values.
 // Exposes window.SensorHub with:
-//   - SensorHub.startAll()
+//   - SensorHub.startAll()        // call inside a user gesture (click/tap)
 //   - SensorHub.startGPS()
 //   - SensorHub.startOrientation()
-//   - SensorHub.onUpdate(function (state) {})
+//   - SensorHub.onUpdate(fn)
 //   - SensorHub.getState()
+
 (function (global) {
   "use strict";
 
   var state = {
-    // GPS
+    // Geolocation
     gpsLat: null,
     gpsLon: null,
-    gpsAlt: null,  // elevation (meters) if available
-    gpsAcc: null,  // accuracy (meters) if available
-    gpsStatus: "idle",  // "idle" | "requesting" | "ok" | "error:..." | "unsupported"
+    gpsAlt: null,   // meters
+    gpsAcc: null,   // meters
+    gpsStatus: "idle",   // "idle" | "requesting" | "ok" | "denied" | "error:..." | "unsupported"
 
     // Orientation
-    headingDeg: null,   // degrees, 0–360
-    pitchDeg: null,     // degrees, front/back tilt
-    oriStatus: "idle",  // "idle" | "requesting" | "listening" | "denied" | "error:..." | "unsupported"
+    headingDeg: null,    // 0–360
+    pitchDeg: null,      // roughly -180..180 front/back tilt
+    oriStatus: "idle",   // "idle" | "requesting" | "listening" | "denied" | "error:..." | "unsupported"
 
-    // internal
+    // internals
     _gpsWatchId: null,
     _oriAttached: false
   };
@@ -34,7 +35,7 @@
       try {
         listeners[i](state);
       } catch (e) {
-        // swallow listener errors
+        // ignore listener errors
       }
     }
   }
@@ -42,8 +43,7 @@
   function onUpdate(cb) {
     if (typeof cb === "function") {
       listeners.push(cb);
-      // immediately give current state
-      cb(state);
+      cb(state); // push current state immediately
     }
   }
 
@@ -63,62 +63,100 @@
     return 0;
   }
 
-  // ----- GPS -----
+  // --- Geolocation helpers ---
 
-  function startGPS() {
+  function handleGeoSuccess(pos, fromGetCurrent) {
+    var c = pos && pos.coords ? pos.coords : {};
+    state.gpsLat = typeof c.latitude === "number" ? c.latitude : null;
+    state.gpsLon = typeof c.longitude === "number" ? c.longitude : null;
+    state.gpsAlt = typeof c.altitude === "number" ? c.altitude : null;
+    state.gpsAcc = typeof c.accuracy === "number" ? c.accuracy : null;
+    state.gpsStatus = "ok";
+    notify();
+
+    // After initial allow, start watchPosition for live updates
+    if (fromGetCurrent) {
+      startGeoWatch();
+    }
+  }
+
+  function handleGeoError(err) {
+    // PERMISSION_DENIED is code 1 in the spec
+    // https://developer.mozilla.org/docs/Web/API/GeolocationPositionError :contentReference[oaicite:1]{index=1}
+    if (err && typeof err.code === "number" && err.code === 1) {
+      state.gpsStatus = "denied";
+    } else {
+      var msg = err && err.message ? err.message : "unknown";
+      state.gpsStatus = "error:" + msg;
+    }
+    notify();
+  }
+
+  function startGeoWatch() {
+    if (!("geolocation" in navigator)) {
+      state.gpsStatus = "unsupported";
+      notify();
+      return;
+    }
+    if (state._gpsWatchId != null) {
+      return; // already watching
+    }
+
+    var opts = {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 20000
+    };
+
+    state._gpsWatchId = navigator.geolocation.watchPosition(
+      function (pos) {
+        handleGeoSuccess(pos, false);
+      },
+      function (err) {
+        handleGeoError(err);
+      },
+      opts
+    );
+  }
+
+  function requestGeolocation() {
     if (!("geolocation" in navigator)) {
       state.gpsStatus = "unsupported";
       notify();
       return;
     }
 
-    if (state._gpsWatchId != null) {
-      // already running
-      return;
-    }
-
     state.gpsStatus = "requesting";
     notify();
 
+    // Using getCurrentPosition inside a user gesture triggers the permission prompt if needed. :contentReference[oaicite:2]{index=2}
     var opts = {
       enableHighAccuracy: true,
       maximumAge: 5000,
-      timeout: 15000
+      timeout: 20000
     };
 
-    state._gpsWatchId = navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
       function (pos) {
-        var c = pos && pos.coords ? pos.coords : {};
-        state.gpsLat = typeof c.latitude === "number" ? c.latitude : null;
-        state.gpsLon = typeof c.longitude === "number" ? c.longitude : null;
-        state.gpsAlt = typeof c.altitude === "number" ? c.altitude : null;
-        state.gpsAcc = typeof c.accuracy === "number" ? c.accuracy : null;
-        state.gpsStatus = "ok";
-        notify();
+        handleGeoSuccess(pos, true);
       },
       function (err) {
-        var msg =
-          err && err.message
-            ? err.message
-            : (err && err.code ? "code " + err.code : "unknown");
-        state.gpsStatus = "error:" + msg;
-        notify();
+        handleGeoError(err);
       },
       opts
     );
   }
 
-  // ----- Orientation -----
+  // --- Orientation helpers ---
 
   function handleOrientation(ev) {
     var heading = null;
 
-    // iOS webkitCompassHeading
     if (typeof ev.webkitCompassHeading === "number") {
+      // iOS Safari compass heading (0 = North)
       heading = ev.webkitCompassHeading;
     } else if (typeof ev.alpha === "number") {
-      // alpha is usually around 0 when facing "north-ish", but vendors differ.
-      // We'll just treat it as heading-ish and adjust by screen orientation.
+      // Generic deviceorientation: alpha is rotation around z-axis
       heading = norm360(ev.alpha + screenOrientationAngle());
     }
 
@@ -131,25 +169,30 @@
       state.pitchDeg = ev.beta;
     }
 
-    state.oriStatus = "listening";
+    if (state.oriStatus === "requesting") {
+      state.oriStatus = "listening";
+    }
     notify();
   }
 
   function attachOrientationListener() {
     if (state._oriAttached) return;
+
     if (!("DeviceOrientationEvent" in global)) {
       state.oriStatus = "unsupported";
       notify();
       return;
     }
 
-    global.addEventListener("deviceorientation", handleOrientation, false);
+    global.addEventListener("deviceorientation", handleOrientation, { passive: true });
     state._oriAttached = true;
-    state.oriStatus = "listening";
+    if (state.oriStatus === "idle" || state.oriStatus === "requesting") {
+      state.oriStatus = "listening";
+    }
     notify();
   }
 
-  function startOrientation() {
+  function requestOrientation() {
     if (!("DeviceOrientationEvent" in global)) {
       state.oriStatus = "unsupported";
       notify();
@@ -157,10 +200,8 @@
     }
 
     try {
-      // iOS 13+ requires explicit permission; MUST be called in a user gesture.
-      if (
-        typeof global.DeviceOrientationEvent.requestPermission === "function"
-      ) {
+      // iOS 14.5+ requires DeviceOrientationEvent.requestPermission() inside a user gesture. :contentReference[oaicite:3]{index=3}
+      if (typeof global.DeviceOrientationEvent.requestPermission === "function") {
         state.oriStatus = "requesting";
         notify();
 
@@ -174,31 +215,35 @@
             }
           })
           .catch(function (e) {
-            state.oriStatus = "error:" + (e && e.message ? e.message : "unknown");
+            var msg = e && e.message ? e.message : "unknown";
+            state.oriStatus = "error:" + msg;
             notify();
           });
       } else {
-        // Non-iOS / older
+        // Other browsers (Chrome, Firefox, Android) don't use requestPermission; just attach listener.
         attachOrientationListener();
       }
     } catch (e) {
-      state.oriStatus = "error:" + (e && e.message ? e.message : "unknown");
+      var msg2 = e && e.message ? e.message : "unknown";
+      state.oriStatus = "error:" + msg2;
       notify();
     }
   }
 
+  // --- Combined start ---
+
   function startAll() {
-    // IMPORTANT: call this from a click/tap handler so iOS treats it as a user gesture.
-    startGPS();
-    startOrientation();
+    // MUST be called from a click/tap handler so iOS treats as user gesture. :contentReference[oaicite:4]{index=4}
+    requestGeolocation();
+    requestOrientation();
   }
 
-  // ----- Public API -----
+  // --- Public API ---
 
   global.SensorHub = {
     startAll: startAll,
-    startGPS: startGPS,
-    startOrientation: startOrientation,
+    startGPS: requestGeolocation,
+    startOrientation: requestOrientation,
     onUpdate: onUpdate,
     getState: function () {
       return state;
