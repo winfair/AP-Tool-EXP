@@ -2,190 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AP-Tool Sensor Debug</title>
+  <title>Basic Sensor Test</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <style>
-    :root {
-      --bg: #020617;
-      --card: #0b1220;
-      --ink: #e5e7eb;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --line: rgba(148, 163, 184, 0.3);
-    }
-
-    * { box-sizing: border-box; }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      background: radial-gradient(circle at top, #020617 0, #020617 40%, #000 100%);
-      color: var(--ink);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-                   "Segoe UI", sans-serif;
-    }
-
-    #root {
-      min-height: 100vh;
-      max-width: 480px;
-      margin: 0 auto;
-      padding: 16px 12px 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .card {
-      background: var(--card);
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      padding: 12px 14px;
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.8);
-    }
-
-    .title-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .title {
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .badge {
-      font-size: 11px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      padding: 2px 8px;
-      color: var(--muted);
-    }
-
-    .status-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin-bottom: 2px;
-    }
-
-    #live-status {
-      min-height: 16px;
-      font-size: 13px;
-    }
-
-    .btn-row { margin-top: 10px; }
-
-    button {
-      border: none;
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      color: #0f172a;
-      background: var(--accent);
-      box-shadow: 0 10px 24px rgba(56, 189, 248, 0.35);
-    }
-
-    button:active {
-      transform: translateY(1px) scale(0.99);
-      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.9);
-    }
-
-    .section-title {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-
-    th, td {
-      padding: 4px 0;
-      text-align: left;
-    }
-
-    th {
-      font-weight: 500;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-size: 11px;
-    }
-
-    td.value {
-      font-family: ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono",
-                   "Courier New", monospace;
-    }
-  </style>
 </head>
 <body>
-  <div id="root">
-    <div class="card">
-      <div class="title-row">
-        <div class="title">AP-Tool Sensors</div>
-        <div class="badge">Permission debug</div>
-      </div>
-      <div class="status-label">Status</div>
-      <div id="live-status">Loading JS…</div>
-      <div class="btn-row">
-        <button id="btn-start-sensors">Start sensors (GPS + orientation)</button>
-      </div>
-    </div>
+  <h1>Basic Sensor Test</h1>
 
-    <div class="card">
-      <div class="section-title">GPS</div>
-      <table>
-        <tr>
-          <th>Latitude</th>
-          <td class="value" id="gps-lat">—</td>
-        </tr>
-        <tr>
-          <th>Longitude</th>
-          <td class="value" id="gps-lon">—</td>
-        </tr>
-        <tr>
-          <th>Elevation</th>
-          <td class="value" id="gps-alt">—</td>
-        </tr>
-        <tr>
-          <th>Accuracy</th>
-          <td class="value" id="gps-acc">—</td>
-        </tr>
-      </table>
-    </div>
+  <button id="startBtn">Start sensors (GPS + orientation)</button>
 
-    <div class="card">
-      <div class="section-title">Orientation</div>
-      <table>
-        <tr>
-          <th>Heading</th>
-          <td class="value" id="heading">—</td>
-        </tr>
-        <tr>
-          <th>Pitch</th>
-          <td class="value" id="pitch">—</td>
-        </tr>
-      </table>
-    </div>
-  </div>
+  <h2>GPS</h2>
+  <div>Status: <span id="gpsStatus">idle</span></div>
+  <div>Lat: <span id="gpsLat">—</span></div>
+  <div>Lon: <span id="gpsLon">—</span></div>
+  <div>Error: <span id="gpsError">—</span></div>
 
-  <!-- Order matters: sensors.js first, then app.js -->
+  <h2>Orientation</h2>
+  <div>Status: <span id="oriStatus">idle</span></div>
+  <div>Heading: <span id="heading">—</span></div>
+  <div>Pitch: <span id="pitch">—</span></div>
+  <div>Error: <span id="oriError">—</span></div>
+
   <script src="sensors.js"></script>
-  <script src="app.js"></script>
+  <script>
+    (function () {
+      var btn       = document.getElementById('startBtn');
+      var gpsStatus = document.getElementById('gpsStatus');
+      var gpsLat    = document.getElementById('gpsLat');
+      var gpsLon    = document.getElementById('gpsLon');
+      var gpsError  = document.getElementById('gpsError');
+
+      var oriStatus = document.getElementById('oriStatus');
+      var heading   = document.getElementById('heading');
+      var pitch     = document.getElementById('pitch');
+      var oriError  = document.getElementById('oriError');
+
+      function render(state) {
+        if (!state) return;
+
+        gpsStatus.textContent = state.gpsStatus;
+        gpsLat.textContent =
+          typeof state.gpsLat === 'number' ? state.gpsLat.toFixed(6) : '—';
+        gpsLon.textContent =
+          typeof state.gpsLon === 'number' ? state.gpsLon.toFixed(6) : '—';
+        gpsError.textContent = state.gpsError || '—';
+
+        oriStatus.textContent = state.oriStatus;
+        heading.textContent =
+          typeof state.headingDeg === 'number' ? state.headingDeg.toFixed(1) : '—';
+        pitch.textContent =
+          typeof state.pitchDeg === 'number' ? state.pitchDeg.toFixed(1) : '—';
+        oriError.textContent = state.oriError || '—';
+      }
+
+      if (window.Sensors) {
+        window.Sensors.onUpdate(render);
+
+        btn.addEventListener('click', function () {
+          window.Sensors.start();
+        });
+      } else {
+        gpsStatus.textContent = 'Sensors.js not loaded';
+      }
+    })();
+  </script>
 </body>
 </html>
