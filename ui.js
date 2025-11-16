@@ -1,6 +1,6 @@
 // ui.js
 // All DOM wiring for AP-Tool.
-// Uses global Sensors, TargetMap, AimMath provided by other modules.
+// Uses global Sensors, TargetMap, AimMath, CompassUI provided by other modules.
 
 (function (global) {
   'use strict';
@@ -226,24 +226,39 @@
   // ---- Aim computation glue ----
 
   function recomputeAim() {
-    if (!global.Sensors || !global.AimMath) {
+    if (!global.Sensors) {
       updateAimUI(null);
+      if (global.CompassUI) global.CompassUI.update({});
       return;
     }
 
     var s = global.Sensors.getState ? global.Sensors.getState() : null;
     if (!s) {
       updateAimUI(null);
+      if (global.CompassUI) global.CompassUI.update({});
       return;
     }
 
+    var compassBase = {
+      currentHeadingDeg:
+        typeof s.headingDeg === 'number' ? s.headingDeg : null,
+      currentPitchDeg:
+        typeof s.pitchDeg === 'number' ? s.pitchDeg : null,
+      toleranceDeg: 3
+    };
+
+    // If we don't have geo + target yet, just draw the arrows and clear aim solution.
     if (
       typeof s.gpsLat !== 'number' ||
       typeof s.gpsLon !== 'number' ||
       typeof targetState.lat !== 'number' ||
-      typeof targetState.lon !== 'number'
+      typeof targetState.lon !== 'number' ||
+      !global.AimMath
     ) {
       updateAimUI(null);
+      if (global.CompassUI) {
+        global.CompassUI.update(compassBase);
+      }
       return;
     }
 
@@ -251,8 +266,10 @@
       lat: s.gpsLat,
       lon: s.gpsLon,
       alt: typeof s.gpsAlt === 'number' ? s.gpsAlt : null,
-      headingDeg: typeof s.headingDeg === 'number' ? s.headingDeg : null,
-      pitchDeg: typeof s.pitchDeg === 'number' ? s.pitchDeg : null
+      headingDeg:
+        typeof s.headingDeg === 'number' ? s.headingDeg : null,
+      pitchDeg:
+        typeof s.pitchDeg === 'number' ? s.pitchDeg : null
     };
 
     var target = {
@@ -266,6 +283,18 @@
 
     var sol = global.AimMath.solution(phone, target);
     updateAimUI(sol);
+
+    if (global.CompassUI) {
+      global.CompassUI.update({
+        currentHeadingDeg: compassBase.currentHeadingDeg,
+        currentPitchDeg: compassBase.currentPitchDeg,
+        targetHeadingDeg: sol.requiredHeadingDeg,
+        headingErrorDeg: sol.headingErrorDeg,
+        targetPitchDeg: sol.requiredPitchDeg,
+        pitchErrorDeg: sol.pitchErrorDeg,
+        toleranceDeg: compassBase.toleranceDeg
+      });
+    }
   }
 
   // ---- Init & Wiring ----
@@ -281,6 +310,16 @@
         'Sensors core script is missing. Make sure sensors.js is in the same folder.';
       if (startBtn) startBtn.disabled = true;
       return;
+    }
+
+    // Init compass UI if present
+    if (global.CompassUI) {
+      global.CompassUI.init({
+        headingCanvasId: 'headingCompass',
+        pitchCanvasId: 'pitchCompass',
+        toleranceDeg: 3
+      });
+      global.CompassUI.update({});
     }
 
     // Wire sensor updates
