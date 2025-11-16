@@ -1,243 +1,118 @@
 // sensors.js
-// Provides GPS + orientation readings to the rest of the app.
-//
-// API:
-//   Sensors.start()            // begin GPS + orientation
-//   Sensors.onUpdate(cb)       // subscribe to state changes
-//   Sensors.getState()         // get latest snapshot
-//
-// State fields:
-//   gpsStatus: 'idle' | 'requesting' | 'ok' | 'denied' | 'error' | 'unsupported'
-//   gpsLat, gpsLon: number|null
-//   gpsAlt: number|null        // meters, if available
-//   gpsError: string|null
-//
-//   oriStatus: 'idle' | 'requesting' | 'listening' | 'denied' | 'error' | 'unsupported'
-//   headingDeg: number|null    // 0..360, from whatever best source we have
-//   pitchDeg: number|null      // -90..90 front/back tilt
-//   oriError: string|null
-//   oriFrame: 'earth' | 'device' | null
-//       // 'earth'  = heading is tied to Earth frame (magnetic/true north capable)
-//       // 'device' = heading is only relative to some arbitrary starting frame
+// GPS + orientation wrapper with best-effort earth-frame heading.
 
-(function (global) {
+(function (w) {
   'use strict';
 
-  var state = {
-    // GPS
-    gpsStatus: 'idle',
-    gpsLat: null,
-    gpsLon: null,
-    gpsAlt: null,
-    gpsError: null,
-
-    // Orientation
-    oriStatus: 'idle',
-    headingDeg: null,
-    pitchDeg: null,
-    oriError: null,
-    oriFrame: null
+  const st = {
+    gpsStatus: 'idle', gpsLat: null, gpsLon: null, gpsAlt: null, gpsError: null,
+    oriStatus: 'idle', headingDeg: null, pitchDeg: null, oriError: null, oriFrame: null
   };
+  const listeners = [];
+  let geoWatchId = null, oriOn = false;
 
-  var listeners = [];
-  var geoWatchId = null;
-  var orientationActive = false;
+  const clone = o => Object.assign({}, o);
+  const notify = () => listeners.forEach(cb => { try { cb(clone(st)); } catch (_) {} });
 
-  function notify() {
-    var snapshot = Object.assign({}, state);
-    listeners.forEach(function (cb) {
-      try {
-        cb(snapshot);
-      } catch (e) {
-        // ignore listener errors
-      }
-    });
-  }
-
-  function onUpdate(cb) {
-    if (typeof cb === 'function') {
-      listeners.push(cb);
-    }
-  }
-
-  function getState() {
-    return Object.assign({}, state);
-  }
+  function onUpdate(cb) { if (typeof cb === 'function') listeners.push(cb); }
+  function getState() { return clone(st); }
 
   // ---------- GPS ----------
 
   function startGPS() {
-    if (!navigator.geolocation) {
-      state.gpsStatus = 'unsupported';
-      state.gpsError = 'Geolocation not supported in this browser.';
-      notify();
-      return;
+    const g = navigator.geolocation;
+    if (!g) {
+      st.gpsStatus = 'unsupported';
+      st.gpsError = 'Geolocation not supported.'; notify(); return;
     }
+    if (geoWatchId != null) return;
 
-    if (geoWatchId != null) {
-      return; // already running
-    }
+    st.gpsStatus = 'requesting'; st.gpsError = null; notify();
 
-    state.gpsStatus = 'requesting';
-    state.gpsError = null;
-    notify();
-
-    geoWatchId = navigator.geolocation.watchPosition(
-      function (pos) {
-        state.gpsStatus = 'ok';
-        state.gpsLat = pos.coords.latitude;
-        state.gpsLon = pos.coords.longitude;
-        state.gpsAlt =
-          typeof pos.coords.altitude === 'number' ? pos.coords.altitude : null;
-        state.gpsError = null;
-        notify();
+    geoWatchId = g.watchPosition(
+      pos => {
+        const c = pos.coords;
+        st.gpsStatus = 'ok';
+        st.gpsLat = c.latitude;
+        st.gpsLon = c.longitude;
+        st.gpsAlt = typeof c.altitude === 'number' ? c.altitude : null;
+        st.gpsError = null; notify();
       },
-      function (err) {
-        if (err && err.code === err.PERMISSION_DENIED) {
-          state.gpsStatus = 'denied';
-        } else {
-          state.gpsStatus = 'error';
-        }
-        state.gpsError =
-          (err && err.message) || 'Geolocation error.';
-        notify();
+      err => {
+        st.gpsStatus = (err && err.code === err.PERMISSION_DENIED) ? 'denied' : 'error';
+        st.gpsError = (err && err.message) || 'Geolocation error.'; notify();
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 5000,
-        timeout: 20000
-      }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
     );
   }
 
   // ---------- Orientation ----------
 
-  function normalizeHeading(deg) {
-    var d = deg % 360;
-    if (d < 0) d += 360;
-    return d;
-  }
+  const norm360 = d => (d % 360 + 360) % 360;
 
-  function handleOrientationEvent(ev) {
-    var heading = null;
-    var pitch = null;
-    var frame = state.oriFrame;
+  function handleOri(ev) {
+    let h = null, p = null, frame = st.oriFrame;
 
-    // PRIORITY 1: iOS Safari real compass (magnetic heading)
     if (typeof ev.webkitCompassHeading === 'number' && !isNaN(ev.webkitCompassHeading)) {
-      // 0 = magnetic north, clockwise
-      heading = ev.webkitCompassHeading;
+      h = ev.webkitCompassHeading;      // iOS magnetic north
       frame = 'earth';
-    } else {
-      // OTHER BROWSERS: fall back to alpha/beta/gamma
-      if (typeof ev.alpha === 'number' && !isNaN(ev.alpha)) {
-        // NOTE:
-        //  - On deviceorientationabsolute, alpha SHOULD be Earth-frame. 
-        //  - On many Chrome/Android combos, plain deviceorientation is relative. 
-        // We keep it as-is; the app can see state.oriFrame to know if it's earth/relative.
-        heading = ev.alpha;
-        frame = ev.absolute === true ? 'earth' : (frame || 'device');
-      }
+    } else if (typeof ev.alpha === 'number' && !isNaN(ev.alpha)) {
+      h = ev.alpha;                     // alpha; absolute implies earth-frame
+      frame = ev.absolute === true ? 'earth' : (frame || 'device');
     }
 
-    // Pitch: front-back tilt from beta
     if (typeof ev.beta === 'number' && !isNaN(ev.beta)) {
-      var b = ev.beta;
-      if (b > 90) b = 90;
-      if (b < -90) b = -90;
-      pitch = b;
+      p = Math.max(-90, Math.min(90, ev.beta)); // pitch
     }
 
-    if (heading != null && isFinite(heading)) {
-      state.headingDeg = normalizeHeading(heading);
-    }
+    if (h != null && isFinite(h)) st.headingDeg = norm360(h);
+    if (p != null && isFinite(p)) st.pitchDeg = p;
+    st.oriFrame = frame;
 
-    if (pitch != null && isFinite(pitch)) {
-      state.pitchDeg = pitch;
-    }
-
-    state.oriFrame = frame;
-
-    if (state.oriStatus !== 'listening') {
-      state.oriStatus = 'listening';
-      state.oriError = null;
-    }
-
+    if (st.oriStatus !== 'listening') { st.oriStatus = 'listening'; st.oriError = null; }
     notify();
   }
 
-  function attachOrientationListeners() {
-    if (orientationActive) return;
-    orientationActive = true;
-
-    // BEST-EFFORT PRIORITY:
-    // 1) deviceorientationabsolute (Chrome & friends, Earth frame) 
-    // 2) deviceorientation (fallback)
-    if ('ondeviceorientationabsolute' in global) {
-      global.addEventListener('deviceorientationabsolute', handleOrientationEvent, true);
-    } else if ('ondeviceorientation' in global) {
-      global.addEventListener('deviceorientation', handleOrientationEvent, true);
+  function attachOri() {
+    if (oriOn) return;
+    oriOn = true;
+    if ('ondeviceorientationabsolute' in w) {
+      w.addEventListener('deviceorientationabsolute', handleOri, true);
+    } else if ('ondeviceorientation' in w) {
+      w.addEventListener('deviceorientation', handleOri, true);
     } else {
-      state.oriStatus = 'unsupported';
-      state.oriError = 'Orientation events not supported in this browser.';
-      notify();
+      st.oriStatus = 'unsupported';
+      st.oriError = 'Orientation not supported.'; notify();
     }
   }
 
   function startOrientation() {
-    if (orientationActive) return;
-
-    if (!global.DeviceOrientationEvent) {
-      state.oriStatus = 'unsupported';
-      state.oriError = 'Device orientation not supported in this browser.';
-      notify();
-      return;
+    if (oriOn) return;
+    if (!w.DeviceOrientationEvent) {
+      st.oriStatus = 'unsupported';
+      st.oriError = 'Device orientation not supported.'; notify(); return;
     }
-
-    state.oriStatus = 'requesting';
-    state.oriError = null;
-    notify();
+    st.oriStatus = 'requesting'; st.oriError = null; notify();
 
     try {
-      // iOS 13+ requires explicit permission
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-          .then(function (result) {
-            if (result === 'granted') {
-              attachOrientationListeners();
-            } else {
-              state.oriStatus = 'denied';
-              state.oriError = 'Orientation permission denied.';
-              notify();
-            }
+      const D = w.DeviceOrientationEvent;
+      if (typeof D.requestPermission === 'function') {
+        D.requestPermission()
+          .then(res => {
+            if (res === 'granted') attachOri();
+            else { st.oriStatus = 'denied'; st.oriError = 'Orientation permission denied.'; notify(); }
           })
-          .catch(function (err) {
-            state.oriStatus = 'error';
-            state.oriError =
-              (err && err.message) || 'Orientation error.';
-            notify();
-          });
+          .catch(e => { st.oriStatus = 'error'; st.oriError = e?.message || 'Orientation error.'; notify(); });
       } else {
-        // Non-iOS (or older iOS)
-        attachOrientationListeners();
+        attachOri();
       }
     } catch (e) {
-      state.oriStatus = 'error';
-      state.oriError = (e && e.message) || 'Orientation error.';
-      notify();
+      st.oriStatus = 'error';
+      st.oriError = e?.message || 'Orientation error.'; notify();
     }
   }
 
-  // ---------- Public API ----------
+  function start() { startGPS(); startOrientation(); }
 
-  function start() {
-    startGPS();
-    startOrientation();
-  }
-
-  global.Sensors = {
-    start: start,
-    onUpdate: onUpdate,
-    getState: getState
-  };
+  w.Sensors = { start, onUpdate, getState };
 })(window);
