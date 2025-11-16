@@ -1,56 +1,64 @@
 // declination.js
-// Handle magnetic declination and convert magnetic heading -> true heading.
-// Convention: declinationDeg is +E, -W (east positive, west negative).
+// Declination + calibration offset, stored in localStorage.
 
-window.Declination = (function () {
-  let declinationDeg = 0; // default: no correction
+(function (w) {
+  'use strict';
 
-  function set(deg) {
-    if (typeof deg === "number" && isFinite(deg)) {
-      // clamp to a sane range
-      declinationDeg = Math.max(-30, Math.min(30, deg));
-    }
+  const KEY = 'aptool_heading_params_v1';
+  let decl = 0, offset = 0;
+
+  const norm360 = d => (d % 360 + 360) % 360;
+  const clampDecl = d => !isFinite(d) ? 0 : Math.max(-40, Math.min(40, d));
+
+  (function load() {
+    try {
+      const p = JSON.parse(localStorage.getItem(KEY) || '{}');
+      if (typeof p.declinationDeg === 'number') decl = clampDecl(p.declinationDeg);
+      if (typeof p.calibrationOffsetDeg === 'number') offset = norm360(p.calibrationOffsetDeg);
+    } catch (_) {}
+  })();
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        declinationDeg: decl,
+        calibrationOffsetDeg: offset
+      }));
+    } catch (_) {}
   }
 
-  function get() {
-    return declinationDeg;
+  function setDeclination(d) { decl = clampDecl(d); save(); }
+  function getDeclination() { return decl; }
+  function getCalibrationOffset() { return offset; }
+  function setCalibrationOffset(o) { if (isFinite(o)) { offset = norm360(o); save(); } }
+
+  function magneticToTrue(mag) {
+    if (!isFinite(mag)) return NaN;
+    return norm360(mag + decl + offset);
   }
 
-  function normalizeAngle(deg) {
-    let d = deg % 360;
-    if (d < 0) d += 360;
-    return d;
+  // Solve offset so: true = norm(mag + decl + offset)
+  function calibrate(mag, trueHd) {
+    if (!isFinite(mag) || !isFinite(trueHd)) return;
+    offset = norm360(trueHd - (mag + decl));
+    save();
   }
 
-  /**
-   * Convert a *magnetic* heading (0–360°) into a *true* heading.
-   * true = magnetic + declination (east positive, west negative)
-   */
-  function magneticToTrue(headingMagDeg) {
-    if (!isFinite(headingMagDeg)) return NaN;
-    return normalizeAngle(headingMagDeg + declinationDeg);
-  }
-
-  /**
-   * Optional helper: bind to an <input> so user can type declination.
-   * Input convention: +E / -W.
-   */
-  function bindInput(inputEl) {
-    if (!inputEl) return;
-    inputEl.value = declinationDeg.toFixed(1);
-
-    inputEl.addEventListener("input", () => {
-      const v = parseFloat(inputEl.value);
-      if (!isNaN(v)) {
-        set(v);
-      }
+  function bindInput(el) {
+    if (!el) return;
+    el.value = decl.toFixed(1);
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      if (!isNaN(v)) setDeclination(v);
     });
   }
 
-  return {
-    set,
-    get,
-    magneticToTrue,
-    bindInput
+  w.Declination = {
+    setDeclination, getDeclination,
+    getCalibrationOffset, setCalibrationOffset,
+    magneticToTrue, calibrate, bindInput,
+    // legacy alias
+    set: setDeclination,
+    get: getDeclination
   };
-})();
+})(window);
