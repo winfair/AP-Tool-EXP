@@ -19,6 +19,18 @@
     distSigned: m => !isFinite(m) ? '—' : (m.toFixed(1) + ' m ' + (m > 0 ? '↑' : m < 0 ? '↓' : '')).trim()
   };
 
+  function normHeading(h) {
+    if (!isFinite(h)) return null;
+    const n = h % 360;
+    return n < 0 ? n + 360 : n;
+  }
+
+  function deltaDeg(a) {
+    if (!isFinite(a)) return null;
+    let d = (a + 540) % 360 - 180;
+    return d;
+  }
+
   function toTrue(mag) {
     if (!isFinite(mag) || !w.Declination || !w.Declination.magneticToTrue) return mag;
     const t = w.Declination.magneticToTrue(mag);
@@ -314,7 +326,7 @@
       he = $('aimHeadingErr'), pe = $('aimPitchErr'),
       hd = $('aimHorizDist'), vd = $('aimVertDelta');
 
-    if (!sol || !sol.valid || sol.bearingDeg == null) {
+    if (!sol || !sol.valid || sol.requiredHeadingDeg == null) {
       stat.textContent = 'NO TARGET';
       rh.textContent = rp.textContent = he.textContent =
         pe.textContent = hd.textContent = vd.textContent = '—';
@@ -350,7 +362,7 @@
     }
 
     const magH = isFinite(s.headingDeg) ? s.headingDeg : null;
-    base.currentHeadingDeg = magH == null ? null : toTrue(magH);
+    base.currentHeadingDeg = magH == null ? null : normHeading(toTrue(magH));
 
     const haveGeo = isFinite(s.gpsLat) && isFinite(s.gpsLon) &&
                     isFinite(target.lat) && isFinite(target.lon);
@@ -364,7 +376,7 @@
       lat: s.gpsLat,
       lon: s.gpsLon,
       alt: isFinite(s.gpsAlt) ? s.gpsAlt : null,
-      headingDeg: base.currentHeadingDeg,
+      headingDeg: base.currentHeadingDeg,  // true
       pitchDeg: base.currentPitchDeg
     };
     const tgt = {
@@ -373,16 +385,47 @@
       alt: isFinite(target.elevation) ? target.elevation : null
     };
 
-    const sol = A.solution(phone, tgt);
+    const raw = A.solution(phone, tgt);
+    if (!raw || !raw.valid) {
+      updateAimUI(null);
+      C && C.update(base);
+      return;
+    }
+
+    // Use bearingDeg if available; fall back to requiredHeadingDeg
+    const rawBearing = isFinite(raw.bearingDeg) ? raw.bearingDeg : raw.requiredHeadingDeg;
+    const reqHeading = normHeading(rawBearing);
+    const reqPitch = isFinite(raw.requiredPitchDeg) ? raw.requiredPitchDeg : null;
+
+    const currH = base.currentHeadingDeg;
+    const currP = base.currentPitchDeg;
+
+    const headingErr = (currH != null && reqHeading != null)
+      ? deltaDeg(reqHeading - currH)
+      : null;
+    const pitchErr = (currP != null && reqPitch != null)
+      ? (reqPitch - currP)
+      : null;
+
+    const sol = {
+      valid: true,
+      requiredHeadingDeg: reqHeading,
+      requiredPitchDeg: reqPitch,
+      headingErrorDeg: headingErr,
+      pitchErrorDeg: pitchErr,
+      horizontalDistanceM: raw.horizontalDistanceM,
+      verticalDeltaM: raw.verticalDeltaM
+    };
+
     updateAimUI(sol);
 
     C && C.update({
-      currentHeadingDeg: base.currentHeadingDeg,
-      currentPitchDeg: base.currentPitchDeg,
-      targetHeadingDeg: sol.requiredHeadingDeg,
-      headingErrorDeg: sol.headingErrorDeg,
-      targetPitchDeg: sol.requiredPitchDeg,
-      pitchErrorDeg: sol.pitchErrorDeg,
+      currentHeadingDeg: currH,
+      currentPitchDeg: currP,
+      targetHeadingDeg: reqHeading,
+      headingErrorDeg: headingErr,
+      targetPitchDeg: reqPitch,
+      pitchErrorDeg: pitchErr,
       toleranceDeg: base.toleranceDeg
     });
   }
@@ -396,13 +439,16 @@
     if (!s || !isFinite(s.headingDeg) || !isFinite(s.gpsLat) || !isFinite(s.gpsLon) ||
         !isFinite(target.lat) || !isFinite(target.lon)) return;
 
-    const sol = A.solution(
+    const solRaw = A.solution(
       { lat: s.gpsLat, lon: s.gpsLon, alt: isFinite(s.gpsAlt) ? s.gpsAlt : null, headingDeg: 0, pitchDeg: 0 },
       { lat: target.lat, lon: target.lon, alt: isFinite(target.elevation) ? target.elevation : null }
     );
-    if (!sol || !sol.valid || !isFinite(sol.requiredHeadingDeg)) return;
+    if (!solRaw || !solRaw.valid) return;
 
-    D.calibrate(s.headingDeg, sol.requiredHeadingDeg);
+    const baseReqHeading = isFinite(solRaw.bearingDeg) ? solRaw.bearingDeg : solRaw.requiredHeadingDeg;
+    if (!isFinite(baseReqHeading)) return;
+
+    D.calibrate(s.headingDeg, baseReqHeading);
 
     const pill = $('oriSupportPill');
     pill.textContent = 'Calibrated to target';
