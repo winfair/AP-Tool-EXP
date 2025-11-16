@@ -4,6 +4,21 @@
   <meta charset="UTF-8" />
   <title>AP-Tool Sensor Core</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+  <!-- Leaflet CSS/JS (map engine) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w=="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg=="
+    crossorigin=""
+  ></script>
+  <!-- Snippet from Leaflet’s recommended CDN usage  -->
+
   <style>
     :root {
       --bg: #020617;
@@ -20,14 +35,15 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    html, body {
+    html,
+    body {
       margin: 0;
       padding: 0;
       height: 100%;
       background: radial-gradient(circle at top, #020617 0, #020617 40%, #000 100%);
       color: var(--ink);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-        "Segoe UI", sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+        sans-serif;
     }
 
     #app {
@@ -38,6 +54,8 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      position: relative;
+      z-index: 1;
     }
 
     .appbar {
@@ -134,6 +152,7 @@
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     button {
@@ -196,8 +215,8 @@
     }
 
     .data-value {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-        "Liberation Mono", "Courier New", monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
       font-size: 12px;
       text-align: right;
     }
@@ -249,6 +268,115 @@
       font-size: 11px;
       color: var(--muted);
     }
+
+    /* Target card tweaks */
+    .target-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .target-status {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* Floating map overlay */
+    .overlay-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.9);
+      display: none; /* turned to flex when open */
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      backdrop-filter: blur(4px);
+    }
+
+    .overlay-panel {
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      background: #020617;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .overlay-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .overlay-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    .overlay-body {
+      padding: 6px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #mapDiv {
+      flex: 1 1 auto;
+      min-height: 260px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .overlay-footer {
+      padding: 8px 10px 10px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .overlay-footer-right {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--ink);
+      box-shadow: none;
+      border: 1px solid var(--border);
+    }
+
+    .overlay-data-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
+    }
+
+    .overlay-data-label {
+      opacity: 0.7;
+    }
+
+    .overlay-status {
+      font-size: 11px;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -256,7 +384,7 @@
     <header class="appbar">
       <div class="title-group">
         <div class="app-title">AP-Tool</div>
-        <div class="app-subtitle">Sensor core · GPS + orientation only</div>
+        <div class="app-subtitle">Sensor core · GPS + orientation + target</div>
       </div>
       <div class="badge">Core module</div>
     </header>
@@ -272,9 +400,7 @@
         Ready. Tap “Start sensors” once and accept the browser prompts on your phone.
       </p>
       <div class="start-row">
-        <button id="startBtn">
-          ▶ Start sensors
-        </button>
+        <button id="startBtn">▶ Start sensors</button>
         <span class="hint">Must be tapped on-device (user gesture).</span>
       </div>
     </section>
@@ -297,7 +423,7 @@
           <div class="data-value large" id="gpsLon">—</div>
         </div>
 
-        <div class="accent-box" id="gpsErrorBox" style="display:none;">
+        <div class="accent-box" id="gpsErrorBox" style="display: none">
           <strong>GPS error:</strong>
           <span id="gpsError">—</span>
         </div>
@@ -319,7 +445,7 @@
           <div class="data-value large" id="pitchVal">—</div>
         </div>
 
-        <div class="accent-box" id="oriErrorBox" style="display:none;">
+        <div class="accent-box" id="oriErrorBox" style="display: none">
           <strong>Orientation error:</strong>
           <span id="oriError">—</span>
         </div>
@@ -329,36 +455,116 @@
         </div>
       </article>
     </section>
+
+    <!-- Target selection card -->
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">Target</div>
+        <div class="status-pill" id="targetStatusPill">No target</div>
+      </div>
+
+      <div class="data-row">
+        <div class="data-label">Target lat</div>
+        <div class="data-value large" id="targetLat">—</div>
+      </div>
+      <div class="data-row">
+        <div class="data-label">Target lon</div>
+        <div class="data-value large" id="targetLon">—</div>
+      </div>
+      <div class="data-row">
+        <div class="data-label">Target elev</div>
+        <div class="data-value large" id="targetElev">—</div>
+      </div>
+
+      <div class="target-actions">
+        <button id="selectTargetBtn">🗺 Select Target</button>
+        <span class="target-status" id="targetStatusText">
+          No target selected. Tap “Select Target” to choose a point on the map.
+        </span>
+      </div>
+    </section>
+  </div>
+
+  <!-- Floating map overlay -->
+  <div id="mapOverlay" class="overlay-backdrop">
+    <div class="overlay-panel">
+      <div class="overlay-header">
+        <div class="overlay-title">Select target point</div>
+        <button id="cancelTargetBtn" class="btn-secondary">✕ Close</button>
+      </div>
+      <div class="overlay-body">
+        <div>Tap anywhere on the map to place a pin. Elevation is fetched automatically.</div>
+
+        <div id="mapDiv"></div>
+
+        <div class="overlay-data-row">
+          <span class="overlay-data-label">Lat</span>
+          <span id="overlayLat">—</span>
+        </div>
+        <div class="overlay-data-row">
+          <span class="overlay-data-label">Lon</span>
+          <span id="overlayLon">—</span>
+        </div>
+        <div class="overlay-data-row">
+          <span class="overlay-data-label">Elev</span>
+          <span id="overlayElev">—</span>
+        </div>
+
+        <div class="overlay-status" id="overlayStatus">Tap on the map to place the pin.</div>
+      </div>
+      <div class="overlay-footer">
+        <div class="overlay-footer-left"></div>
+        <div class="overlay-footer-right">
+          <button id="confirmTargetBtn">✔ Use this point</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Sensor core (unchanged) -->
   <script src="sensors.js"></script>
+  <!-- Map + target logic -->
+  <script src="map.js"></script>
 
   <!-- UI wiring -->
   <script>
     (function () {
-      var startBtn       = document.getElementById('startBtn');
-      var comboStatusEl  = document.getElementById('comboStatus');
-      var statusTextEl   = document.getElementById('statusText');
+      var startBtn = document.getElementById('startBtn');
+      var comboStatusEl = document.getElementById('comboStatus');
+      var statusTextEl = document.getElementById('statusText');
 
-      var gpsStatusPill  = document.getElementById('gpsStatusPill');
-      var gpsLatEl       = document.getElementById('gpsLat');
-      var gpsLonEl       = document.getElementById('gpsLon');
-      var gpsErrorBox    = document.getElementById('gpsErrorBox');
-      var gpsErrorEl     = document.getElementById('gpsError');
+      var gpsStatusPill = document.getElementById('gpsStatusPill');
+      var gpsLatEl = document.getElementById('gpsLat');
+      var gpsLonEl = document.getElementById('gpsLon');
+      var gpsErrorBox = document.getElementById('gpsErrorBox');
+      var gpsErrorEl = document.getElementById('gpsError');
 
-      var oriStatusPill  = document.getElementById('oriStatusPill');
-      var headingEl      = document.getElementById('headingVal');
-      var pitchEl        = document.getElementById('pitchVal');
-      var oriErrorBox    = document.getElementById('oriErrorBox');
-      var oriErrorEl     = document.getElementById('oriError');
+      var oriStatusPill = document.getElementById('oriStatusPill');
+      var headingEl = document.getElementById('headingVal');
+      var pitchEl = document.getElementById('pitchVal');
+      var oriErrorBox = document.getElementById('oriErrorBox');
+      var oriErrorEl = document.getElementById('oriError');
       var oriSupportPill = document.getElementById('oriSupportPill');
+
+      // Target UI elements
+      var targetStatusPill = document.getElementById('targetStatusPill');
+      var targetLatEl = document.getElementById('targetLat');
+      var targetLonEl = document.getElementById('targetLon');
+      var targetElevEl = document.getElementById('targetElev');
+      var targetStatusText = document.getElementById('targetStatusText');
+      var selectTargetBtn = document.getElementById('selectTargetBtn');
+
+      var targetState = {
+        lat: null,
+        lon: null,
+        elevation: null
+      };
 
       function shortStatus(gps, ori) {
         return 'gps: ' + gps + ' · ori: ' + ori;
       }
 
-      function render(state) {
+      function renderSensors(state) {
         if (!state) return;
 
         // GPS
@@ -418,7 +624,8 @@
 
         // Top info text
         if (state.gpsStatus === 'ok' || state.oriStatus === 'listening') {
-          statusTextEl.textContent = 'Sensors are live. Move and rotate the phone to see updates.';
+          statusTextEl.textContent =
+            'Sensors are live. Move and rotate the phone to see updates.';
         } else if (state.gpsStatus === 'denied' || state.oriStatus === 'denied') {
           statusTextEl.textContent =
             'One or more permissions were denied. Check your browser/site settings and try again.';
@@ -434,6 +641,31 @@
         }
       }
 
+      function updateTargetUI() {
+        if (typeof targetState.lat === 'number' && typeof targetState.lon === 'number') {
+          targetLatEl.textContent = targetState.lat.toFixed(6);
+          targetLonEl.textContent = targetState.lon.toFixed(6);
+
+          if (typeof targetState.elevation === 'number') {
+            targetElevEl.textContent = targetState.elevation.toFixed(1) + ' m';
+            targetStatusPill.textContent = 'Target set';
+            targetStatusText.textContent = 'Target selected and elevation loaded.';
+          } else {
+            targetElevEl.textContent = '—';
+            targetStatusPill.textContent = 'Target set (no elev)';
+            targetStatusText.textContent =
+              'Target selected. Elevation not available or still loading.';
+          }
+        } else {
+          targetLatEl.textContent = '—';
+          targetLonEl.textContent = '—';
+          targetElevEl.textContent = '—';
+          targetStatusPill.textContent = 'No target';
+          targetStatusText.textContent =
+            'No target selected. Tap “Select Target” to choose a point on the map.';
+        }
+      }
+
       if (!window.Sensors) {
         comboStatusEl.textContent = 'Error: sensors.js not loaded';
         statusTextEl.textContent =
@@ -443,13 +675,32 @@
       }
 
       // Wire sensors → UI
-      window.Sensors.onUpdate(render);
+      window.Sensors.onUpdate(renderSensors);
 
       // Button click = user gesture → start sensors
       startBtn.addEventListener('click', function () {
         startBtn.disabled = true; // prevent spam; we only need to start once
         window.Sensors.start();
       });
+
+      // Target button → open map overlay
+      if (selectTargetBtn && window.TargetMap) {
+        selectTargetBtn.addEventListener('click', function () {
+          window.TargetMap.open({
+            onConfirm: function (target) {
+              if (!target) return;
+              targetState.lat = typeof target.lat === 'number' ? target.lat : null;
+              targetState.lon = typeof target.lon === 'number' ? target.lon : null;
+              targetState.elevation =
+                typeof target.elevation === 'number' ? target.elevation : null;
+              updateTargetUI();
+            }
+          });
+        });
+      }
+
+      // Initial target UI
+      updateTargetUI();
     })();
   </script>
 </body>
