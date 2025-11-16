@@ -3,6 +3,7 @@
 // Exposes a global `Sensors` object with:
 //   Sensors.start()       -> call from a button click
 //   Sensors.onUpdate(fn)  -> get state updates
+//   Sensors.getState()    -> read current state
 
 (function (global) {
   'use strict';
@@ -12,6 +13,8 @@
     gpsStatus: 'idle',   // 'idle' | 'requesting' | 'ok' | 'denied' | 'error' | 'unsupported'
     gpsLat: null,
     gpsLon: null,
+    gpsAlt: null,        // meters above sea level (may be null)
+    gpsAcc: null,        // horizontal accuracy in meters (may be null)
     gpsError: null,
 
     // Orientation
@@ -45,6 +48,14 @@
 
   // ---------------- GPS ----------------
 
+  function applyCoords(coords) {
+    if (!coords) return;
+    state.gpsLat = (typeof coords.latitude === 'number') ? coords.latitude : null;
+    state.gpsLon = (typeof coords.longitude === 'number') ? coords.longitude : null;
+    state.gpsAlt = (typeof coords.altitude === 'number') ? coords.altitude : null;
+    state.gpsAcc = (typeof coords.accuracy === 'number') ? coords.accuracy : null;
+  }
+
   function startGPS() {
     if (!('geolocation' in navigator)) {
       state.gpsStatus = 'unsupported';
@@ -66,8 +77,7 @@
     navigator.geolocation.getCurrentPosition(
       function (pos) {
         var c = pos.coords || {};
-        state.gpsLat = typeof c.latitude === 'number' ? c.latitude : null;
-        state.gpsLon = typeof c.longitude === 'number' ? c.longitude : null;
+        applyCoords(c);
         state.gpsStatus = 'ok';
         notify();
 
@@ -76,8 +86,7 @@
           geoWatchId = navigator.geolocation.watchPosition(
             function (pos2) {
               var c2 = pos2.coords || {};
-              state.gpsLat = typeof c2.latitude === 'number' ? c2.latitude : null;
-              state.gpsLon = typeof c2.longitude === 'number' ? c2.longitude : null;
+              applyCoords(c2);
               state.gpsStatus = 'ok';
               notify();
             },
