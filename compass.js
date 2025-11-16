@@ -1,144 +1,291 @@
 // compass.js
-// Draws heading + pitch gauges on two canvases.
+// Matrix/ASCII style heading compass + vertical pitch bar.
 
 (function (w) {
   'use strict';
 
-  let canvH, ctxH, canvP, ctxP, tol = 3;
+  const TWO_PI = Math.PI * 2;
 
-  function setupCanvas(id) {
-    const c = document.getElementById(id);
-    if (!c) return [null, null];
-    const dpr = window.devicePixelRatio || 1;
-    c.width = c.clientWidth * dpr;
-    c.height = c.clientWidth * dpr;
-    const ctx = c.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    return [c, ctx];
+  function normDeg(d) {
+    if (!isFinite(d)) return null;
+    const n = d % 360;
+    return n < 0 ? n + 360 : n;
   }
 
-  function init(opts) {
-    const hId = opts.headingCanvasId, pId = opts.pitchCanvasId;
-    tol = opts.toleranceDeg || 3;
-    [canvH, ctxH] = setupCanvas(hId);
-    [canvP, ctxP] = setupCanvas(pId);
+  function clamp(v, min, max) {
+    return Math.min(max, Math.max(min, v));
   }
 
-  function ringColor(err) {
-    if (err == null || !isFinite(err)) return '#64748b';
-    const a = Math.abs(err);
-    if (a <= tol) return '#22c55e';
-    if (a <= tol * 2) return '#f59e0b';
-    return '#ef4444';
-  }
+  function drawHeading(ctx, width, height, state) {
+    const cx = width / 2;
+    const cy = height / 2;
+    const radius = Math.min(width, height) * 0.42;
 
-  function drawCircleGauge(ctx, val, tgt, labelFn, range, clockwise) {
-    if (!ctx) return;
-    const w = ctx.canvas.clientWidth, h = ctx.canvas.clientHeight;
-    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 6;
+    ctx.clearRect(0, 0, width, height);
+    ctx.save();
+    ctx.fillStyle = '#020910';
+    ctx.fillRect(0, 0, width, height);
 
-    ctx.clearRect(0, 0, w, h);
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(148,163,184,0.6)';
+    // Outer ring
+    ctx.strokeStyle = '#22c55e';
     ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, TWO_PI);
     ctx.stroke();
 
-    const relToAngle = v => {
-      if (v == null || !isFinite(v)) return null;
-      const frac = (v - range.min) / (range.max - range.min);
-      const a = clockwise ? frac * 2 * Math.PI : (1 - frac) * 2 * Math.PI;
-      return a - Math.PI / 2; // 0 at top
-    };
+    // Inner grid circle
+    ctx.strokeStyle = '#14532d';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.6, 0, TWO_PI);
+    ctx.stroke();
 
-    let err = null;
-    if (val != null && tgt != null && isFinite(val) && isFinite(tgt)) {
-      err = vAngleDiff(val, tgt);
-    }
+    // Tick marks + ASCII-ish petals
+    const cardinalLabels = ['N', 'E', 'S', 'W'];
+    for (let i = 0; i < 36; i++) {
+      const deg = i * 10;
+      const rad = (deg - 90) * Math.PI / 180;
+      const isCardinal = (deg % 90 === 0);
+      const isMajor = (deg % 30 === 0);
 
-    // target line
-    const tgtAng = relToAngle(tgt);
-    if (tgtAng != null) {
+      const rOuter = radius;
+      const rInner = rOuter - (isCardinal ? 10 : isMajor ? 7 : 4);
+
+      const x1 = cx + rInner * Math.cos(rad);
+      const y1 = cy + rInner * Math.sin(rad);
+      const x2 = cx + rOuter * Math.cos(rad);
+      const y2 = cy + rOuter * Math.sin(rad);
+
+      ctx.strokeStyle = isCardinal ? '#4ade80' : isMajor ? '#16a34a' : '#064e3b';
+      ctx.lineWidth = isCardinal ? 2 : 1;
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + r * Math.cos(tgtAng), cy + r * Math.sin(tgtAng));
-      ctx.strokeStyle = 'rgba(56,189,248,0.7)';
-      ctx.lineWidth = 3;
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
       ctx.stroke();
+
+      if (isCardinal) {
+        const idx = (deg / 90) % 4;
+        const label = cardinalLabels[idx];
+        const lr = radius * 0.8;
+        const lx = cx + lr * Math.cos(rad);
+        const ly = cy + lr * Math.sin(rad) + 3;
+
+        ctx.fillStyle = '#bbf7d0';
+        ctx.font = '10px ui-monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, lx, ly);
+      }
     }
 
-    // arrow (current)
-    const valAng = relToAngle(val);
-    if (valAng != null) {
-      const col = ringColor(err);
+    // ASCII ring text
+    ctx.fillStyle = '#16a34a';
+    ctx.font = '9px ui-monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('<HDG ASCII ROSE>', cx, cy + radius + 14);
+
+    const curr = normDeg(state.currentHeadingDeg);
+    const tgt = normDeg(state.targetHeadingDeg);
+    const tol = isFinite(state.toleranceDeg) ? Math.max(0.5, state.toleranceDeg) : 3;
+
+    const onTarget =
+      curr != null && tgt != null &&
+      Math.abs((((curr - tgt + 540) % 360) - 180)) <= tol;
+
+    // Target band
+    if (tgt != null) {
+      const bandRad1 = (tgt - 90 - 3) * Math.PI / 180;
+      const bandRad2 = (tgt - 90 + 3) * Math.PI / 180;
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + (r - 4) * Math.cos(valAng), cy + (r - 4) * Math.sin(valAng));
-      ctx.strokeStyle = col;
+      ctx.strokeStyle = onTarget ? '#bbf7d0' : '#22c55e';
       ctx.lineWidth = 4;
+      ctx.arc(cx, cy, radius * 0.9, bandRad1, bandRad2);
+      ctx.stroke();
+    }
+
+    // Heading arrow
+    if (curr != null) {
+      const rad = (curr - 90) * Math.PI / 180;
+      const arrowR = radius * 0.72;
+      const xTip = cx + arrowR * Math.cos(rad);
+      const yTip = cy + arrowR * Math.sin(rad);
+
+      ctx.strokeStyle = onTarget ? '#bbf7d0' : '#4ade80';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(xTip, yTip);
       ctx.stroke();
 
+      // Arrowhead
+      const side = 8;
+      const leftRad = rad + Math.PI * 0.75;
+      const rightRad = rad - Math.PI * 0.75;
+      const xl = xTip + side * Math.cos(leftRad);
+      const yl = yTip + side * Math.sin(leftRad);
+      const xr = xTip + side * Math.cos(rightRad);
+      const yr = yTip + side * Math.sin(rightRad);
+
       ctx.beginPath();
-      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-      ctx.fillStyle = col;
+      ctx.moveTo(xTip, yTip);
+      ctx.lineTo(xl, yl);
+      ctx.lineTo(xr, yr);
+      ctx.closePath();
+      ctx.fillStyle = onTarget ? '#bbf7d0' : '#22c55e';
       ctx.fill();
     }
 
-    ctx.fillStyle = '#e5e7eb';
-    ctx.font = '11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+    // Center crosshair
+    ctx.strokeStyle = '#064e3b';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy);
+    ctx.lineTo(cx + 8, cy);
+    ctx.moveTo(cx, cy - 8);
+    ctx.lineTo(cx, cy + 8);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawPitch(ctx, width, height, state) {
+    ctx.clearRect(0, 0, width, height);
+    ctx.save();
+    ctx.fillStyle = '#020910';
+    ctx.fillRect(0, 0, width, height);
+
+    const barWidth = width * 0.35;
+    const barX = (width - barWidth) / 2;
+    const topMargin = 12;
+    const bottomMargin = 16;
+    const barTop = topMargin;
+    const barBottom = height - bottomMargin;
+    const barH = barBottom - barTop;
+
+    // Bar background
+    ctx.fillStyle = '#020617';
+    ctx.strokeStyle = '#16a34a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(barX, barTop, barWidth, barH, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Ticks: -60..+60
+    const maxPitch = 60;
+    ctx.font = '9px ui-monospace';
+    ctx.textAlign = 'left';
+
+    for (let deg = -60; deg <= 60; deg += 15) {
+      const t = (deg + maxPitch) / (2 * maxPitch); // 0..1
+      const y = barTop + (1 - t) * barH;
+
+      ctx.strokeStyle = deg === 0 ? '#4ade80' : '#064e3b';
+      ctx.lineWidth = deg === 0 ? 1.5 : 1;
+      const tickL = barX - (deg % 30 === 0 ? 8 : 5);
+      const tickR = barX;
+      ctx.beginPath();
+      ctx.moveTo(tickL, y);
+      ctx.lineTo(tickR, y);
+      ctx.stroke();
+
+      if (deg === 30 || deg === 0 || deg === -30) {
+        ctx.fillStyle = deg === 0 ? '#bbf7d0' : '#16a34a';
+        ctx.fillText((deg > 0 ? '+' : '') + deg, tickL - 2, y + 3);
+      }
+    }
+
+    // ASCII label at bottom
+    ctx.fillStyle = '#22c55e';
+    ctx.font = '9px ui-monospace';
     ctx.textAlign = 'center';
+    ctx.fillText('<PCH BAR>', width / 2, height - 4);
 
-    const txt = labelFn(val, tgt, err);
-    if (txt) ctx.fillText(txt, cx, cy + r + 10);
+    const curr = state.currentPitchDeg != null ? clamp(state.currentPitchDeg, -maxPitch, maxPitch) : null;
+    const tgt = state.targetPitchDeg != null ? clamp(state.targetPitchDeg, -maxPitch, maxPitch) : null;
+    const tol = isFinite(state.toleranceDeg) ? Math.max(0.5, state.toleranceDeg) : 3;
+
+    const onTarget =
+      curr != null && tgt != null &&
+      Math.abs(curr - tgt) <= tol;
+
+    // Target line
+    if (tgt != null) {
+      const t = (tgt + maxPitch) / (2 * maxPitch);
+      const y = barTop + (1 - t) * barH;
+      ctx.strokeStyle = onTarget ? '#bbf7d0' : '#22c55e';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(barX, y);
+      ctx.lineTo(barX + barWidth, y);
+      ctx.stroke();
+    }
+
+    // Current pitch block
+    if (curr != null) {
+      const t = (curr + maxPitch) / (2 * maxPitch);
+      const y = barTop + (1 - t) * barH;
+      const h = 8;
+      ctx.fillStyle = onTarget ? '#bbf7d0' : '#4ade80';
+      ctx.strokeStyle = '#022c22';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(barX + 2, y - h / 2, barWidth - 4, h, 3);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
-  function vAngleDiff(a, b) {
-    if (!isFinite(a) || !isFinite(b)) return null;
-    let d = ((a - b) % 360 + 540) % 360 - 180;
-    return d;
-  }
+  const CompassUI = {
+    _headingCtx: null,
+    _pitchCtx: null,
+    _hSize: null,
+    _pSize: null,
+    _tolerance: 3,
 
-  function headingLabel(val, tgt, err) {
-    if (val == null || !isFinite(val)) return '';
-    const h = ((val % 360) + 360) % 360;
-    const parts = [h.toFixed(0) + '°'];
-    if (tgt != null && isFinite(tgt)) parts.push('→ ' + tgt.toFixed(0) + '°');
-    if (err != null && isFinite(err)) parts.push('Δ' + err.toFixed(1) + '°');
-    return parts.join('  ');
-  }
+    init(opts) {
+      const hCanvas = document.getElementById(opts.headingCanvasId);
+      const pCanvas = document.getElementById(opts.pitchCanvasId);
+      this._tolerance = isFinite(opts.toleranceDeg) ? opts.toleranceDeg : 3;
 
-  function pitchLabel(val, tgt, err) {
-    if (val == null || !isFinite(val)) return '';
-    const parts = [val.toFixed(1) + '°'];
-    if (tgt != null && isFinite(tgt)) parts.push('→ ' + tgt.toFixed(1) + '°');
-    if (err != null && isFinite(err)) parts.push('Δ' + err.toFixed(1) + '°');
-    return parts.join('  ');
-  }
+      if (hCanvas && hCanvas.getContext) {
+        this._headingCtx = hCanvas.getContext('2d');
+        this._hSize = { w: hCanvas.width, h: hCanvas.height };
+        drawHeading(this._headingCtx, this._hSize.w, this._hSize.h, {});
+      }
+      if (pCanvas && pCanvas.getContext) {
+        this._pitchCtx = pCanvas.getContext('2d');
+        this._pSize = { w: pCanvas.width, h: pCanvas.height };
+        drawPitch(this._pitchCtx, this._pSize.w, this._pSize.h, {});
+      }
+    },
 
-  function update(data) {
-    data = data || {};
-    const ch = data.currentHeadingDeg, th = data.targetHeadingDeg;
-    const cp = data.currentPitchDeg, tp = data.targetPitchDeg;
-    const he = data.headingErrorDeg, pe = data.pitchErrorDeg;
+    update(state) {
+      const s = state || {};
+      const tol = isFinite(s.toleranceDeg) ? s.toleranceDeg : this._tolerance;
 
-    drawCircleGauge(
-      ctxH,
-      ch,
-      th,
-      headingLabel,
-      { min: 0, max: 360 },
-      true
-    );
-    drawCircleGauge(
-      ctxP,
-      cp,
-      tp,
-      pitchLabel,
-      { min: -90, max: 90 },
-      false
-    );
-  }
+      const headingState = {
+        currentHeadingDeg: s.currentHeadingDeg,
+        targetHeadingDeg: s.targetHeadingDeg,
+        headingErrorDeg: s.headingErrorDeg,
+        toleranceDeg: tol
+      };
+      const pitchState = {
+        currentPitchDeg: s.currentPitchDeg,
+        targetPitchDeg: s.targetPitchDeg,
+        pitchErrorDeg: s.pitchErrorDeg,
+        toleranceDeg: tol
+      };
 
-  w.CompassUI = { init, update };
+      if (this._headingCtx && this._hSize) {
+        drawHeading(this._headingCtx, this._hSize.w, this._hSize.h, headingState);
+      }
+      if (this._pitchCtx && this._pSize) {
+        drawPitch(this._pitchCtx, this._pSize.w, this._pSize.h, pitchState);
+      }
+    }
+  };
+
+  w.CompassUI = CompassUI;
 })(window);
