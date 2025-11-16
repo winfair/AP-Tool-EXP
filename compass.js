@@ -1,5 +1,5 @@
 // compass.js
-// Matrix/ASCII style heading compass + vertical pitch bar.
+// Terminal-style heading compass + vertical pitch bar HUD.
 
 (function (w) {
   'use strict';
@@ -23,24 +23,24 @@
 
     ctx.clearRect(0, 0, width, height);
     ctx.save();
-    ctx.fillStyle = '#020910';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
 
     // Outer ring
-    ctx.strokeStyle = '#22c55e';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#00ff5b';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, TWO_PI);
     ctx.stroke();
 
     // Inner grid circle
-    ctx.strokeStyle = '#14532d';
+    ctx.strokeStyle = '#006b33';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(cx, cy, radius * 0.6, 0, TWO_PI);
     ctx.stroke();
 
-    // Tick marks + ASCII-ish petals
+    // Tick marks + ASCII-ish rose
     const cardinalLabels = ['N', 'E', 'S', 'W'];
     for (let i = 0; i < 36; i++) {
       const deg = i * 10;
@@ -56,8 +56,8 @@
       const x2 = cx + rOuter * Math.cos(rad);
       const y2 = cy + rOuter * Math.sin(rad);
 
-      ctx.strokeStyle = isCardinal ? '#4ade80' : isMajor ? '#16a34a' : '#064e3b';
-      ctx.lineWidth = isCardinal ? 2 : 1;
+      ctx.strokeStyle = isCardinal ? '#00ff5b' : isMajor ? '#00b34a' : '#004526';
+      ctx.lineWidth = isCardinal ? 1.5 : 1;
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
@@ -70,18 +70,18 @@
         const lx = cx + lr * Math.cos(rad);
         const ly = cy + lr * Math.sin(rad) + 3;
 
-        ctx.fillStyle = '#bbf7d0';
+        ctx.fillStyle = '#00ff5b';
         ctx.font = '10px ui-monospace';
         ctx.textAlign = 'center';
         ctx.fillText(label, lx, ly);
       }
     }
 
-    // ASCII ring text
-    ctx.fillStyle = '#16a34a';
+    // HUD label
+    ctx.fillStyle = '#00b34a';
     ctx.font = '9px ui-monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('<HDG ASCII ROSE>', cx, cy + radius + 14);
+    ctx.fillText('<HDG HUD>', cx, cy + radius + 12);
 
     const curr = normDeg(state.currentHeadingDeg);
     const tgt = normDeg(state.targetHeadingDeg);
@@ -91,26 +91,50 @@
       curr != null && tgt != null &&
       Math.abs((((curr - tgt + 540) % 360) - 180)) <= tol;
 
-    // Target band
+    // Target band + radial line (very visible)
     if (tgt != null) {
-      const bandRad1 = (tgt - 90 - 3) * Math.PI / 180;
-      const bandRad2 = (tgt - 90 + 3) * Math.PI / 180;
+      const bandSize = Math.max(3, tol);
+      const bandRad1 = (tgt - 90 - bandSize) * Math.PI / 180;
+      const bandRad2 = (tgt - 90 + bandSize) * Math.PI / 180;
+
+      // Arc band on outer ring
       ctx.beginPath();
-      ctx.strokeStyle = onTarget ? '#bbf7d0' : '#22c55e';
-      ctx.lineWidth = 4;
+      ctx.strokeStyle = onTarget ? '#ffffff' : '#00ff5b';
+      ctx.lineWidth = 3;
       ctx.arc(cx, cy, radius * 0.9, bandRad1, bandRad2);
       ctx.stroke();
+
+      // Radial line from center to ring
+      const rad = (tgt - 90) * Math.PI / 180;
+      const rLine = radius * 0.9;
+      const xTip = cx + rLine * Math.cos(rad);
+      const yTip = cy + rLine * Math.sin(rad);
+
+      ctx.strokeStyle = onTarget ? '#ffffff' : '#00ff5b';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(xTip, yTip);
+      ctx.stroke();
+
+      // Small 'TGT' mark near ring
+      const lx = cx + (radius * 0.65) * Math.cos(rad);
+      const ly = cy + (radius * 0.65) * Math.sin(rad) + 3;
+      ctx.fillStyle = onTarget ? '#ffffff' : '#00ff5b';
+      ctx.font = '9px ui-monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('T', lx, ly);
     }
 
-    // Heading arrow
+    // Current heading arrow
     if (curr != null) {
       const rad = (curr - 90) * Math.PI / 180;
       const arrowR = radius * 0.72;
       const xTip = cx + arrowR * Math.cos(rad);
       const yTip = cy + arrowR * Math.sin(rad);
 
-      ctx.strokeStyle = onTarget ? '#bbf7d0' : '#4ade80';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = onTarget ? '#ffffff' : '#00ff5b';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.lineTo(xTip, yTip);
@@ -130,12 +154,12 @@
       ctx.lineTo(xl, yl);
       ctx.lineTo(xr, yr);
       ctx.closePath();
-      ctx.fillStyle = onTarget ? '#bbf7d0' : '#22c55e';
+      ctx.fillStyle = onTarget ? '#ffffff' : '#00ff5b';
       ctx.fill();
     }
 
     // Center crosshair
-    ctx.strokeStyle = '#064e3b';
+    ctx.strokeStyle = '#006b33';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(cx - 8, cy);
@@ -150,24 +174,23 @@
   function drawPitch(ctx, width, height, state) {
     ctx.clearRect(0, 0, width, height);
     ctx.save();
-    ctx.fillStyle = '#020910';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
 
-    const barWidth = width * 0.35;
+    const barWidth = width * 0.4;
     const barX = (width - barWidth) / 2;
-    const topMargin = 12;
-    const bottomMargin = 16;
+    const topMargin = 10;
+    const bottomMargin = 14;
     const barTop = topMargin;
     const barBottom = height - bottomMargin;
     const barH = barBottom - barTop;
 
     // Bar background
-    ctx.fillStyle = '#020617';
-    ctx.strokeStyle = '#16a34a';
+    ctx.fillStyle = '#000000';
+    ctx.strokeStyle = '#00b34a';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(barX, barTop, barWidth, barH, 4);
-    ctx.fill();
+    ctx.roundRect(barX, barTop, barWidth, barH, 3);
     ctx.stroke();
 
     // Ticks: -60..+60
@@ -179,7 +202,7 @@
       const t = (deg + maxPitch) / (2 * maxPitch); // 0..1
       const y = barTop + (1 - t) * barH;
 
-      ctx.strokeStyle = deg === 0 ? '#4ade80' : '#064e3b';
+      ctx.strokeStyle = deg === 0 ? '#00ff5b' : '#004526';
       ctx.lineWidth = deg === 0 ? 1.5 : 1;
       const tickL = barX - (deg % 30 === 0 ? 8 : 5);
       const tickR = barX;
@@ -189,16 +212,16 @@
       ctx.stroke();
 
       if (deg === 30 || deg === 0 || deg === -30) {
-        ctx.fillStyle = deg === 0 ? '#bbf7d0' : '#16a34a';
+        ctx.fillStyle = deg === 0 ? '#00ff5b' : '#00b34a';
         ctx.fillText((deg > 0 ? '+' : '') + deg, tickL - 2, y + 3);
       }
     }
 
-    // ASCII label at bottom
-    ctx.fillStyle = '#22c55e';
+    // Label
+    ctx.fillStyle = '#00b34a';
     ctx.font = '9px ui-monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('<PCH BAR>', width / 2, height - 4);
+    ctx.fillText('<PCH BAR>', width / 2, height - 3);
 
     const curr = state.currentPitchDeg != null ? clamp(state.currentPitchDeg, -maxPitch, maxPitch) : null;
     const tgt = state.targetPitchDeg != null ? clamp(state.targetPitchDeg, -maxPitch, maxPitch) : null;
@@ -212,7 +235,7 @@
     if (tgt != null) {
       const t = (tgt + maxPitch) / (2 * maxPitch);
       const y = barTop + (1 - t) * barH;
-      ctx.strokeStyle = onTarget ? '#bbf7d0' : '#22c55e';
+      ctx.strokeStyle = onTarget ? '#ffffff' : '#00ff5b';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(barX, y);
@@ -225,8 +248,8 @@
       const t = (curr + maxPitch) / (2 * maxPitch);
       const y = barTop + (1 - t) * barH;
       const h = 8;
-      ctx.fillStyle = onTarget ? '#bbf7d0' : '#4ade80';
-      ctx.strokeStyle = '#022c22';
+      ctx.fillStyle = onTarget ? '#ffffff' : '#00ff5b';
+      ctx.strokeStyle = '#006b33';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(barX + 2, y - h / 2, barWidth - 4, h, 3);
