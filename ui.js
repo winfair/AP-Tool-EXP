@@ -25,7 +25,7 @@
     return isFinite(t) ? t : mag;
   }
 
-  // ---------- Saved targets persistence ----------
+  /* --------- Saved targets persistence ---------- */
 
   function loadSavedTargets() {
     savedTargets = [];
@@ -80,15 +80,15 @@
       const elev = isFinite(t.elevation) ? (t.elevation.toFixed(0) + ' m') : '—';
       const name = t.name || 'Target';
       return (
-        `<div class="row-data" data-id="${t.id}">` +
+        `<div class="saved-target-row" data-id="${t.id}">` +
           `<div>` +
-            `<div class="label">${name}</div>` +
-            `<div class="hint">${lat}, ${lon} · ${elev}</div>` +
+            `<div class="saved-name">${name}</div>` +
+            `<div class="saved-meta">${lat}, ${lon} · ${elev}</div>` +
           `</div>` +
-          `<div style="display:flex;gap:4px;">` +
-            `<button class="btn-mini" data-action="load" data-id="${t.id}">Load</button>` +
-            `<button class="btn-mini" data-action="edit" data-id="${t.id}">Edit</button>` +
-            `<button class="btn-mini" data-action="delete" data-id="${t.id}">✕</button>` +
+          `<div style="display:flex;gap:4px;flex-shrink:0;">` +
+            `<button class="btn-mini" data-action="load" data-id="${t.id}">&gt; LOAD</button>` +
+            `<button class="btn-mini" data-action="edit" data-id="${t.id}">EDIT</button>` +
+            `<button class="btn-mini" data-action="delete" data-id="${t.id}">X</button>` +
           `</div>` +
         `</div>`
       );
@@ -147,8 +147,7 @@
     const elev = elevInput.value === '' ? null : parseFloat(elevInput.value);
 
     if (!isFinite(lat) || !isFinite(lon)) {
-      // Invalid coordinates; skip save.
-      return;
+      return; // invalid
     }
 
     const name = nameInput.value && nameInput.value.trim()
@@ -178,7 +177,7 @@
     updateSavedTargetsUI();
     closeSavePanel();
 
-    // Also update the current target to what was just saved.
+    // Also set as current active target
     target.lat = lat;
     target.lon = lon;
     target.elevation = isFinite(elev) ? elev : null;
@@ -198,9 +197,11 @@
     const t = savedTargets[idx];
 
     if (action === 'load') {
+      // DEFINITELY set current target + update UI
       target.lat = t.lat;
       target.lon = t.lon;
       target.elevation = t.elevation != null ? t.elevation : null;
+
       updateTargetUI();
       recomputeAim();
     } else if (action === 'edit') {
@@ -212,7 +213,7 @@
     }
   }
 
-  // ---------- Sensors UI ----------
+  /* --------- Sensors UI ---------- */
 
   function updateSensorsUI(s) {
     const combo = $('comboStatus'), txt = $('statusText');
@@ -245,18 +246,23 @@
 
     const support = $('oriSupportPill');
     if (s.oriStatus === 'unsupported') {
-      support.textContent = 'Orientation not supported'; support.className = 'mini-pill bad';
+      support.textContent = 'Orientation not supported';
+      support.className = 'mini-pill bad';
     } else if (s.oriStatus === 'denied') {
-      support.textContent = 'Permission denied'; support.className = 'mini-pill bad';
+      support.textContent = 'Permission denied';
+      support.className = 'mini-pill bad';
     } else if (s.oriStatus === 'listening') {
       if (!support.textContent.includes('Calibrated')) {
-        support.textContent = 'Orientation live'; support.className = 'mini-pill ok';
+        support.textContent = 'Orientation live';
+        support.className = 'mini-pill ok';
       }
     } else if (s.oriStatus === 'requesting') {
-      support.textContent = 'Requesting permission…'; support.className = 'mini-pill warn';
+      support.textContent = 'Requesting permission…';
+      support.className = 'mini-pill warn';
     } else {
       if (!support.textContent.includes('Calibrated')) {
-        support.textContent = 'Waiting for start…'; support.className = 'mini-pill';
+        support.textContent = 'Waiting for start…';
+        support.className = 'mini-pill';
       }
     }
 
@@ -271,11 +277,11 @@
     } else if (s.gpsStatus === 'requesting' || s.oriStatus === 'requesting') {
       txt.textContent = 'Waiting for permission. If no prompt, check settings.';
     } else {
-      txt.textContent = 'Ready. Tap “Start sensors” and accept prompts.';
+      txt.textContent = 'Ready. Tap <START SENSORS> and accept prompts.';
     }
   }
 
-  // ---------- Target UI ----------
+  /* --------- Target UI ---------- */
 
   function updateTargetUI() {
     const hasTarget = isFinite(target.lat) && isFinite(target.lon);
@@ -288,7 +294,7 @@
     const txt = $('targetStatusText');
     if (!hasTarget) {
       pill.textContent = 'No target';
-      txt.textContent = 'Tap “Select Target” to choose a point on the map.';
+      txt.textContent = 'No target selected. Use <SELECT TARGET> or load a saved point.';
     } else if (!isFinite(target.elevation)) {
       pill.textContent = 'Target set (no elev)';
       txt.textContent = 'Target chosen. Elevation not available or still loading.';
@@ -298,7 +304,7 @@
     }
   }
 
-  // ---------- Aim UI ----------
+  /* --------- Aim UI ---------- */
 
   function updateAimUI(sol) {
     const stat = $('aimStatusPill'),
@@ -307,12 +313,13 @@
       hd = $('aimHorizDist'), vd = $('aimVertDelta');
 
     if (!sol || !sol.valid || sol.bearingDeg == null) {
-      stat.textContent = 'No target';
-      rh.textContent = rp.textContent = he.textContent = pe.textContent = hd.textContent = vd.textContent = '—';
+      stat.textContent = 'NO TARGET';
+      rh.textContent = rp.textContent = he.textContent =
+        pe.textContent = hd.textContent = vd.textContent = '—';
       return;
     }
 
-    stat.textContent = 'Ready';
+    stat.textContent = 'READY';
     rh.textContent = fmt.angH(sol.requiredHeadingDeg);
     rp.textContent = isFinite(sol.requiredPitchDeg) ? fmt.ang(sol.requiredPitchDeg) : '—';
     he.textContent = isFinite(sol.headingErrorDeg) ? fmt.ang(sol.headingErrorDeg) : '—';
@@ -321,7 +328,7 @@
     vd.textContent = isFinite(sol.verticalDeltaM) ? fmt.distSigned(sol.verticalDeltaM) : '—';
   }
 
-  // ---------- Recompute aim + compass ----------
+  /* --------- Recompute aim + compass ---------- */
 
   function recomputeAim() {
     const S = w.Sensors, A = w.AimMath, C = w.CompassUI;
@@ -335,7 +342,9 @@
     };
 
     if (!s) {
-      updateAimUI(null); C && C.update(base); return;
+      updateAimUI(null);
+      C && C.update(base);
+      return;
     }
 
     const magH = isFinite(s.headingDeg) ? s.headingDeg : null;
@@ -344,17 +353,21 @@
     const haveGeo = isFinite(s.gpsLat) && isFinite(s.gpsLon) &&
                     isFinite(target.lat) && isFinite(target.lon);
     if (!haveGeo || !A) {
-      updateAimUI(null); C && C.update(base); return;
+      updateAimUI(null);
+      C && C.update(base);
+      return;
     }
 
     const phone = {
-      lat: s.gpsLat, lon: s.gpsLon,
+      lat: s.gpsLat,
+      lon: s.gpsLon,
       alt: isFinite(s.gpsAlt) ? s.gpsAlt : null,
       headingDeg: base.currentHeadingDeg,
       pitchDeg: base.currentPitchDeg
     };
     const tgt = {
-      lat: target.lat, lon: target.lon,
+      lat: target.lat,
+      lon: target.lon,
       alt: isFinite(target.elevation) ? target.elevation : null
     };
 
@@ -372,7 +385,7 @@
     });
   }
 
-  // ---------- Calibration ----------
+  /* --------- Calibration ---------- */
 
   function calibrateToTarget() {
     const S = w.Sensors, D = w.Declination, A = w.AimMath;
@@ -396,17 +409,22 @@
     recomputeAim();
   }
 
-  // ---------- Init ----------
+  /* --------- Init ---------- */
 
   function init() {
     const S = w.Sensors;
     if (!S) {
       $('comboStatus').textContent = 'Error: sensors.js missing';
-      $('statusText').textContent = 'Ensure sensors.js is present.'; return;
+      $('statusText').textContent = 'Ensure sensors.js is present.';
+      return;
     }
 
     if (w.CompassUI) {
-      w.CompassUI.init({ headingCanvasId: 'headingCompass', pitchCanvasId: 'pitchCompass', toleranceDeg: 3 });
+      w.CompassUI.init({
+        headingCanvasId: 'headingCompass',
+        pitchCanvasId: 'pitchCompass',
+        toleranceDeg: 3
+      });
       w.CompassUI.update({});
     }
 
@@ -415,14 +433,22 @@
       w.Declination.bindInput(declInput);
     }
 
-    // Saved targets
     loadSavedTargets();
     updateSavedTargetsUI();
 
-    S.onUpdate(s => { updateSensorsUI(s); recomputeAim(); });
+    S.onUpdate(s => {
+      updateSensorsUI(s);
+      recomputeAim();
+    });
 
     const startBtn = $('startBtn');
-    if (startBtn) startBtn.addEventListener('click', () => { startBtn.disabled = true; S.start(); });
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        startBtn.classList.add('disabled');
+        startBtn.disabled = true;
+        S.start();
+      });
+    }
 
     const selectBtn = $('selectTargetBtn');
     if (selectBtn && w.TargetMap) {
@@ -433,7 +459,8 @@
             target.lat = isFinite(t.lat) ? t.lat : null;
             target.lon = isFinite(t.lon) ? t.lon : null;
             target.elevation = isFinite(t.elevation) ? t.elevation : null;
-            updateTargetUI(); recomputeAim();
+            updateTargetUI();
+            recomputeAim();
           }
         });
       });
