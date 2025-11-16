@@ -1,5 +1,6 @@
 // compass.js
 // Draws two compass-style indicators (heading & pitch) on canvas.
+//
 // Global CompassUI:
 //   CompassUI.init({ headingCanvasId, pitchCanvasId, toleranceDeg? })
 //   CompassUI.update({
@@ -7,6 +8,7 @@
 //     currentPitchDeg,   targetPitchDeg,   pitchErrorDeg,
 //     toleranceDeg?
 //   })
+
 (function (global) {
   'use strict';
 
@@ -15,18 +17,6 @@
   var pitchCanvas = null;
   var pitchCtx = null;
   var defaultTolerance = 3;
-
-  function init(opts) {
-    opts = opts || {};
-    if (opts.headingCanvasId) {
-      headingCanvas = document.getElementById(opts.headingCanvasId);
-      headingCtx = headingCanvas ? headingCanvas.getContext('2d') : null;
-    }
-    if (opts.pitchCanvasId) {
-      pitchCanvas = document.getElementById(opts.pitchCanvasId);
-      pitchCtx = pitchCanvas ? pitchCanvas.getContext('2d') : null;
-    }
-  }
 
   function toRad(deg) {
     return (deg * Math.PI) / 180;
@@ -41,6 +31,39 @@
     return typeof v === 'number' && isFinite(v);
   }
 
+  // If we haven't been explicitly initialized, lazily grab canvases by ID.
+  function ensureContexts() {
+    if (!headingCanvas) {
+      var hc = document.getElementById('headingCompass');
+      if (hc) {
+        headingCanvas = hc;
+        headingCtx = hc.getContext('2d');
+      }
+    }
+    if (!pitchCanvas) {
+      var pc = document.getElementById('pitchCompass');
+      if (pc) {
+        pitchCanvas = pc;
+        pitchCtx = pc.getContext('2d');
+      }
+    }
+  }
+
+  function init(opts) {
+    opts = opts || {};
+    if (opts.headingCanvasId) {
+      headingCanvas = document.getElementById(opts.headingCanvasId);
+      headingCtx = headingCanvas ? headingCanvas.getContext('2d') : null;
+    }
+    if (opts.pitchCanvasId) {
+      pitchCanvas = document.getElementById(opts.pitchCanvasId);
+      pitchCtx = pitchCanvas ? pitchCanvas.getContext('2d') : null;
+    }
+    if (isNum(opts.toleranceDeg)) {
+      defaultTolerance = opts.toleranceDeg;
+    }
+  }
+
   function drawCompass(ctx, canvas, currentDeg, targetDeg, errorDeg, toleranceDeg) {
     if (!ctx || !canvas) return;
 
@@ -50,7 +73,7 @@
 
     var cx = w / 2;
     var cy = h / 2;
-    var r = Math.min(w, h) / 2 - 8;
+    var r = Math.min(w, h) / 2 - 6;
 
     ctx.save();
     ctx.translate(cx, cy);
@@ -68,7 +91,7 @@
     ctx.lineWidth = 1;
     cardinals.forEach(function (deg) {
       var rad = compassDegToCanvasRad(deg);
-      var inner = r * 0.8;
+      var inner = r * 0.78;
       var outer = r;
       ctx.beginPath();
       ctx.moveTo(inner * Math.cos(rad), inner * Math.sin(rad));
@@ -89,7 +112,7 @@
       ctx.rotate(tRad);
       ctx.beginPath();
       ctx.moveTo(-r * 0.1, 0);
-      ctx.lineTo(r * 0.85, 0);
+      ctx.lineTo(r * 0.86, 0);
       ctx.strokeStyle = targetColor;
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 3]);
@@ -105,7 +128,7 @@
 
       // Shaft
       ctx.beginPath();
-      ctx.moveTo(-r * 0.2, 0);
+      ctx.moveTo(-r * 0.22, 0);
       ctx.lineTo(r * 0.6, 0);
       ctx.strokeStyle = arrowColor;
       ctx.lineWidth = 4;
@@ -115,8 +138,8 @@
       // Arrow head
       ctx.beginPath();
       ctx.moveTo(r * 0.6, 0);
-      ctx.lineTo(r * 0.4, -r * 0.12);
-      ctx.lineTo(r * 0.4, r * 0.12);
+      ctx.lineTo(r * 0.4, -r * 0.13);
+      ctx.lineTo(r * 0.4, r * 0.13);
       ctx.closePath();
       ctx.fillStyle = arrowColor;
       ctx.fill();
@@ -135,6 +158,8 @@
 
   function update(opts) {
     opts = opts || {};
+    ensureContexts();
+
     var tol = isNum(opts.toleranceDeg) ? opts.toleranceDeg : defaultTolerance;
 
     // Heading compass
@@ -149,7 +174,7 @@
       );
     }
 
-    // Pitch compass (same visual logic; values are just "angles to match")
+    // Pitch compass (same visual logic; just "angle to match")
     if (pitchCtx && pitchCanvas) {
       drawCompass(
         pitchCtx,
