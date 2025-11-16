@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AP-Tool</title>
+  <title>AP-Tool HUD</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
   <!-- Leaflet -->
@@ -18,16 +18,12 @@
 
   <style>
     :root{
-      --bg:#020912;
-      --bg2:#000000;
-      --card:#020308;
-      --ink:#bbf7d0;
-      --muted:#4ade80;
-      --accent:#22c55e;
-      --accent-soft:rgba(34,197,94,.12);
-      --border:rgba(34,197,94,.55);
-      --danger:#f97373;
-      --shadow:0 18px 40px rgba(0,0,0,.9);
+      --bg:#000000;
+      --ink:#00ff5b;
+      --ink-dim:#00b34a;
+      --ink-soft:#00a344;
+      --err:#ff4b4b;
+      --warn:#ffd85a;
       --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
     }
     *{
@@ -35,698 +31,444 @@
       -webkit-tap-highlight-color:transparent;
     }
     html,body{
-      margin:0;padding:0;height:100%;
-      background:
-        radial-gradient(circle at top,var(--bg) 0,var(--bg) 40%,var(--bg2) 100%),
-        repeating-linear-gradient(
-          to bottom,
-          rgba(22,101,52,.25) 0,
-          rgba(22,101,52,.25) 1px,
-          transparent 1px,
-          transparent 3px
-        );
+      margin:0;
+      padding:0;
+      height:100%;
+      background:var(--bg);
       color:var(--ink);
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+      font-family:var(--mono);
+      font-size:12px;
+    }
+    body{
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
     }
     #app{
-      min-height:100vh;
+      width:100%;
       max-width:520px;
-      margin:0 auto;
-      padding:10px 10px 18px;
+      min-height:100vh;
+      padding:6px 6px 10px;
       display:flex;
       flex-direction:column;
-      gap:8px;
-      position:relative;
-      z-index:1;
+      gap:4px;
     }
 
-    /* Generic layout helpers */
-    .row{display:flex;align-items:center}
-    .between{justify-content:space-between}
-    .col{display:flex;flex-direction:column}
-
-    /* Cards / floating panels */
-    .card{
-      background:radial-gradient(circle at top left,#020617 0,var(--card) 55%,#000 100%);
-      border-radius:14px;
-      border:1px solid var(--border);
-      padding:10px 12px;
-      box-shadow:var(--shadow);
-      position:relative;
-      overflow:hidden;
+    /* --- TERMINAL TEXT DECOR --- */
+    .banner{
+      margin:0 0 2px;
+      white-space:pre;
+      color:var(--ink);
     }
-    .card::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      background:
-        linear-gradient(120deg,rgba(34,197,94,.12),transparent 35%,transparent 65%,rgba(16,185,129,.18));
-      opacity:.3;
-      pointer-events:none;
-      mix-blend-mode:screen;
+    .banner .dim{color:var(--ink-dim);}
+    .banner .soft{color:var(--ink-soft);}
+    .hr{
+      width:100%;
+      height:1px;
+      background:linear-gradient(to right,var(--ink-soft),rgba(0,0,0,0));
+      margin:2px 0;
     }
-    .card-inner{position:relative;z-index:1}
 
-    .card-head{
+    .hud{
       display:flex;
-      align-items:center;
-      justify-content:space-between;
-      margin-bottom:6px;
-      gap:8px;
+      flex-direction:column;
+      gap:2px;
+      flex:1 1 auto;
     }
-    .card-title{
-      font-size:11px;
-      font-weight:600;
+    .hud-row{
+      display:flex;
+      justify-content:space-between;
+      gap:4px;
+      align-items:flex-start;
+    }
+    .hud-row.centered{
+      align-items:center;
+    }
+    .hud-cell{
+      flex:1 1 0;
+      min-width:0;
+    }
+    .hud-cell.center{
+      text-align:center;
+    }
+
+    .label{
+      color:var(--ink-soft);
       text-transform:uppercase;
       letter-spacing:.14em;
-      color:var(--muted);
-    }
-
-    /* Header */
-    header{
-      padding:4px 8px 6px;
-      border-radius:14px;
-      border:1px solid rgba(34,197,94,.6);
-      background:radial-gradient(circle at top,#022c22 0,#020617 70%,#000 100%);
-      box-shadow:0 14px 40px rgba(0,0,0,.9);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
-    .title-main{
-      font-family:var(--mono);
-      font-size:16px;
-      font-weight:600;
-      letter-spacing:.2em;
-      text-transform:uppercase;
-      color:#4ade80;
-    }
-    .title-sub{
       font-size:10px;
-      color:#16a34a;
-      font-family:var(--mono);
     }
-    .badge{
-      font-size:10px;
-      border-radius:999px;
-      border:1px solid rgba(22,163,74,.9);
-      padding:2px 10px;
-      color:#bbf7d0;
-      background:rgba(6,95,70,.75);
-      white-space:nowrap;
-      font-family:var(--mono);
-    }
-
-    /* Pills, labels */
-    .pill{
-      font-size:10px;
-      border-radius:999px;
-      border:1px solid var(--border);
-      padding:2px 8px;
-      color:var(--muted);
-      max-width:55%;
-      text-align:right;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      font-family:var(--mono);
-    }
-    .label{
-      font-size:10px;
-      text-transform:uppercase;
-      letter-spacing:.1em;
-      color:#16a34a;
-      font-family:var(--mono);
-    }
-    .status-text{
-      font-size:11px;
-      margin:0;
+    .val{
       color:var(--ink);
-      min-height:18px;
-      font-family:var(--mono);
+    }
+    .val-small{
+      font-size:10px;
+      color:var(--ink-dim);
+    }
+    .mono-small{
+      font-size:10px;
     }
 
-    /* Terminal buttons */
-    .controls-card .card-inner{display:flex;flex-direction:column;gap:6px}
-    .controls-row{
-      display:flex;
-      gap:6px;
-      flex-wrap:wrap;
-    }
-    .tbtn{
-      border-radius:999px;
-      border:1px solid rgba(34,197,94,.85);
-      padding:8px 10px;
+    .status-line{
+      margin-top:2px;
+      min-height:14px;
+      color:var(--ink-dim);
       font-size:11px;
-      font-family:var(--mono);
-      background:rgba(0,0,0,.9);
-      color:#bbf7d0;
-      cursor:pointer;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      box-shadow:0 10px 26px rgba(0,0,0,.9);
-    }
-    .tbtn span.cmd{
-      color:#22c55e;
-    }
-    .tbtn span.lbl{
-      color:#bbf7d0;
-    }
-    .tbtn:active{
-      transform:translateY(1px) scale(.99);
-      box-shadow:0 6px 16px rgba(0,0,0,.9);
-    }
-    .tbtn.disabled,
-    .tbtn:disabled{
-      opacity:.55;
-      cursor:default;
-      box-shadow:none;
     }
 
-    /* Mini buttons (saved list) */
-    .btn-mini{
-      border-radius:999px;
-      border:1px solid rgba(34,197,94,.5);
-      background:rgba(0,0,0,.9);
-      color:#bbf7d0;
-      font-size:9px;
-      font-family:var(--mono);
-      padding:3px 6px;
-      cursor:pointer;
+    /* --- HUD LAYOUT --- */
+
+    /* Top row: GPS / combo / ORI */
+    .hud-top-block{
+      white-space:nowrap;
+    }
+    .pill-inline{
+      display:inline-block;
+      padding:0 2px;
+      margin-left:2px;
+      color:var(--ink);
     }
 
-    /* Compass layout */
-    .compass-card .card-inner{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
+    /* Mid row: side telemetry + central compass */
+    #headingCompass{
+      display:block;
+      margin:0 auto;
     }
-    .compass-shell{
+    .hud-mid-side{
+      flex:0 0 120px;
+      font-size:11px;
+      line-height:1.25;
+    }
+    .hud-mid-center{
+      flex:1 1 auto;
       display:flex;
-      gap:10px;
       justify-content:center;
       align-items:center;
     }
-    .compass-block{
-      flex:1 1 0;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:2px;
-    }
-    .compass-block-heading{
-      max-width:260px;
-    }
-    .compass-block-pitch{
-      max-width:80px;
-    }
-    .compass-label{
-      font-size:10px;
-      color:#16a34a;
-      font-family:var(--mono);
-      text-transform:uppercase;
-      letter-spacing:.15em;
-    }
-    canvas{
+
+    /* Row under compass: pitch HUD */
+    #pitchCompass{
       display:block;
+      margin:0 auto;
     }
-    .hint-line{
-      font-size:10px;
-      color:var(--muted);
-      font-family:var(--mono);
-    }
-
-    .accent-box{
-      margin-top:4px;
-      padding:5px 7px;
-      border-radius:10px;
-      border:1px solid rgba(34,197,94,.6);
-      background:radial-gradient(circle at top left,var(--accent-soft),transparent);
-      font-size:10px;
-      color:var(--muted);
-      font-family:var(--mono);
+    .hud-mid2{
+      margin-top:2px;
     }
 
-    /* Telemetry layout */
-    .telemetry-grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:8px;
-    }
-    .row-data{
-      display:flex;
-      justify-content:space-between;
-      align-items:baseline;
-      gap:6px;
-      margin-bottom:3px;
-    }
-    .val{
-      font-family:var(--mono);
+    /* Bottom HUD row */
+    .hud-bottom{
+      margin-top:2px;
       font-size:11px;
-      text-align:right;
     }
-    .val-lg{font-size:12px}
 
-    .mini-pill{
-      font-size:9px;
-      padding:3px 7px;
-      border-radius:999px;
-      border:1px solid rgba(34,197,94,.45);
-      background:rgba(0,0,0,.85);
-      color:var(--muted);
-      font-family:var(--mono);
-    }
-    .mini-pill.ok{
-      border-color:rgba(34,197,94,.8);
-      background:rgba(5,46,22,.9);
-      color:#bbf7d0;
-    }
-    .mini-pill.bad{
-      border-color:rgba(248,113,113,.8);
-      background:rgba(127,29,29,.9);
-      color:#fecaca;
-    }
-    .mini-pill.warn{
-      border-color:rgba(250,204,21,.8);
-      background:rgba(113,63,18,.9);
-      color:#facc15;
-    }
-    .mini-row{
+    /* Controls row */
+    .controls-row{
       display:flex;
       flex-wrap:wrap;
       gap:4px;
       margin-top:4px;
     }
-    .error-box{
-      margin-top:4px;
-      padding:4px 6px;
-      border-radius:9px;
-      border:1px solid rgba(239,68,68,.7);
-      background:rgba(127,29,29,.85);
-      font-size:10px;
-      color:#fee2e2;
+    .tbtn{
+      border:none;
+      background:transparent;
+      padding:2px 4px;
+      color:var(--ink);
       font-family:var(--mono);
+      font-size:11px;
+      cursor:pointer;
+    }
+    .tbtn span.cmd{
+      color:var(--ink-soft);
+    }
+    .tbtn span.lbl{
+      color:var(--ink);
+    }
+    .tbtn.disabled,
+    .tbtn:disabled{
+      color:var(--ink-dim);
+      cursor:default;
     }
 
-    .target-status-text{
-      font-size:10px;
-      color:var(--muted);
-      font-family:var(--mono);
-      margin-top:4px;
-      min-height:12px;
-    }
-
+    /* Saved targets & save/edit panel (text-only style) */
+    .save-panel,
     .saved-box{
-      margin-top:6px;
-      padding:5px 7px 6px;
-      border-radius:10px;
-      border:1px dashed rgba(34,197,94,.6);
-      background:rgba(0,0,0,.8);
-      font-size:10px;
-      font-family:var(--mono);
-      color:var(--muted);
+      margin-top:4px;
+      font-size:11px;
     }
-
     .saved-target-row{
       display:flex;
       justify-content:space-between;
-      align-items:flex-start;
-      gap:6px;
-      padding:3px 0;
-      border-bottom:1px dashed rgba(34,197,94,.25);
+      gap:4px;
     }
-    .saved-target-row:last-child{border-bottom:none}
     .saved-name{
-      font-size:10px;
-      color:#bbf7d0;
+      color:var(--ink);
     }
     .saved-meta{
-      font-size:9px;
-      color:var(--muted);
+      color:var(--ink-dim);
+      font-size:10px;
     }
-
-    .decl-input,
-    .input-small{
-      width:80px;
-      padding:2px 4px;
-      border-radius:6px;
-      border:1px solid var(--border);
-      background:#020617;
+    .btn-mini{
+      border:none;
+      background:transparent;
+      padding:0 2px;
+      font-size:10px;
+      color:var(--ink-soft);
+      cursor:pointer;
+    }
+    .input-small,
+    .decl-input{
+      background:#000;
+      border:1px solid var(--ink-soft);
       color:var(--ink);
-      font-size:11px;
       font-family:var(--mono);
+      font-size:11px;
+      padding:1px 2px;
+      width:82px;
       text-align:right;
     }
-    .decl-unit{
-      font-size:9px;
-      color:var(--muted);
-      white-space:nowrap;
-      font-family:var(--mono);
+    .error-line{
+      color:var(--err);
+      font-size:10px;
     }
-
-    .save-panel{
-      margin-top:6px;
-      padding:5px 7px 6px;
-      border-radius:10px;
-      border:1px solid rgba(34,197,94,.7);
-      background:rgba(0,0,0,.9);
-      font-family:var(--mono);
+    .mini-pill{
+      font-size:10px;
+      color:var(--ink-dim);
     }
+    .mini-pill.ok{color:var(--ink);}
+    .mini-pill.bad{color:var(--err);}
+    .mini-pill.warn{color:var(--warn);}
 
-    /* Overlay / map */
+    /* Map overlay (still simple, but terminal-like) */
     .overlay-backdrop{
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,.9);
+      background:rgba(0,0,0,.95);
       display:none;
       align-items:center;
       justify-content:center;
       z-index:50;
-      backdrop-filter:blur(4px);
     }
     .overlay-panel{
       width:100%;
       max-width:520px;
       max-height:90vh;
-      background:#020617;
-      border-radius:14px;
-      border:1px solid rgba(34,197,94,.7);
-      box-shadow:0 24px 60px rgba(0,0,0,.95);
       display:flex;
       flex-direction:column;
-      overflow:hidden;
-      font-family:var(--mono);
-      color:#bbf7d0;
-    }
-    .overlay-head,
-    .overlay-foot{
-      padding:8px 10px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      border-color:rgba(34,197,94,.5);
-    }
-    .overlay-head{border-bottom:1px solid rgba(34,197,94,.5)}
-    .overlay-foot{border-top:1px solid rgba(34,197,94,.5)}
-    .overlay-title{
-      font-size:11px;
-      text-transform:uppercase;
-      letter-spacing:.16em;
-      color:#4ade80;
-    }
-    .overlay-body{
-      padding:6px 10px 8px;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      font-size:10px;
-      color:#a7f3d0;
+      padding:4px 6px 6px;
+      border:1px solid var(--ink-soft);
     }
     #mapDiv{
       flex:1 1 auto;
       min-height:260px;
-      border-radius:9px;
-      overflow:hidden;
+      border:1px solid var(--ink-soft);
+      margin:2px 0;
     }
     .overlay-row{
       display:flex;
       justify-content:space-between;
-      font-size:10px;
+      font-size:11px;
     }
-    .overlay-label{opacity:.7}
     .overlay-status{
-      font-size:10px;
-      margin-top:2px;
-      color:#4ade80;
+      font-size:11px;
+      color:var(--ink-dim);
+    }
+
+    /* Small screens: make sure everything fits nicely */
+    @media (max-width:400px){
+      #headingCompass{width:210px;height:210px;}
+      #pitchCompass{height:180px;}
+      .hud-mid-side{flex:0 0 108px;}
     }
   </style>
 </head>
 <body>
   <div id="app">
-    <!-- HEADER -->
-    <header class="row between">
-      <div class="col">
-        <div class="title-main">AP-TOOL</div>
-        <div class="title-sub">geo · orientation · target · aim</div>
-      </div>
-      <div class="badge">MATRIX CONSOLE</div>
-    </header>
 
-    <!-- MAIN COMPASS CONSOLE (PRIMARY FOCUS) -->
-    <section class="card compass-card">
-      <div class="card-inner">
-        <div class="card-head">
-          <div class="card-title">Aiming Console</div>
-          <div class="pill" id="aimStatusPill">NO TARGET</div>
+    <!-- ASCII-ish banner -->
+    <pre class="banner">
+&gt; AP-TOOL  ::  AZIMUTH MULTI-HUD
+  [MODE: <span class="dim">TERMINAL</span>]  [THEME: <span class="soft">GREEN/BLACK</span>]
+    </pre>
+    <div class="hr"></div>
+
+    <div class="hud">
+
+      <!-- TOP HUD ROW: GPS / COMBO / ORI -->
+      <div class="hud-row">
+        <div class="hud-cell hud-top-block">
+          <span class="label">GPS</span>
+          <span class="pill-inline" id="gpsStatusPill">gps: idle</span><br>
+          LAT:&nbsp;<span class="val" id="gpsLat">—</span><br>
+          LON:&nbsp;<span class="val" id="gpsLon">—</span><br>
+          ALT:&nbsp;<span class="val" id="gpsAlt">—</span>
         </div>
-
-        <div class="compass-shell">
-          <!-- Heading compass -->
-          <div class="compass-block compass-block-heading">
-            <div class="compass-label">&lt;HDG&gt; ASCII ROSE</div>
-            <canvas id="headingCompass" width="240" height="240"></canvas>
-          </div>
-
-          <!-- Pitch gauge (vertical bar) -->
-          <div class="compass-block compass-block-pitch">
-            <div class="compass-label">&lt;PCH&gt; VERTICAL BAR</div>
-            <canvas id="pitchCompass" width="80" height="240"></canvas>
-          </div>
+        <div class="hud-cell center hud-top-block">
+          <span class="label">SYSTEM</span><br>
+          &gt; STATUS:&nbsp;<span class="val" id="comboStatus">gps: idle · ori: idle</span><br>
+          &gt; AIM:&nbsp;&nbsp;&nbsp;&nbsp;<span class="val" id="aimStatusPill">NO TARGET</span>
         </div>
-
-        <div class="accent-box">
-          <span class="label">Hint</span><br />
-          <span class="hint-line">
-            Rotate until &lt;HDG&gt; arrow and &lt;PCH&gt; bar line up with the target marks.
-            When both glow bright, you are on target (±3°).
-          </span>
+        <div class="hud-cell hud-top-block">
+          <span class="label">ORI</span>
+          <span class="pill-inline" id="oriStatusPill">ori: idle</span><br>
+          HDG:&nbsp;<span class="val" id="headingVal">—</span><br>
+          PCH:&nbsp;<span class="val" id="pitchVal">—</span><br>
+          DEC:&nbsp;
+          <input id="declInput" class="decl-input" type="number" step="0.1" value="0">
+          &nbsp;<span class="val-small">(°E+, °W-)</span><br>
+          <span id="oriSupportPill" class="mini-pill mono-small">Checking support…</span>
         </div>
       </div>
-    </section>
 
-    <!-- TELEMETRY (SECONDARY FOCUS: TEXT DATA) -->
-    <section class="card">
-      <div class="card-inner">
-        <div class="card-head">
-          <div class="card-title">Sensor Telemetry</div>
-          <div class="pill" id="comboStatus">gps: idle · ori: idle</div>
+      <!-- MID ROW: LEFT STATE / CENTRAL COMPASS / RIGHT TARGET -->
+      <div class="hud-row centered" style="margin-top:2px;">
+        <!-- LEFT SIDE TEXT (self state / heading info) -->
+        <div class="hud-mid-side">
+          <span class="label">SELF</span><br>
+          HDG(TRUE): <span class="val" id="headingVal_dup">[mirrored from HDG]</span><br>
+          PCH(DEG):  <span class="val" id="pitchVal_dup">[mirrored from PCH]</span><br>
+          HORIZ DIST:<br>
+          &nbsp;&nbsp;<span class="val" id="aimHorizDist">—</span><br>
+          VERT DELTA:<br>
+          &nbsp;&nbsp;<span class="val" id="aimVertDelta">—</span>
         </div>
-        <p class="status-text" id="statusText">
-          Ready. Tap &lt;START SENSORS&gt; once and accept the browser prompts on your phone.
-        </p>
 
-        <div class="telemetry-grid">
-          <!-- GPS -->
-          <article>
-            <div class="row between" style="margin-bottom:4px;">
-              <span class="label">GPS</span>
-              <span class="pill" id="gpsStatusPill">gps: idle</span>
-            </div>
-            <div class="row-data">
-              <div class="label">Latitude</div>
-              <div class="val val-lg" id="gpsLat">—</div>
-            </div>
-            <div class="row-data">
-              <div class="label">Longitude</div>
-              <div class="val val-lg" id="gpsLon">—</div>
-            </div>
-            <div class="row-data">
-              <div class="label">Elevation</div>
-              <div class="val val-lg" id="gpsAlt">—</div>
-            </div>
-            <div id="gpsErrorBox" class="error-box" style="display:none">
-              <strong>GPS error:</strong> <span id="gpsError">—</span>
-            </div>
-          </article>
+        <!-- CENTER COMPASS -->
+        <div class="hud-mid-center">
+          <canvas id="headingCompass" width="240" height="240"></canvas>
+        </div>
 
-          <!-- Orientation + Declination -->
-          <article>
-            <div class="row between" style="margin-bottom:4px;">
-              <span class="label">Orientation</span>
-              <span class="pill" id="oriStatusPill">ori: idle</span>
-            </div>
-            <div class="row-data">
-              <div class="label">Heading (true)</div>
-              <div class="val val-lg" id="headingVal">—</div>
-            </div>
-            <div class="row-data">
-              <div class="label">Pitch</div>
-              <div class="val val-lg" id="pitchVal">—</div>
-            </div>
-            <div class="row-data" style="margin-top:4px">
-              <div class="label">Declination</div>
-              <div class="val">
-                <input id="declInput" class="decl-input" type="number" step="0.1" value="0" />
-                <span class="decl-unit">° (E=+, W=-)</span>
-              </div>
-            </div>
-
-            <div id="oriErrorBox" class="error-box" style="display:none">
-              <strong>Orientation error:</strong> <span id="oriError">—</span>
-            </div>
-            <div class="mini-row">
-              <span class="mini-pill" id="oriSupportPill">Checking support…</span>
-            </div>
-          </article>
+        <!-- RIGHT SIDE TEXT (target info) -->
+        <div class="hud-mid-side">
+          <span class="label">TARGET</span><br>
+          LAT: <span class="val" id="targetLat">—</span><br>
+          LON: <span class="val" id="targetLon">—</span><br>
+          ALT: <span class="val" id="targetElev">—</span><br>
+          REQ HDG:&nbsp;<span class="val" id="aimReqHeading">—</span><br>
+          REQ PCH:&nbsp;<span class="val" id="aimReqPitch">—</span><br>
+          STATE:&nbsp;&nbsp;<span class="val-small" id="targetStatusPill">No target</span>
         </div>
       </div>
-    </section>
 
-    <!-- TARGET + NUMERIC AIM DATA -->
-    <section class="card">
-      <div class="card-inner">
-        <div class="card-head">
-          <div class="card-title">Target &amp; Numeric Aim Data</div>
-          <div class="pill" id="targetStatusPill">No target</div>
+      <!-- UNDER-COMPASS ROW: PITCH HUD + ERRORS -->
+      <div class="hud-row hud-mid2 centered">
+        <div class="hud-cell">
+          <span class="label">HEADING ERROR</span><br>
+          &Delta;HDG:&nbsp;<span class="val" id="aimHeadingErr">—</span>
         </div>
+        <div class="hud-cell center">
+          <canvas id="pitchCompass" width="80" height="220"></canvas>
+        </div>
+        <div class="hud-cell" style="text-align:right;">
+          <span class="label">PITCH ERROR</span><br>
+          &Delta;PCH:&nbsp;<span class="val" id="aimPitchErr">—</span>
+        </div>
+      </div>
 
-        <div class="row-data" style="margin-top:2px">
-          <div class="label">Target lat</div>
-          <div class="val val-lg" id="targetLat">—</div>
+      <!-- BOTTOM ROW: ERRORS + TEXT STATUS -->
+      <div class="hud-bottom">
+        <div id="gpsErrorBox" class="error-line" style="display:none">
+          gps-error: <span id="gpsError">—</span>
         </div>
-        <div class="row-data">
-          <div class="label">Target lon</div>
-          <div class="val val-lg" id="targetLon">—</div>
+        <div id="oriErrorBox" class="error-line" style="display:none">
+          ori-error: <span id="oriError">—</span>
         </div>
-        <div class="row-data">
-          <div class="label">Target elev</div>
-          <div class="val val-lg" id="targetElev">—</div>
-        </div>
-
-        <div class="target-status-text" id="targetStatusText">
+        <div id="targetStatusText" class="mono-small" style="color:var(--ink-dim);">
           No target selected. Use &lt;SELECT TARGET&gt; or load a saved point.
         </div>
-
-        <div style="margin-top:6px">
-          <div class="row-data">
-            <div class="label">Req heading</div>
-            <div class="val val-lg" id="aimReqHeading">—</div>
-          </div>
-          <div class="row-data">
-            <div class="label">Req pitch</div>
-            <div class="val val-lg" id="aimReqPitch">—</div>
-          </div>
-          <div class="row-data">
-            <div class="label">Head error</div>
-            <div class="val val-lg" id="aimHeadingErr">—</div>
-          </div>
-          <div class="row-data">
-            <div class="label">Pitch error</div>
-            <div class="val val-lg" id="aimPitchErr">—</div>
-          </div>
-          <div class="row-data">
-            <div class="label">Horiz dist</div>
-            <div class="val val-lg" id="aimHorizDist">—</div>
-          </div>
-          <div class="row-data">
-            <div class="label">Vert delta</div>
-            <div class="val val-lg" id="aimVertDelta">—</div>
-          </div>
-        </div>
-
-        <!-- Save / edit current target -->
-        <div id="saveTargetPanel" class="save-panel" style="display:none">
-          <div class="label" style="margin-bottom:4px">Save / edit target</div>
-          <div class="row-data">
-            <div class="label">Name</div>
-            <input id="saveTargetName" class="input-small" type="text" />
-          </div>
-          <div class="row-data">
-            <div class="label">Lat</div>
-            <input id="saveTargetLat" class="input-small" type="number" step="0.000001" />
-          </div>
-          <div class="row-data">
-            <div class="label">Lon</div>
-            <input id="saveTargetLon" class="input-small" type="number" step="0.000001" />
-          </div>
-          <div class="row-data">
-            <div class="label">Elev (m)</div>
-            <input id="saveTargetElev" class="input-small" type="number" step="0.1" />
-          </div>
-          <div class="controls-row" style="margin-top:4px">
-            <button id="saveTargetConfirmBtn" class="tbtn">
-              <span class="cmd">&gt;&gt;</span><span class="lbl">SAVE</span>
-            </button>
-            <button id="saveTargetCancelBtn" class="tbtn">
-              <span class="cmd">X</span><span class="lbl">CANCEL</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Saved targets list -->
-        <div id="savedTargetsBox" class="saved-box" style="display:none">
-          <div class="label" style="margin-bottom:4px">Saved targets</div>
-          <div id="savedTargetsList"></div>
+        <div class="status-line" id="statusText">
+          Ready. Tap &lt;START SENSORS&gt; once and accept the browser prompts on your phone.
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- CONTROLS (ALL MAIN BUTTONS IN ONE PLACE) -->
-    <section class="card controls-card">
-      <div class="card-inner">
-        <div class="card-head">
-          <div class="card-title">Control Bus</div>
-          <div class="pill">tap a command below</div>
-        </div>
+    <!-- CONTROL "COMMANDS" -->
+    <div class="hr"></div>
+    <div class="controls-row">
+      <button id="startBtn" class="tbtn">
+        <span class="cmd">&gt;&gt;</span><span class="lbl"> START SENSORS</span>
+      </button>
+      <button id="selectTargetBtn" class="tbtn">
+        <span class="cmd">@</span><span class="lbl"> SELECT TARGET (MAP)</span>
+      </button>
+      <button id="openSaveTargetBtn" class="tbtn">
+        <span class="cmd">+</span><span class="lbl"> SAVE / NEW TARGET</span>
+      </button>
+      <button id="calibrateHeadingBtn" class="tbtn">
+        <span class="cmd">*</span><span class="lbl"> CALIBRATE TO TARGET</span>
+      </button>
+    </div>
 
-        <div class="controls-row">
-          <button id="startBtn" class="tbtn">
-            <span class="cmd">&gt;&gt;</span><span class="lbl">START SENSORS</span>
-          </button>
-          <button id="selectTargetBtn" class="tbtn">
-            <span class="cmd">@</span><span class="lbl">SELECT TARGET (MAP)</span>
-          </button>
-        </div>
+    <!-- SAVE / EDIT PANEL (inline, text-style) -->
+    <div id="saveTargetPanel" class="save-panel" style="display:none">
+      <span class="label">SAVE / EDIT TARGET</span><br>
+      NAME: <input id="saveTargetName" class="input-small" type="text"><br>
+      LAT:&nbsp;&nbsp;<input id="saveTargetLat" class="input-small" type="number" step="0.000001"><br>
+      LON:&nbsp;&nbsp;<input id="saveTargetLon" class="input-small" type="number" step="0.000001"><br>
+      ALT:&nbsp;&nbsp;<input id="saveTargetElev" class="input-small" type="number" step="0.1"><span class="val-small"> m</span><br>
+      <button id="saveTargetConfirmBtn" class="tbtn">
+        <span class="cmd">&gt;&gt;</span><span class="lbl"> SAVE</span>
+      </button>
+      <button id="saveTargetCancelBtn" class="tbtn">
+        <span class="cmd">X</span><span class="lbl"> CANCEL</span>
+      </button>
+    </div>
 
-        <div class="controls-row">
-          <button id="openSaveTargetBtn" class="tbtn">
-            <span class="cmd">+</span><span class="lbl">SAVE / NEW TARGET</span>
-          </button>
-          <button id="calibrateHeadingBtn" class="tbtn">
-            <span class="cmd">*</span><span class="lbl">CALIBRATE TO TARGET</span>
-          </button>
-        </div>
-      </div>
-    </section>
+    <!-- SAVED TARGETS LIST -->
+    <div id="savedTargetsBox" class="saved-box" style="display:none">
+      <span class="label">SAVED TARGETS</span><br>
+      <div id="savedTargetsList"></div>
+    </div>
+
   </div>
 
-  <!-- MAP OVERLAY -->
+  <!-- MAP OVERLAY (terminal style) -->
   <div id="mapOverlay" class="overlay-backdrop">
     <div class="overlay-panel">
-      <div class="overlay-head">
-        <div class="overlay-title">SELECT TARGET POINT</div>
+      <div>
+        <span class="label">TARGET MAP</span>  [tap to select]  [ESC: close]
+      </div>
+      <div id="mapDiv"></div>
+      <div class="overlay-row">
+        <span>LAT:</span><span id="overlayLat">—</span>
+      </div>
+      <div class="overlay-row">
+        <span>LON:</span><span id="overlayLon">—</span>
+      </div>
+      <div class="overlay-row">
+        <span>ALT:</span><span id="overlayElev">—</span>
+      </div>
+      <div class="overlay-row" style="margin-top:2px;">
         <button id="cancelTargetBtn" class="btn-mini">X CLOSE</button>
-      </div>
-      <div class="overlay-body">
-        <div>Tap anywhere on the map to place a pin. Elevation is fetched automatically.</div>
-        <div id="mapDiv"></div>
-        <div class="overlay-row">
-          <span class="overlay-label">Lat</span><span id="overlayLat">—</span>
-        </div>
-        <div class="overlay-row">
-          <span class="overlay-label">Lon</span><span id="overlayLon">—</span>
-        </div>
-        <div class="overlay-row">
-          <span class="overlay-label">Elev</span><span id="overlayElev">—</span>
-        </div>
-        <div class="overlay-status" id="overlayStatus">Tap on the map to place the pin.</div>
-      </div>
-      <div class="overlay-foot">
-        <span></span>
         <button id="confirmTargetBtn" class="btn-mini">&gt;&gt; USE THIS POINT</button>
+      </div>
+      <div class="overlay-status" id="overlayStatus">
+        Tap anywhere on the map to place a pin. Elevation will be fetched.
       </div>
     </div>
   </div>
 
-  <!-- Core modules -->
+  <!-- MODULES -->
   <script src="sensors.js"></script>
   <script src="map.js"></script>
   <script src="aim-math.js"></script>
   <script src="declination.js"></script>
   <script src="compass.js"></script>
   <script src="ui.js"></script>
+
+  <script>
+    // small mirror so left side "SELF" block reflects the same HDG/PCH text
+    function mirrorHUDFields(){
+      var h = document.getElementById('headingVal');
+      var p = document.getElementById('pitchVal');
+      var h2 = document.getElementById('headingVal_dup');
+      var p2 = document.getElementById('pitchVal_dup');
+      if(h && h2) h2.textContent = h.textContent;
+      if(p && p2) p2.textContent = p.textContent;
+    }
+    const mo = new MutationObserver(mirrorHUDFields);
+    mo.observe(document.getElementById('headingVal'), {childList:true});
+    mo.observe(document.getElementById('pitchVal'), {childList:true});
+    mirrorHUDFields();
+  </script>
 </body>
 </html>
