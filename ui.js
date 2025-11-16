@@ -25,12 +25,6 @@
     return n < 0 ? n + 360 : n;
   }
 
-  function deltaDeg(a) {
-    if (!isFinite(a)) return null;
-    let d = (a + 540) % 360 - 180;
-    return d;
-  }
-
   function toTrue(mag) {
     if (!isFinite(mag) || !w.Declination || !w.Declination.magneticToTrue) return mag;
     const t = w.Declination.magneticToTrue(mag);
@@ -326,15 +320,19 @@
       he = $('aimHeadingErr'), pe = $('aimPitchErr'),
       hd = $('aimHorizDist'), vd = $('aimVertDelta');
 
-    if (!sol || !sol.valid || sol.requiredHeadingDeg == null) {
+    if (!sol || !sol.valid) {
       stat.textContent = 'NO TARGET';
       rh.textContent = rp.textContent = he.textContent =
         pe.textContent = hd.textContent = vd.textContent = '—';
       return;
     }
 
+    const reqHeading = sol.requiredHeadingDeg != null
+      ? sol.requiredHeadingDeg
+      : (sol.bearingDeg != null ? sol.bearingDeg : null);
+
     stat.textContent = 'READY';
-    rh.textContent = fmt.angH(sol.requiredHeadingDeg);
+    rh.textContent = fmt.angH(reqHeading);
     rp.textContent = isFinite(sol.requiredPitchDeg) ? fmt.ang(sol.requiredPitchDeg) : '—';
     he.textContent = isFinite(sol.headingErrorDeg) ? fmt.ang(sol.headingErrorDeg) : '—';
     pe.textContent = isFinite(sol.pitchErrorDeg) ? fmt.ang(sol.pitchErrorDeg) : '—';
@@ -349,24 +347,30 @@
     if (!S) return;
 
     const s = S.getState ? S.getState() : null;
+
+    let currHeadingTrue = null;
+    let currPitch = null;
+
+    if (s && isFinite(s.headingDeg)) {
+      const magH = s.headingDeg;
+      currHeadingTrue = normHeading(toTrue(magH));
+    }
+    if (s && isFinite(s.pitchDeg)) {
+      currPitch = s.pitchDeg;
+    }
+
     const base = {
-      currentHeadingDeg: null,
-      currentPitchDeg: s && isFinite(s.pitchDeg) ? s.pitchDeg : null,
+      currentHeadingDeg: currHeadingTrue,
+      currentPitchDeg: currPitch,
       toleranceDeg: 3
     };
 
-    if (!s) {
-      updateAimUI(null);
-      C && C.update(base);
-      return;
-    }
+    const haveGeo = s &&
+      isFinite(s.gpsLat) && isFinite(s.gpsLon) &&
+      isFinite(target.lat) && isFinite(target.lon) &&
+      A;
 
-    const magH = isFinite(s.headingDeg) ? s.headingDeg : null;
-    base.currentHeadingDeg = magH == null ? null : normHeading(toTrue(magH));
-
-    const haveGeo = isFinite(s.gpsLat) && isFinite(s.gpsLon) &&
-                    isFinite(target.lat) && isFinite(target.lon);
-    if (!haveGeo || !A) {
+    if (!haveGeo) {
       updateAimUI(null);
       C && C.update(base);
       return;
@@ -376,8 +380,8 @@
       lat: s.gpsLat,
       lon: s.gpsLon,
       alt: isFinite(s.gpsAlt) ? s.gpsAlt : null,
-      headingDeg: base.currentHeadingDeg,  // true
-      pitchDeg: base.currentPitchDeg
+      headingDeg: currHeadingTrue,
+      pitchDeg: currPitch
     };
     const tgt = {
       lat: target.lat,
@@ -385,47 +389,26 @@
       alt: isFinite(target.elevation) ? target.elevation : null
     };
 
-    const raw = A.solution(phone, tgt);
-    if (!raw || !raw.valid) {
+    const sol = A.solution(phone, tgt);
+    if (!sol || !sol.valid) {
       updateAimUI(null);
       C && C.update(base);
       return;
     }
 
-    // Use bearingDeg if available; fall back to requiredHeadingDeg
-    const rawBearing = isFinite(raw.bearingDeg) ? raw.bearingDeg : raw.requiredHeadingDeg;
-    const reqHeading = normHeading(rawBearing);
-    const reqPitch = isFinite(raw.requiredPitchDeg) ? raw.requiredPitchDeg : null;
-
-    const currH = base.currentHeadingDeg;
-    const currP = base.currentPitchDeg;
-
-    const headingErr = (currH != null && reqHeading != null)
-      ? deltaDeg(reqHeading - currH)
-      : null;
-    const pitchErr = (currP != null && reqPitch != null)
-      ? (reqPitch - currP)
-      : null;
-
-    const sol = {
-      valid: true,
-      requiredHeadingDeg: reqHeading,
-      requiredPitchDeg: reqPitch,
-      headingErrorDeg: headingErr,
-      pitchErrorDeg: pitchErr,
-      horizontalDistanceM: raw.horizontalDistanceM,
-      verticalDeltaM: raw.verticalDeltaM
-    };
-
     updateAimUI(sol);
 
+    const targetHeadingRaw = sol.requiredHeadingDeg != null
+      ? sol.requiredHeadingDeg
+      : (sol.bearingDeg != null ? sol.bearingDeg : null);
+
     C && C.update({
-      currentHeadingDeg: currH,
-      currentPitchDeg: currP,
-      targetHeadingDeg: reqHeading,
-      headingErrorDeg: headingErr,
-      targetPitchDeg: reqPitch,
-      pitchErrorDeg: pitchErr,
+      currentHeadingDeg: currHeadingTrue,
+      currentPitchDeg: currPitch,
+      targetHeadingDeg: normHeading(targetHeadingRaw),
+      headingErrorDeg: sol.headingErrorDeg,
+      targetPitchDeg: sol.requiredPitchDeg,
+      pitchErrorDeg: sol.pitchErrorDeg,
       toleranceDeg: base.toleranceDeg
     });
   }
@@ -439,16 +422,20 @@
     if (!s || !isFinite(s.headingDeg) || !isFinite(s.gpsLat) || !isFinite(s.gpsLon) ||
         !isFinite(target.lat) || !isFinite(target.lon)) return;
 
-    const solRaw = A.solution(
+    const sol = A.solution(
       { lat: s.gpsLat, lon: s.gpsLon, alt: isFinite(s.gpsAlt) ? s.gpsAlt : null, headingDeg: 0, pitchDeg: 0 },
       { lat: target.lat, lon: target.lon, alt: isFinite(target.elevation) ? target.elevation : null }
     );
-    if (!solRaw || !solRaw.valid) return;
+    if (!sol || !sol.valid) return;
 
-    const baseReqHeading = isFinite(solRaw.bearingDeg) ? solRaw.bearingDeg : solRaw.requiredHeadingDeg;
-    if (!isFinite(baseReqHeading)) return;
+    const reqHeading = sol.requiredHeadingDeg != null
+      ? sol.requiredHeadingDeg
+      : (sol.bearingDeg != null ? sol.bearingDeg : null);
 
-    D.calibrate(s.headingDeg, baseReqHeading);
+    if (!isFinite(reqHeading)) return;
+
+    // Map the current raw heading to the required heading.
+    D.calibrate(s.headingDeg, reqHeading);
 
     const pill = $('oriSupportPill');
     pill.textContent = 'Calibrated to target';
