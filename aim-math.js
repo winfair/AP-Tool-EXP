@@ -1,24 +1,9 @@
 // aim-math.js
-// Geometry + pointing math for AP-Tool.
-// Pure functions, no DOM. Uses simple spherical model for Earth.
-//
-// Exposes global `AimMath` with:
-//
-//   AimMath.bearingDeg(lat1, lon1, lat2, lon2)
-//   AimMath.groundDistanceMeters(lat1, lon1, lat2, lon2)
-//   AimMath.slopeDeg(lat1, lon1, alt1, lat2, lon2, alt2)
-//   AimMath.solution(phone, target)
-//
-// Where:
-//   phone  = { lat, lon, alt, headingDeg, pitchDeg }
-//   target = { lat, lon, alt }
-//
-// All angles are degrees, distances in meters.
+// Geometry between phone and target.
+// EXPECTS phone.headingDeg to be TRUE heading (not magnetic).
 
-(function (global) {
-  'use strict';
-
-  var R_EARTH_M = 6371000; // mean Earth radius in meters
+window.AimMath = (function () {
+  const R_EARTH = 6371000; // meters
 
   function toRad(deg) {
     return (deg * Math.PI) / 180;
@@ -28,185 +13,103 @@
     return (rad * 180) / Math.PI;
   }
 
-  // Normalize heading to [0, 360)
-  function normalizeDeg(angle) {
-    var a = angle % 360;
-    return a < 0 ? a + 360 : a;
+  function normalizeHeading(deg) {
+    let d = deg % 360;
+    if (d < 0) d += 360;
+    return d;
   }
 
-  // Shortest signed difference between two headings, in degrees.
-  // Result is in (-180, 180].
-  function headingDiff(targetDeg, currentDeg) {
-    var diff = normalizeDeg(targetDeg) - normalizeDeg(currentDeg);
-    diff = ((diff + 540) % 360) - 180;
-    return diff;
+  function angleDiff(targetDeg, currentDeg) {
+    if (!isFinite(targetDeg) || !isFinite(currentDeg)) return NaN;
+    let diff = ((targetDeg - currentDeg + 540) % 360) - 180;
+    return diff; // -180..+180
   }
 
-  // Great-circle initial bearing from (lat1, lon1) to (lat2, lon2).
-  // All inputs in degrees; output in degrees from North, clockwise.
-  function bearingDeg(lat1, lon1, lat2, lon2) {
-    if (
-      typeof lat1 !== 'number' ||
-      typeof lon1 !== 'number' ||
-      typeof lat2 !== 'number' ||
-      typeof lon2 !== 'number'
-    ) {
-      return null;
-    }
+  // Haversine horizontal distance (m) and initial bearing (deg true)
+  function horizAndBearing(lat1, lon1, lat2, lon2) {
+    const phi1 = toRad(lat1);
+    const phi2 = toRad(lat2);
+    const dPhi = toRad(lat2 - lat1);
+    const dLambda = toRad(lon2 - lon1);
 
-    var phi1 = toRad(lat1);
-    var phi2 = toRad(lat2);
-    var dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dPhi / 2) * Math.sin(dPhi / 2) +
+      Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
 
-    var y = Math.sin(dLon) * Math.cos(phi2);
-    var x =
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R_EARTH * c;
+
+    const y = Math.sin(dLambda) * Math.cos(phi2);
+    const x =
       Math.cos(phi1) * Math.sin(phi2) -
-      Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon);
+      Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
 
-    var theta = Math.atan2(y, x);
-    return normalizeDeg(toDeg(theta));
+    let bearing = toDeg(Math.atan2(y, x));
+    bearing = normalizeHeading(bearing);
+
+    return { distanceM: d, bearingDeg: bearing };
   }
 
-  // Great-circle ground distance (ignores altitude), in meters.
-  function groundDistanceMeters(lat1, lon1, lat2, lon2) {
-    if (
-      typeof lat1 !== 'number' ||
-      typeof lon1 !== 'number' ||
-      typeof lat2 !== 'number' ||
-      typeof lon2 !== 'number'
-    ) {
-      return null;
-    }
-
-    var phi1 = toRad(lat1);
-    var phi2 = toRad(lat2);
-    var dPhi = toRad(lat2 - lat1);
-    var dLon = toRad(lon2 - lon1);
-
-    var sinDPhi = Math.sin(dPhi / 2);
-    var sinDLon = Math.sin(dLon / 2);
-
-    var a =
-      sinDPhi * sinDPhi +
-      Math.cos(phi1) * Math.cos(phi2) * sinDLon * sinDLon;
-
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R_EARTH_M * c;
-  }
-
-  // Slope angle between two 3D points, given lat/lon/alt for each.
-  // Returns angle in degrees: positive = target above phone, negative = below.
-  function slopeDeg(lat1, lon1, alt1, lat2, lon2, alt2) {
-    var horizontal = groundDistanceMeters(lat1, lon1, lat2, lon2);
-    if (horizontal === null) return null;
-
-    if (typeof alt1 !== 'number' || typeof alt2 !== 'number') {
-      return null; // cannot compute without both altitudes
-    }
-
-    var dAlt = alt2 - alt1; // positive if target is higher than phone
-    var angleRad = Math.atan2(dAlt, horizontal);
-    return toDeg(angleRad);
-  }
-
-  // Main helper: given phone + target state, compute everything needed
-  // to aim the phone at the target.
-  //
-  // phone  = {
-  //   lat:        number,
-  //   lon:        number,
-  //   alt:        number | null,
-  //   headingDeg: number | null,  // current compass heading
-  //   pitchDeg:   number | null   // current pitch
-  // }
-  //
-  // target = {
-  //   lat:  number,
-  //   lon:  number,
-  //   alt:  number | null
-  // }
-  //
-  // Returns:
-  // {
-  //   valid: boolean,
-  //   bearingDeg: number | null,
-  //   horizontalDistanceM: number | null,
-  //   verticalDeltaM: number | null,
-  //   slopeDeg: number | null,
-  //   lineOfSightDistanceM: number | null,
-  //   requiredHeadingDeg: number | null,
-  //   requiredPitchDeg: number | null,
-  //   headingErrorDeg: number | null,   // + = turn right, - = turn left
-  //   pitchErrorDeg: number | null      // + = tilt up,   - = tilt down
-  // }
   function solution(phone, target) {
-    phone = phone || {};
-    target = target || {};
-
-    var pLat = phone.lat;
-    var pLon = phone.lon;
-    var pAlt = phone.alt;
-    var tLat = target.lat;
-    var tLon = target.lon;
-    var tAlt = target.alt;
-
-    var bearing = bearingDeg(pLat, pLon, tLat, tLon);
-    var horiz = groundDistanceMeters(pLat, pLon, tLat, tLon);
-
-    var vert = null;
-    var slope = null;
-    var los = null;
-
-    if (typeof pAlt === 'number' && typeof tAlt === 'number') {
-      vert = tAlt - pAlt;
-      slope = slopeDeg(pLat, pLon, pAlt, tLat, tLon, tAlt);
-      if (horiz !== null) {
-        los = Math.sqrt(horiz * horiz + vert * vert);
-      }
+    if (
+      !phone ||
+      !target ||
+      !isFinite(phone.lat) ||
+      !isFinite(phone.lon) ||
+      !isFinite(target.lat) ||
+      !isFinite(target.lon)
+    ) {
+      return { valid: false };
     }
 
-    var requiredHeading = bearing;
-    var requiredPitch = slope;
+    const { distanceM, bearingDeg } = horizAndBearing(
+      phone.lat,
+      phone.lon,
+      target.lat,
+      target.lon
+    );
 
-    var headingErr = null;
-    var pitchErr = null;
+    const phoneAlt = isFinite(phone.alt) ? phone.alt : null;
+    const targetAlt = isFinite(target.alt) ? target.alt : null;
 
-    if (typeof requiredHeading === 'number' && typeof phone.headingDeg === 'number') {
-      headingErr = headingDiff(requiredHeading, phone.headingDeg);
+    let verticalDelta = null;
+    let pitchRequiredDeg = null;
+
+    if (phoneAlt != null && targetAlt != null) {
+      verticalDelta = targetAlt - phoneAlt;
+      const horizontal = Math.max(distanceM, 0.001); // avoid /0
+      pitchRequiredDeg = toDeg(Math.atan2(verticalDelta, horizontal));
     }
 
-    if (typeof requiredPitch === 'number' && typeof phone.pitchDeg === 'number') {
-      // Convention: positive error means "tilt up" toward target
-      pitchErr = requiredPitch - phone.pitchDeg;
+    const headingTrueRequired = bearingDeg;
+    const phoneHeadingTrue = isFinite(phone.headingDeg) ? normalizeHeading(phone.headingDeg) : null;
+    const phonePitch = isFinite(phone.pitchDeg) ? phone.pitchDeg : null;
+
+    let headingErrorDeg = null;
+    let pitchErrorDeg = null;
+
+    if (phoneHeadingTrue != null) {
+      headingErrorDeg = angleDiff(headingTrueRequired, phoneHeadingTrue);
     }
 
-    var valid =
-      typeof pLat === 'number' &&
-      typeof pLon === 'number' &&
-      typeof tLat === 'number' &&
-      typeof tLon === 'number';
+    if (phonePitch != null && pitchRequiredDeg != null) {
+      // positive error = tilt up, negative = tilt down
+      pitchErrorDeg = pitchRequiredDeg - phonePitch;
+    }
 
     return {
-      valid: !!valid,
-      bearingDeg: bearing,
-      horizontalDistanceM: horiz,
-      verticalDeltaM: vert,
-      slopeDeg: slope,
-      lineOfSightDistanceM: los,
-      requiredHeadingDeg: requiredHeading,
-      requiredPitchDeg: requiredPitch,
-      headingErrorDeg: headingErr,
-      pitchErrorDeg: pitchErr
+      valid: true,
+      bearingDeg: headingTrueRequired,
+      requiredHeadingDeg: headingTrueRequired,
+      requiredPitchDeg: pitchRequiredDeg,
+      headingErrorDeg,
+      pitchErrorDeg,
+      horizontalDistanceM: distanceM,
+      verticalDeltaM: verticalDelta
     };
   }
 
-  global.AimMath = {
-    toRad: toRad,
-    toDeg: toDeg,
-    bearingDeg: bearingDeg,
-    groundDistanceMeters: groundDistanceMeters,
-    slopeDeg: slopeDeg,
-    solution: solution
+  return {
+    solution
   };
-})(window);
+})();
