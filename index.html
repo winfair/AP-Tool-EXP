@@ -229,20 +229,41 @@
       cursor:pointer;
     }
 
-/* ERROR HIGHLIGHTING FOR ΔHDG / ΔPCH */
+    /* ERROR HIGHLIGHTING FOR ΔHDG / ΔPCH */
     .val-err{
-      background:#ff4b4b;      /* bright red block, like selection */
-      color:#000000;           /* black text on red */
-      padding:0 3px;           /* slight inset so the block is obvious */
+      background:#ff4b4b;      /* bright red block */
+      color:#000000;
+      padding:0 3px;
       border-radius:2px;
     }
     .val-ok{
-      background:transparent;  /* no highlight when in tolerance */
+      background:transparent;
       color:var(--ink);
       padding:0;
       border-radius:0;
     }
 
+    /* QUICK TARGET BUTTONS (BOTTOM) */
+    .quick-targets{
+      margin-top:4px;
+      font-size:10px;
+      color:var(--ink-dim);
+    }
+    .quick-targets .label{
+      font-size:10px;
+    }
+    .quick-target-btn{
+      border:none;
+      background:transparent;
+      color:var(--ink-soft);
+      font-family:var(--mono);
+      font-size:10px;
+      padding:0 4px;
+      cursor:pointer;
+    }
+    .quick-target-btn:hover{
+      text-decoration:underline;
+    }
 
     /* OVERLAYS (MAP + SAVE/TARGET MENU) */
     .overlay-backdrop{
@@ -427,6 +448,13 @@
         <button id="calibrateHeadingBtn" class="tbtn">
           <span class="cmd">*</span><span class="lbl"> CALIBRATE TO TARGET</span>
         </button>
+      </div>
+
+      <!-- QUICK TARGETS (bottom, text-like buttons) -->
+      <div class="quick-targets">
+        <span class="label">QUICK TARGETS</span>
+        <span class="val-small"> (tap to load)</span>
+        <div id="quickTargetsRow" style="margin-top:2px;"></div>
       </div>
 
     </div> <!-- /.hud -->
