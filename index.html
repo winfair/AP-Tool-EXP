@@ -5,440 +5,180 @@
   <title>AP-Tool</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-  <!-- Leaflet CSS/JS (map engine) -->
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w=="
     crossorigin=""
   />
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg=="
     crossorigin=""
   ></script>
 
   <style>
     :root {
-      --bg: #020617;
-      --card: #0b1220;
-      --ink: #e5e7eb;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --accent-soft: rgba(56, 189, 248, 0.15);
-      --border: rgba(148, 163, 184, 0.4);
+      --bg:#020617; --bg2:#000; --card:#0b1220;
+      --ink:#e5e7eb; --muted:#94a3b8;
+      --accent:#38bdf8; --accent-soft:rgba(56,189,248,.15);
+      --border:rgba(148,163,184,.4);
     }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{
+      margin:0;padding:0;height:100%;
+      background:radial-gradient(circle at top,var(--bg) 0,var(--bg) 40%,var(--bg2) 100%);
+      color:var(--ink);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+    }
+    #app{
+      min-height:100vh;max-width:480px;margin:0 auto;
+      padding:10px 10px 16px;
+      display:flex;flex-direction:column;gap:8px;
+      position:relative;z-index:1;
+    }
+    .row{display:flex;align-items:center}
+    .between{justify-content:space-between}
+    .wrap{flex-wrap:wrap}
+    .col{display:flex;flex-direction:column}
+    .card{
+      background:var(--card);
+      border-radius:14px;
+      border:1px solid var(--border);
+      padding:10px 12px;
+      box-shadow:0 14px 28px rgba(15,23,42,.85);
+    }
+    .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+    .title-main{font-size:17px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+    .title-sub{font-size:11px;color:var(--muted)}
+    .badge{
+      font-size:10px;border-radius:999px;border:1px solid var(--border);
+      padding:2px 8px;color:var(--muted);background:rgba(15,23,42,.9);white-space:nowrap;
+    }
+    .card-title{
+      font-size:12px;font-weight:600;text-transform:uppercase;
+      letter-spacing:.1em;color:var(--muted);
+    }
+    .pill{
+      font-size:10px;border-radius:999px;
+      border:1px solid var(--border);
+      padding:2px 8px;
+      color:var(--muted);
+      max-width:55%;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    .label{
+      font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    }
+    .status-text{font-size:12px;margin:0;color:var(--ink);min-height:18px}
+    .start-row{margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    button{
+      border:none;border-radius:999px;padding:8px 12px;
+      font-size:12px;font-weight:600;cursor:pointer;
+      color:#0f172a;background:var(--accent);
+      box-shadow:0 10px 24px rgba(56,189,248,.4);
+      display:inline-flex;align-items:center;gap:6px;
+    }
+    button:active{transform:translateY(1px) scale(.99);box-shadow:0 6px 16px rgba(15,23,42,.9)}
+    button:disabled{opacity:.55;cursor:default;box-shadow:none}
+    .btn-secondary{
+      background:transparent;color:var(--ink);
+      box-shadow:none;border:1px solid var(--border);
+    }
+    .hint{font-size:10px;color:var(--muted)}
+    .grid{
+      display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px;
+    }
+    .row-data{
+      display:flex;justify-content:space-between;align-items:baseline;
+      gap:6px;margin-bottom:3px;
+    }
+    .val{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:11px;text-align:right;
+    }
+    .val-lg{font-size:13px}
+    .mini-pill{
+      font-size:10px;padding:3px 7px;border-radius:999px;
+      border:1px solid rgba(148,163,184,.4);
+      background:rgba(15,23,42,.9);color:var(--muted);
+    }
+    .mini-pill.ok{border-color:rgba(34,197,94,.6);background:rgba(34,197,94,.08);color:#4ade80}
+    .mini-pill.bad{border-color:rgba(248,113,113,.7);background:rgba(248,113,113,.1);color:#fecaca}
+    .mini-pill.warn{border-color:rgba(250,204,21,.8);background:rgba(250,204,21,.08);color:#facc15}
+    .mini-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .accent-box{
+      margin-top:5px;padding:5px 7px;
+      border-radius:10px;border:1px solid rgba(56,189,248,.3);
+      background:radial-gradient(circle at top left,var(--accent-soft),transparent);
+      font-size:10px;color:var(--muted);
+    }
+    .decl-wrap{display:inline-flex;align-items:center;gap:4px}
+    .decl-input{
+      width:60px;padding:2px 4px;border-radius:999px;
+      border:1px solid var(--border);
+      background:#020617;color:var(--ink);
+      font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      text-align:right;
+    }
+    .decl-unit{font-size:10px;color:var(--muted);white-space:nowrap}
+    .target-actions{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    .target-status{font-size:10px;color:var(--muted);flex:1 1 0}
+    .compass-row{display:flex;gap:8px;margin-top:6px;justify-content:space-between;flex-wrap:nowrap}
+    .compass-block{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:2px}
+    .compass-block canvas{width:100%;max-width:150px;height:auto;display:block}
 
-    * {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
+    /* Overlay */
+    .overlay-backdrop{
+      position:fixed;inset:0;background:rgba(15,23,42,.9);
+      display:none;align-items:center;justify-content:center;
+      z-index:50;backdrop-filter:blur(4px);
     }
-
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      background: radial-gradient(circle at top, #020617 0, #020617 40%, #000 100%);
-      color: var(--ink);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
-        sans-serif;
+    .overlay-panel{
+      width:100%;max-width:480px;max-height:90vh;
+      background:#020617;border-radius:16px;border:1px solid var(--border);
+      box-shadow:0 24px 60px rgba(0,0,0,.9);
+      display:flex;flex-direction:column;overflow:hidden;
     }
-
-    #app {
-      min-height: 100vh;
-      max-width: 480px;
-      margin: 0 auto;
-      padding: 10px 10px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      position: relative;
-      z-index: 1;
+    .overlay-head,.overlay-foot{
+      padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+      border-color:var(--border);
     }
-
-    .appbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 2px;
+    .overlay-head{border-bottom:1px solid var(--border)}
+    .overlay-foot{border-top:1px solid var(--border)}
+    .overlay-title{
+      font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
     }
-
-    .title-group {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
+    .overlay-body{
+      padding:6px 10px 8px;display:flex;flex-direction:column;gap:6px;
+      font-size:10px;color:var(--muted);
     }
-
-    .app-title {
-      font-size: 17px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--ink);
+    #mapDiv{flex:1 1 auto;min-height:260px;border-radius:10px;overflow:hidden}
+    .overlay-row{
+      display:flex;justify-content:space-between;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:10px;
     }
-
-    .app-subtitle {
-      font-size: 11px;
-      color: var(--muted);
-    }
-
-    .badge {
-      font-size: 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      padding: 2px 8px;
-      color: var(--muted);
-      background: rgba(15, 23, 42, 0.9);
-      white-space: nowrap;
-    }
-
-    .card {
-      background: var(--card);
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      padding: 10px 12px;
-      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.85);
-    }
-
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .card-title {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-    }
-
-    .status-pill {
-      font-size: 10px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      max-width: 55%;
-      text-align: right;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .status-text {
-      font-size: 12px;
-      margin: 0;
-      color: var(--ink);
-      min-height: 18px;
-    }
-
-    .status-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin-bottom: 2px;
-    }
-
-    .start-row {
-      margin-top: 8px;
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    button {
-      border: none;
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      color: #0f172a;
-      background: var(--accent);
-      box-shadow: 0 10px 24px rgba(56, 189, 248, 0.4);
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    button:active {
-      transform: translateY(1px) scale(0.99);
-      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.9);
-    }
-
-    button:disabled {
-      opacity: 0.55;
-      cursor: default;
-      box-shadow: none;
-    }
-
-    .btn-secondary {
-      background: transparent;
-      color: var(--ink);
-      box-shadow: none;
-      border: 1px solid var(--border);
-    }
-
-    .hint {
-      font-size: 10px;
-      color: var(--muted);
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 2px;
-    }
-
-    .data-row {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 6px;
-      margin-bottom: 3px;
-    }
-
-    .data-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    .data-value {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-        "Courier New", monospace;
-      font-size: 11px;
-      text-align: right;
-    }
-
-    .data-value.large {
-      font-size: 13px;
-    }
-
-    .pill-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 4px;
-    }
-
-    .mini-pill {
-      font-size: 10px;
-      padding: 3px 7px;
-      border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      background: rgba(15, 23, 42, 0.9);
-      color: var(--muted);
-    }
-
-    .mini-pill.ok {
-      border-color: rgba(34, 197, 94, 0.6);
-      background: rgba(34, 197, 94, 0.08);
-      color: #4ade80;
-    }
-
-    .mini-pill.bad {
-      border-color: rgba(248, 113, 113, 0.7);
-      background: rgba(248, 113, 113, 0.1);
-      color: #fecaca;
-    }
-
-    .mini-pill.warn {
-      border-color: rgba(250, 204, 21, 0.8);
-      background: rgba(250, 204, 21, 0.08);
-      color: #facc15;
-    }
-
-    .accent-box {
-      margin-top: 5px;
-      padding: 5px 7px;
-      border-radius: 10px;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      background: radial-gradient(circle at top left, var(--accent-soft), transparent);
-      font-size: 10px;
-      color: var(--muted);
-    }
-
-    /* Declination input */
-    .decl-row {
-      margin-top: 4px;
-    }
-
-    .decl-input-wrap {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .decl-input {
-      width: 60px;
-      padding: 2px 4px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: #020617;
-      color: var(--ink);
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-        "Courier New", monospace;
-      text-align: right;
-    }
-
-    .decl-unit {
-      font-size: 10px;
-      color: var(--muted);
-      white-space: nowrap;
-    }
-
-    /* Target / Aim actions */
-    .target-actions {
-      margin-top: 6px;
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .target-status {
-      font-size: 10px;
-      color: var(--muted);
-      flex: 1 1 0;
-    }
-
-    /* Floating map overlay */
-    .overlay-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.9);
-      display: none; /* turned to flex when open */
-      align-items: center;
-      justify-content: center;
-      z-index: 50;
-      backdrop-filter: blur(4px);
-    }
-
-    .overlay-panel {
-      width: 100%;
-      max-width: 480px;
-      max-height: 90vh;
-      background: #020617;
-      border-radius: 16px;
-      border: 1px solid var(--border);
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .overlay-header {
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .overlay-title {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-    }
-
-    .overlay-body {
-      padding: 6px 10px 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 10px;
-      color: var(--muted);
-    }
-
-    #mapDiv {
-      flex: 1 1 auto;
-      min-height: 260px;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    .overlay-footer {
-      padding: 6px 10px 8px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .overlay-data-row {
-      display: flex;
-      justify-content: space-between;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-        "Courier New", monospace;
-    }
-
-    .overlay-data-label {
-      opacity: 0.7;
-    }
-
-    .overlay-status {
-      font-size: 10px;
-      margin-top: 2px;
-    }
-
-    /* Compass row */
-    .compass-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 6px;
-      flex-wrap: nowrap;
-      justify-content: space-between;
-    }
-
-    .compass-block {
-      flex: 1 1 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      align-items: center;
-    }
-
-    .compass-block canvas {
-      width: 100%;
-      max-width: 150px;
-      height: auto;
-      display: block;
-    }
+    .overlay-label{opacity:.7}
+    .overlay-status{font-size:10px;margin-top:2px}
   </style>
 </head>
 <body>
   <div id="app">
-    <header class="appbar">
-      <div class="title-group">
-        <div class="app-title">AP-Tool</div>
-        <div class="app-subtitle">GPS · orientation · target · aim</div>
+    <!-- Header -->
+    <header class="row between">
+      <div class="col">
+        <div class="title-main">AP-Tool</div>
+        <div class="title-sub">GPS · orientation · target · aim</div>
       </div>
       <div class="badge">Core module</div>
     </header>
 
     <!-- Sensor session -->
     <section class="card">
-      <div class="card-header">
+      <div class="card-head">
         <div class="card-title">Sensor Session</div>
-        <div class="status-pill" id="comboStatus">Idle</div>
+        <div class="pill" id="comboStatus">Idle</div>
       </div>
-      <div class="status-label">Status</div>
+      <div class="label">Status</div>
       <p class="status-text" id="statusText">
         Ready. Tap “Start sensors” once and accept the browser prompts on your phone.
       </p>
@@ -452,68 +192,58 @@
     <section class="grid">
       <!-- GPS -->
       <article class="card">
-        <div class="card-header">
+        <div class="card-head">
           <div class="card-title">Location (GPS)</div>
-          <div class="status-pill" id="gpsStatusPill">gps: idle</div>
+          <div class="pill" id="gpsStatusPill">gps: idle</div>
         </div>
-
-        <div class="data-row">
-          <div class="data-label">Latitude</div>
-          <div class="data-value large" id="gpsLat">—</div>
+        <div class="row-data">
+          <div class="label">Latitude</div>
+          <div class="val val-lg" id="gpsLat">—</div>
         </div>
-        <div class="data-row">
-          <div class="data-label">Longitude</div>
-          <div class="data-value large" id="gpsLon">—</div>
+        <div class="row-data">
+          <div class="label">Longitude</div>
+          <div class="val val-lg" id="gpsLon">—</div>
         </div>
-        <div class="data-row">
-          <div class="data-label">Elevation</div>
-          <div class="data-value large" id="gpsAlt">—</div>
+        <div class="row-data">
+          <div class="label">Elevation</div>
+          <div class="val val-lg" id="gpsAlt">—</div>
         </div>
-
-        <div class="accent-box" id="gpsErrorBox" style="display: none">
-          <strong>GPS error:</strong>
-          <span id="gpsError">—</span>
+        <div class="accent-box" id="gpsErrorBox" style="display:none">
+          <strong>GPS error:</strong> <span id="gpsError">—</span>
         </div>
       </article>
 
-      <!-- Orientation + Declination -->
+      <!-- Orientation -->
       <article class="card">
-        <div class="card-header">
+        <div class="card-head">
           <div class="card-title">Orientation</div>
-          <div class="status-pill" id="oriStatusPill">ori: idle</div>
+          <div class="pill" id="oriStatusPill">ori: idle</div>
         </div>
-
-        <div class="data-row">
-          <div class="data-label">Heading (true)</div>
-          <div class="data-value large" id="headingVal">—</div>
+        <div class="row-data">
+          <div class="label">Heading (true)</div>
+          <div class="val val-lg" id="headingVal">—</div>
         </div>
-        <div class="data-row">
-          <div class="data-label">Pitch</div>
-          <div class="data-value large" id="pitchVal">—</div>
+        <div class="row-data">
+          <div class="label">Pitch</div>
+          <div class="val val-lg" id="pitchVal">—</div>
         </div>
-
-        <div class="data-row decl-row">
-          <div class="data-label">Declination</div>
-          <div class="data-value">
-            <div class="decl-input-wrap">
-              <input
-                id="declInput"
-                class="decl-input"
-                type="number"
-                step="0.1"
-                value="0"
-              />
+        <div class="row-data" style="margin-top:4px">
+          <div class="label">Declination</div>
+          <div class="val">
+            <span class="decl-wrap">
+              <input id="declInput" class="decl-input" type="number" step="0.1" value="0" />
               <span class="decl-unit">° (E=+, W=-)</span>
-            </div>
+            </span>
           </div>
         </div>
-
-        <div class="accent-box" id="oriErrorBox" style="display: none">
-          <strong>Orientation error:</strong>
-          <span id="oriError">—</span>
+        <div class="start-row" style="margin-top:4px">
+          <button id="calibrateHeadingBtn" class="btn-secondary">Calibrate to target</button>
+          <span class="hint">Point phone at selected target, then tap.</span>
         </div>
-
-        <div class="pill-row">
+        <div class="accent-box" id="oriErrorBox" style="display:none">
+          <strong>Orientation error:</strong> <span id="oriError">—</span>
+        </div>
+        <div class="mini-row">
           <span class="mini-pill" id="oriSupportPill">Checking support…</span>
         </div>
       </article>
@@ -521,26 +251,26 @@
 
     <!-- Target + Aim + Compass -->
     <section class="card">
-      <div class="card-header">
+      <div class="card-head">
         <div class="card-title">Target & Aim</div>
-        <div class="status-pill" id="aimStatusPill">No target</div>
+        <div class="pill" id="aimStatusPill">No target</div>
       </div>
 
-      <div class="pill-row">
+      <div class="mini-row">
         <span class="mini-pill" id="targetStatusPill">No target</span>
       </div>
 
-      <div class="data-row" style="margin-top: 4px;">
-        <div class="data-label">Target lat</div>
-        <div class="data-value large" id="targetLat">—</div>
+      <div class="row-data" style="margin-top:4px">
+        <div class="label">Target lat</div>
+        <div class="val val-lg" id="targetLat">—</div>
       </div>
-      <div class="data-row">
-        <div class="data-label">Target lon</div>
-        <div class="data-value large" id="targetLon">—</div>
+      <div class="row-data">
+        <div class="label">Target lon</div>
+        <div class="val val-lg" id="targetLon">—</div>
       </div>
-      <div class="data-row">
-        <div class="data-label">Target elev</div>
-        <div class="data-value large" id="targetElev">—</div>
+      <div class="row-data">
+        <div class="label">Target elev</div>
+        <div class="val val-lg" id="targetElev">—</div>
       </div>
 
       <div class="target-actions">
@@ -550,47 +280,46 @@
         </span>
       </div>
 
-      <div style="margin-top: 6px;">
-        <div class="data-row">
-          <div class="data-label">Req heading</div>
-          <div class="data-value large" id="aimReqHeading">—</div>
+      <div style="margin-top:6px">
+        <div class="row-data">
+          <div class="label">Req heading</div>
+          <div class="val val-lg" id="aimReqHeading">—</div>
         </div>
-        <div class="data-row">
-          <div class="data-label">Req pitch</div>
-          <div class="data-value large" id="aimReqPitch">—</div>
+        <div class="row-data">
+          <div class="label">Req pitch</div>
+          <div class="val val-lg" id="aimReqPitch">—</div>
         </div>
-        <div class="data-row">
-          <div class="data-label">Head error</div>
-          <div class="data-value large" id="aimHeadingErr">—</div>
+        <div class="row-data">
+          <div class="label">Head error</div>
+          <div class="val val-lg" id="aimHeadingErr">—</div>
         </div>
-        <div class="data-row">
-          <div class="data-label">Pitch error</div>
-          <div class="data-value large" id="aimPitchErr">—</div>
+        <div class="row-data">
+          <div class="label">Pitch error</div>
+          <div class="val val-lg" id="aimPitchErr">—</div>
         </div>
-        <div class="data-row">
-          <div class="data-label">Horiz dist</div>
-          <div class="data-value large" id="aimHorizDist">—</div>
+        <div class="row-data">
+          <div class="label">Horiz dist</div>
+          <div class="val val-lg" id="aimHorizDist">—</div>
         </div>
-        <div class="data-row">
-          <div class="data-label">Vert delta</div>
-          <div class="data-value large" id="aimVertDelta">—</div>
+        <div class="row-data">
+          <div class="label">Vert delta</div>
+          <div class="val val-lg" id="aimVertDelta">—</div>
         </div>
       </div>
 
       <div class="compass-row">
         <div class="compass-block">
-          <div class="data-label">Heading guide</div>
+          <div class="label">Heading guide</div>
           <canvas id="headingCompass" width="150" height="150"></canvas>
         </div>
         <div class="compass-block">
-          <div class="data-label">Pitch guide</div>
+          <div class="label">Pitch guide</div>
           <canvas id="pitchCompass" width="150" height="150"></canvas>
         </div>
       </div>
 
       <div class="accent-box">
-        When the arrow overlays the target line (within ±3°), the gauge turns green — you're on
-        target.
+        When the arrow overlays the target line (within ±3°), the gauge turns green — you're on target.
       </div>
     </section>
   </div>
@@ -598,31 +327,26 @@
   <!-- Floating map overlay -->
   <div id="mapOverlay" class="overlay-backdrop">
     <div class="overlay-panel">
-      <div class="overlay-header">
+      <div class="overlay-head">
         <div class="overlay-title">Select target point</div>
         <button id="cancelTargetBtn" class="btn-secondary">✕ Close</button>
       </div>
       <div class="overlay-body">
         <div>Tap anywhere on the map to place a pin. Elevation is fetched automatically.</div>
-
         <div id="mapDiv"></div>
-
-        <div class="overlay-data-row">
-          <span class="overlay-data-label">Lat</span>
-          <span id="overlayLat">—</span>
+        <div class="overlay-row">
+          <span class="overlay-label">Lat</span><span id="overlayLat">—</span>
         </div>
-        <div class="overlay-data-row">
-          <span class="overlay-data-label">Lon</span>
-          <span id="overlayLon">—</span>
+        <div class="overlay-row">
+          <span class="overlay-label">Lon</span><span id="overlayLon">—</span>
         </div>
-        <div class="overlay-data-row">
-          <span class="overlay-data-label">Elev</span>
-          <span id="overlayElev">—</span>
+        <div class="overlay-row">
+          <span class="overlay-label">Elev</span><span id="overlayElev">—</span>
         </div>
-
         <div class="overlay-status" id="overlayStatus">Tap on the map to place the pin.</div>
       </div>
-      <div class="overlay-footer">
+      <div class="overlay-foot">
+        <span></span>
         <button id="confirmTargetBtn">✔ Use this point</button>
       </div>
     </div>
