@@ -269,6 +269,36 @@
       color: var(--muted);
     }
 
+    /* Declination input */
+    .decl-row {
+      margin-top: 4px;
+    }
+
+    .decl-input-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .decl-input {
+      width: 60px;
+      padding: 2px 4px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #020617;
+      color: var(--ink);
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
+      text-align: right;
+    }
+
+    .decl-unit {
+      font-size: 10px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
     /* Target / Aim actions */
     .target-actions {
       margin-top: 6px;
@@ -402,7 +432,7 @@
       <div class="badge">Core module</div>
     </header>
 
-    <!-- Sensor session (small, top) -->
+    <!-- Sensor session -->
     <section class="card">
       <div class="card-header">
         <div class="card-title">Sensor Session</div>
@@ -418,7 +448,7 @@
       </div>
     </section>
 
-    <!-- GPS + Orientation (two small cards side-by-side) -->
+    <!-- GPS + Orientation -->
     <section class="grid">
       <!-- GPS -->
       <article class="card">
@@ -446,7 +476,7 @@
         </div>
       </article>
 
-      <!-- Orientation -->
+      <!-- Orientation + Declination -->
       <article class="card">
         <div class="card-header">
           <div class="card-title">Orientation</div>
@@ -454,12 +484,28 @@
         </div>
 
         <div class="data-row">
-          <div class="data-label">Heading</div>
+          <div class="data-label">Heading (true)</div>
           <div class="data-value large" id="headingVal">—</div>
         </div>
         <div class="data-row">
           <div class="data-label">Pitch</div>
           <div class="data-value large" id="pitchVal">—</div>
+        </div>
+
+        <div class="data-row decl-row">
+          <div class="data-label">Declination</div>
+          <div class="data-value">
+            <div class="decl-input-wrap">
+              <input
+                id="declInput"
+                class="decl-input"
+                type="number"
+                step="0.1"
+                value="0"
+              />
+              <span class="decl-unit">° (E=+, W=-)</span>
+            </div>
+          </div>
         </div>
 
         <div class="accent-box" id="oriErrorBox" style="display: none">
@@ -473,19 +519,17 @@
       </article>
     </section>
 
-    <!-- Target + Aim + Compass in a single compact card -->
+    <!-- Target + Aim + Compass -->
     <section class="card">
       <div class="card-header">
         <div class="card-title">Target & Aim</div>
         <div class="status-pill" id="aimStatusPill">No target</div>
       </div>
 
-      <!-- Target mini-pill status -->
       <div class="pill-row">
         <span class="mini-pill" id="targetStatusPill">No target</span>
       </div>
 
-      <!-- Target coordinates -->
       <div class="data-row" style="margin-top: 4px;">
         <div class="data-label">Target lat</div>
         <div class="data-value large" id="targetLat">—</div>
@@ -506,7 +550,6 @@
         </span>
       </div>
 
-      <!-- Aim numbers -->
       <div style="margin-top: 6px;">
         <div class="data-row">
           <div class="data-label">Req heading</div>
@@ -534,7 +577,6 @@
         </div>
       </div>
 
-      <!-- Compass indicators (visual guide) -->
       <div class="compass-row">
         <div class="compass-block">
           <div class="data-label">Heading guide</div>
@@ -590,6 +632,7 @@
   <script src="sensors.js"></script>
   <script src="map.js"></script>
   <script src="aim-math.js"></script>
+  <script src="declination.js"></script>
   <script src="compass.js"></script>
   <script src="ui.js"></script>
 </body>
