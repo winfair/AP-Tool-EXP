@@ -174,7 +174,7 @@
       );
     }
 
-    // Pitch compass (same visual logic; just "angle to match")
+    // Pitch compass
     if (pitchCtx && pitchCanvas) {
       drawCompass(
         pitchCtx,
