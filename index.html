@@ -376,6 +376,30 @@
       font-size: 11px;
       margin-top: 4px;
     }
+
+    /* Compass row */
+    .compass-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+
+    .compass-block {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .compass-block canvas {
+      width: 100%;
+      max-width: 160px;
+      height: auto;
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -519,6 +543,17 @@
         <div class="data-value large" id="aimVertDelta">—</div>
       </div>
 
+      <div class="compass-row">
+        <div class="compass-block">
+          <div class="data-label">Heading guidance</div>
+          <canvas id="headingCompass" width="160" height="160"></canvas>
+        </div>
+        <div class="compass-block">
+          <div class="data-label">Pitch guidance</div>
+          <canvas id="pitchCompass" width="160" height="160"></canvas>
+        </div>
+      </div>
+
       <div class="accent-box">
         Positive errors = turn right / tilt up. Negative = turn left / tilt down.
       </div>
@@ -565,7 +600,7 @@
   <script src="sensors.js"></script>
   <script src="map.js"></script>
   <script src="aim-math.js"></script>
-  <!-- UI module (all wiring lives here) -->
+  <script src="compass.js"></script>
   <script src="ui.js"></script>
 </body>
 </html>
