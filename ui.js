@@ -320,10 +320,18 @@
       he = $('aimHeadingErr'), pe = $('aimPitchErr'),
       hd = $('aimHorizDist'), vd = $('aimVertDelta');
 
+    // Clear highlight helpers
+    const clearHighlight = el => {
+      if (!el) return;
+      el.classList.remove('val-err','val-ok');
+    };
+
     if (!sol || !sol.valid) {
       stat.textContent = 'NO TARGET';
       rh.textContent = rp.textContent = he.textContent =
         pe.textContent = hd.textContent = vd.textContent = '—';
+      clearHighlight(he);
+      clearHighlight(pe);
       return;
     }
 
@@ -338,6 +346,25 @@
     pe.textContent = isFinite(sol.pitchErrorDeg) ? fmt.ang(sol.pitchErrorDeg) : '—';
     hd.textContent = fmt.dist(sol.horizontalDistanceM);
     vd.textContent = isFinite(sol.verticalDeltaM) ? fmt.distSigned(sol.verticalDeltaM) : '—';
+
+    // Highlight ΔHDG / ΔPCH in red until they are within ±0.5°
+    const th = 0.5;
+
+    const setHighlight = (el, err) => {
+      if (!el || !isFinite(err)) {
+        clearHighlight(el);
+        return;
+      }
+      el.classList.remove('val-err','val-ok');
+      if (Math.abs(err) <= th) {
+        el.classList.add('val-ok');    // green / un-highlighted
+      } else {
+        el.classList.add('val-err');   // red "selected" feel
+      }
+    };
+
+    setHighlight(he, sol.headingErrorDeg);
+    setHighlight(pe, sol.pitchErrorDeg);
   }
 
   /* ---------- Recompute aim + compass ---------- */
@@ -518,7 +545,6 @@
     const declInput = $('declInput');
     if (declInput && w.Declination && w.Declination.bindInput) {
       w.Declination.bindInput(declInput, () => {
-        // When declination / offset changes, recompute headings & aim
         recomputeAim();
         const S2 = w.Sensors;
         if (S2 && S2.getState) {
