@@ -25,7 +25,7 @@
     return isFinite(t) ? t : mag;
   }
 
-  /* --------- Saved targets persistence ---------- */
+  /* ---------- Saved targets persistence ---------- */
 
   function loadSavedTargets() {
     savedTargets = [];
@@ -97,7 +97,8 @@
 
   function openSavePanel(existing) {
     const panel = $('saveTargetPanel');
-    if (!panel) return;
+    const overlay = $('saveOverlay');
+    if (!panel || !overlay) return;
 
     const nameInput = $('saveTargetName');
     const latInput = $('saveTargetLat');
@@ -126,13 +127,15 @@
     elevInput.value = baseElev != null ? baseElev.toFixed(1) : '';
 
     panel.style.display = 'block';
+    overlay.style.display = 'flex';
   }
 
   function closeSavePanel() {
     const panel = $('saveTargetPanel');
-    if (!panel) return;
+    const overlay = $('saveOverlay');
+    if (panel) panel.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
     editingId = null;
-    panel.style.display = 'none';
   }
 
   function onSaveConfirm() {
@@ -197,7 +200,6 @@
     const t = savedTargets[idx];
 
     if (action === 'load') {
-      // DEFINITELY set current target + update UI
       target.lat = t.lat;
       target.lon = t.lon;
       target.elevation = t.elevation != null ? t.elevation : null;
@@ -213,7 +215,7 @@
     }
   }
 
-  /* --------- Sensors UI ---------- */
+  /* ---------- Sensors UI ---------- */
 
   function updateSensorsUI(s) {
     const combo = $('comboStatus'), txt = $('statusText');
@@ -281,7 +283,7 @@
     }
   }
 
-  /* --------- Target UI ---------- */
+  /* ---------- Target UI ---------- */
 
   function updateTargetUI() {
     const hasTarget = isFinite(target.lat) && isFinite(target.lon);
@@ -294,7 +296,7 @@
     const txt = $('targetStatusText');
     if (!hasTarget) {
       pill.textContent = 'No target';
-      txt.textContent = 'No target selected. Use <SELECT TARGET> or load a saved point.';
+      txt.textContent = 'No target selected. Use <SELECT TARGET> or open the save/targets menu.';
     } else if (!isFinite(target.elevation)) {
       pill.textContent = 'Target set (no elev)';
       txt.textContent = 'Target chosen. Elevation not available or still loading.';
@@ -304,7 +306,7 @@
     }
   }
 
-  /* --------- Aim UI ---------- */
+  /* ---------- Aim UI ---------- */
 
   function updateAimUI(sol) {
     const stat = $('aimStatusPill'),
@@ -328,7 +330,7 @@
     vd.textContent = isFinite(sol.verticalDeltaM) ? fmt.distSigned(sol.verticalDeltaM) : '—';
   }
 
-  /* --------- Recompute aim + compass ---------- */
+  /* ---------- Recompute aim + compass ---------- */
 
   function recomputeAim() {
     const S = w.Sensors, A = w.AimMath, C = w.CompassUI;
@@ -385,7 +387,7 @@
     });
   }
 
-  /* --------- Calibration ---------- */
+  /* ---------- Calibration ---------- */
 
   function calibrateToTarget() {
     const S = w.Sensors, D = w.Declination, A = w.AimMath;
@@ -409,7 +411,7 @@
     recomputeAim();
   }
 
-  /* --------- Init ---------- */
+  /* ---------- Init ---------- */
 
   function init() {
     const S = w.Sensors;
@@ -477,6 +479,9 @@
 
     const saveCancelBtn = $('saveTargetCancelBtn');
     if (saveCancelBtn) saveCancelBtn.addEventListener('click', closeSavePanel);
+
+    const closeSaveOverlayBtn = $('closeSaveOverlayBtn');
+    if (closeSaveOverlayBtn) closeSaveOverlayBtn.addEventListener('click', closeSavePanel);
 
     const savedList = $('savedTargetsList');
     if (savedList) savedList.addEventListener('click', handleSavedTargetsClick);
