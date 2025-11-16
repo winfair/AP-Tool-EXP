@@ -81,9 +81,6 @@
       gap:4px;
       align-items:flex-start;
     }
-    .hud-row.centered{
-      align-items:center;
-    }
     .hud-cell{
       flex:1 1 0;
       min-width:0;
@@ -129,14 +126,10 @@
       color:var(--ink);
     }
 
-    /* MAIN HUD ROW (COMPASS + PITCH SIDE BY SIDE) */
+    /* MAIN HUD ROW: COMPASS + PITCH SIDE-BY-SIDE */
     .main-hud-row{
       align-items:center;
-    }
-    .hud-side{
-      flex:0 0 130px;
-      font-size:11px;
-      line-height:1.25;
+      justify-content:center;
     }
     .hud-center{
       flex:1 1 auto;
@@ -152,12 +145,22 @@
     }
     #headingCompass{
       display:block;
+      width:220px;
+      height:220px;
     }
     #pitchCompass{
       display:block;
+      width:70px;
+      height:220px;
     }
 
-    /* BOTTOM HUD ROW */
+    /* INFO ROW UNDER COMPASS: SELF / AIM / TARGET */
+    .info-row{
+      font-size:11px;
+      line-height:1.25;
+    }
+
+    /* BOTTOM STATUS ROW */
     .hud-bottom{
       font-size:11px;
     }
@@ -173,12 +176,13 @@
     .mini-pill.bad{color:var(--err);}
     .mini-pill.warn{color:var(--warn);}
 
-    /* CONTROLS ROW */
+    /* CONTROLS ROW (IN SAME CHUNK) */
     .controls-row{
       display:flex;
       flex-wrap:wrap;
       gap:4px;
       margin-top:4px;
+      font-size:11px;
     }
     .tbtn{
       border:none;
@@ -280,9 +284,6 @@
     }
 
     @media (max-width:420px){
-      .hud-side{
-        flex:0 0 118px;
-      }
       #headingCompass{
         width:210px;
         height:210px;
@@ -290,6 +291,12 @@
       #pitchCompass{
         width:60px;
         height:210px;
+      }
+      .hud-top-block{
+        font-size:10px;
+      }
+      .info-row{
+        font-size:10px;
       }
     }
   </style>
@@ -331,10 +338,20 @@
         </div>
       </div>
 
-      <!-- MAIN HUD ROW: SELF / COMPASS+PITCH / TARGET -->
+      <!-- MAIN HUD ROW: COMPASS + PITCH SIDE BY SIDE -->
       <div class="hud-row main-hud-row">
-        <!-- SELF DATA (LEFT) -->
-        <div class="hud-cell hud-side">
+        <div class="hud-cell hud-center">
+          <div class="compass-group">
+            <canvas id="headingCompass" width="220" height="220"></canvas>
+            <canvas id="pitchCompass" width="70" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- INFO ROW: SELF / AIM / TARGET (under compass, readable) -->
+      <div class="hud-row info-row">
+        <!-- SELF -->
+        <div class="hud-cell">
           <span class="label">SELF</span><br>
           HDG(TRUE): <span class="val" id="headingVal_dup">—</span><br>
           PCH(DEG):&nbsp;&nbsp;<span class="val" id="pitchVal_dup">—</span><br>
@@ -344,32 +361,27 @@
           &nbsp;&nbsp;<span class="val" id="aimVertDelta">—</span>
         </div>
 
-        <!-- COMPASS + PITCH (CENTER) -->
-        <div class="hud-cell hud-center">
-          <div class="compass-group">
-            <canvas id="headingCompass" width="240" height="240"></canvas>
-            <canvas id="pitchCompass" width="70" height="240"></canvas>
-          </div>
+        <!-- AIM -->
+        <div class="hud-cell center">
+          <span class="label">AIM</span><br>
+          REQ HDG:&nbsp;<span class="val" id="aimReqHeading">—</span><br>
+          REQ PCH:&nbsp;<span class="val" id="aimReqPitch">—</span><br>
+          ΔHDG:&nbsp;<span class="val" id="aimHeadingErr">—</span><br>
+          ΔPCH:&nbsp;<span class="val" id="aimPitchErr">—</span>
         </div>
 
-        <!-- TARGET DATA (RIGHT) -->
-        <div class="hud-cell hud-side" style="text-align:right;">
+        <!-- TARGET -->
+        <div class="hud-cell" style="text-align:right;">
           <span class="label">TARGET</span><br>
           LAT: <span class="val" id="targetLat">—</span><br>
           LON: <span class="val" id="targetLon">—</span><br>
           ALT: <span class="val" id="targetElev">—</span><br>
-          REQ HDG:&nbsp;<span class="val" id="aimReqHeading">—</span><br>
-          REQ PCH:&nbsp;<span class="val" id="aimReqPitch">—</span><br>
           STATE:&nbsp;&nbsp;<span class="val-small" id="targetStatusPill">No target</span>
         </div>
       </div>
 
       <!-- BOTTOM ROW: ERRORS + TEXT STATUS -->
       <div class="hud-bottom">
-        <span class="label">AIM ERROR</span><br>
-        &Delta;HDG:&nbsp;<span class="val" id="aimHeadingErr">—</span>&nbsp;&nbsp;
-        &Delta;PCH:&nbsp;<span class="val" id="aimPitchErr">—</span><br>
-
         <div id="gpsErrorBox" class="error-line" style="display:none">
           gps-error: <span id="gpsError">—</span>
         </div>
@@ -383,25 +395,26 @@
           Ready. Tap &lt;START SENSORS&gt; once and accept the browser prompts on your phone.
         </div>
       </div>
-    </div>
 
-    <!-- CONTROL COMMANDS -->
-    <div class="hr"></div>
-    <div class="controls-row">
-      <button id="startBtn" class="tbtn">
-        <span class="cmd">&gt;&gt;</span><span class="lbl"> START SENSORS</span>
-      </button>
-      <button id="selectTargetBtn" class="tbtn">
-        <span class="cmd">@</span><span class="lbl"> SELECT TARGET (MAP)</span>
-      </button>
-      <button id="openSaveTargetBtn" class="tbtn">
-        <span class="cmd">#</span><span class="lbl"> SAVE / TARGET MENU</span>
-      </button>
-      <button id="calibrateHeadingBtn" class="tbtn">
-        <span class="cmd">*</span><span class="lbl"> CALIBRATE TO TARGET</span>
-      </button>
-    </div>
-  </div>
+      <!-- CONTROL COMMANDS (part of same chunk) -->
+      <div class="controls-row">
+        <button id="startBtn" class="tbtn">
+          <span class="cmd">&gt;&gt;</span><span class="lbl"> START SENSORS</span>
+        </button>
+        <button id="selectTargetBtn" class="tbtn">
+          <span class="cmd">@</span><span class="lbl"> SELECT TARGET (MAP)</span>
+        </button>
+        <button id="openSaveTargetBtn" class="tbtn">
+          <span class="cmd">#</span><span class="lbl"> SAVE / TARGET MENU</span>
+        </button>
+        <button id="calibrateHeadingBtn" class="tbtn">
+          <span class="cmd">*</span><span class="lbl"> CALIBRATE TO TARGET</span>
+        </button>
+      </div>
+
+    </div> <!-- /.hud -->
+
+  </div> <!-- /#app -->
 
   <!-- MAP OVERLAY -->
   <div id="mapOverlay" class="overlay-backdrop">
