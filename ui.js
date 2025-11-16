@@ -68,14 +68,35 @@
     } catch (_) {}
   }
 
+  function updateQuickTargetsUI() {
+    const row = $('quickTargetsRow');
+    if (!row) return;
+
+    if (!savedTargets.length) {
+      row.textContent = '(none)';
+      return;
+    }
+
+    const max = 4; // show up to 4 quick buttons
+    const recent = savedTargets.slice(-max); // last N
+    row.innerHTML = recent.map(t => {
+      const label = (t.name && t.name.trim()) || 'Target';
+      return `<button class="quick-target-btn" data-id="${t.id}">${label}</button>`;
+    }).join('');
+  }
+
   function updateSavedTargetsUI() {
     const box = $('savedTargetsBox');
     const list = $('savedTargetsList');
-    if (!box || !list) return;
+    if (!box || !list) {
+      updateQuickTargetsUI();
+      return;
+    }
 
     if (!savedTargets.length) {
       box.style.display = 'none';
       list.innerHTML = '';
+      updateQuickTargetsUI();
       return;
     }
 
@@ -99,6 +120,8 @@
         `</div>`
       );
     }).join('');
+
+    updateQuickTargetsUI();
   }
 
   function openSavePanel(existing) {
@@ -221,6 +244,23 @@
     }
   }
 
+  function handleQuickTargetsClick(e) {
+    const btn = e.target.closest('.quick-target-btn');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+
+    const t = savedTargets.find(x => x.id === id);
+    if (!t) return;
+
+    target.lat = t.lat;
+    target.lon = t.lon;
+    target.elevation = t.elevation != null ? t.elevation : null;
+
+    updateTargetUI();
+    recomputeAim();
+  }
+
   /* ---------- Sensors UI ---------- */
 
   function updateSensorsUI(s) {
@@ -320,7 +360,6 @@
       he = $('aimHeadingErr'), pe = $('aimPitchErr'),
       hd = $('aimHorizDist'), vd = $('aimVertDelta');
 
-    // Clear highlight helpers
     const clearHighlight = el => {
       if (!el) return;
       el.classList.remove('val-err','val-ok');
@@ -347,7 +386,6 @@
     hd.textContent = fmt.dist(sol.horizontalDistanceM);
     vd.textContent = isFinite(sol.verticalDeltaM) ? fmt.distSigned(sol.verticalDeltaM) : '—';
 
-    // Highlight ΔHDG / ΔPCH in red until they are within ±0.5°
     const th = 0.5;
 
     const setHighlight = (el, err) => {
@@ -357,9 +395,9 @@
       }
       el.classList.remove('val-err','val-ok');
       if (Math.abs(err) <= th) {
-        el.classList.add('val-ok');    // green / un-highlighted
+        el.classList.add('val-ok');
       } else {
-        el.classList.add('val-err');   // red "selected" feel
+        el.classList.add('val-err');
       }
     };
 
@@ -461,7 +499,6 @@
 
     if (!isFinite(reqHeading)) return;
 
-    // Map the current raw heading to the required heading.
     D.calibrate(s.headingDeg, reqHeading);
 
     const pill = $('oriSupportPill');
@@ -541,7 +578,9 @@
     const savedList = $('savedTargetsList');
     if (savedList) savedList.addEventListener('click', handleSavedTargetsClick);
 
-    // Bind declination input so changing it re-runs the math
+    const quickRow = $('quickTargetsRow');
+    if (quickRow) quickRow.addEventListener('click', handleQuickTargetsClick);
+
     const declInput = $('declInput');
     if (declInput && w.Declination && w.Declination.bindInput) {
       w.Declination.bindInput(declInput, () => {
@@ -556,6 +595,7 @@
 
     updateTargetUI();
     updateAimUI(null);
+    updateQuickTargetsUI();
   }
 
   if (document.readyState === 'loading') {
