@@ -1,6 +1,6 @@
 // ui.js
 // All DOM wiring for AP-Tool.
-// Uses global Sensors, TargetMap, AimMath, CompassUI provided by other modules.
+// Uses global Sensors, TargetMap, AimMath, CompassUI, Declination.
 
 (function (global) {
   'use strict';
@@ -15,7 +15,7 @@
     elevation: null
   };
 
-  // ---- Helpers ----
+  // ---- helpers ----
 
   function formatAngle(val) {
     if (typeof val !== 'number' || !isFinite(val)) return '—';
@@ -41,6 +41,13 @@
     if (typeof m !== 'number' || !isFinite(m)) return '—';
     var dir = m > 0 ? '↑' : m < 0 ? '↓' : '';
     return (m.toFixed(1) + ' m ' + dir).trim();
+  }
+
+  function toTrueHeading(magDeg) {
+    if (typeof magDeg !== 'number' || !isFinite(magDeg)) return null;
+    if (!global.Declination) return magDeg;
+    var t = global.Declination.magneticToTrue(magDeg);
+    return isFinite(t) ? t : magDeg;
   }
 
   // ---- UI update: Sensors ----
@@ -82,12 +89,15 @@
       gpsErrorEl.textContent = '—';
     }
 
-    // Orientation
+    // Orientation (apply declination for display)
     oriStatusPill.textContent = 'ori: ' + state.oriStatus;
+
+    var magHeading = typeof state.headingDeg === 'number' ? state.headingDeg : null;
+    var trueHeading = toTrueHeading(magHeading);
+
     headingEl.textContent =
-      typeof state.headingDeg === 'number'
-        ? state.headingDeg.toFixed(1) + '°'
-        : '—';
+      trueHeading != null ? trueHeading.toFixed(1) + '°' : '—';
+
     pitchEl.textContent =
       typeof state.pitchDeg === 'number'
         ? state.pitchDeg.toFixed(1) + '°'
@@ -239,15 +249,17 @@
       return;
     }
 
+    // Current heading / pitch (convert heading to true)
+    var magHeading = typeof s.headingDeg === 'number' ? s.headingDeg : null;
+    var trueHeading = toTrueHeading(magHeading);
+
     var compassBase = {
-      currentHeadingDeg:
-        typeof s.headingDeg === 'number' ? s.headingDeg : null,
-      currentPitchDeg:
-        typeof s.pitchDeg === 'number' ? s.pitchDeg : null,
+      currentHeadingDeg: trueHeading,
+      currentPitchDeg: typeof s.pitchDeg === 'number' ? s.pitchDeg : null,
       toleranceDeg: 3
     };
 
-    // If we don't have geo + target yet, just draw the arrows and clear aim solution.
+    // If we don't have full geo + target or AimMath, just update compasses
     if (
       typeof s.gpsLat !== 'number' ||
       typeof s.gpsLon !== 'number' ||
@@ -266,10 +278,8 @@
       lat: s.gpsLat,
       lon: s.gpsLon,
       alt: typeof s.gpsAlt === 'number' ? s.gpsAlt : null,
-      headingDeg:
-        typeof s.headingDeg === 'number' ? s.headingDeg : null,
-      pitchDeg:
-        typeof s.pitchDeg === 'number' ? s.pitchDeg : null
+      headingDeg: trueHeading,
+      pitchDeg: typeof s.pitchDeg === 'number' ? s.pitchDeg : null
     };
 
     var target = {
@@ -297,7 +307,7 @@
     }
   }
 
-  // ---- Init & Wiring ----
+  // ---- Init & wiring ----
 
   function init() {
     var startBtn = $('startBtn');
@@ -312,7 +322,7 @@
       return;
     }
 
-    // Init compass UI if present
+    // Init compass UI
     if (global.CompassUI) {
       global.CompassUI.init({
         headingCanvasId: 'headingCompass',
@@ -320,6 +330,12 @@
         toleranceDeg: 3
       });
       global.CompassUI.update({});
+    }
+
+    // Bind declination input
+    var declInput = $('declInput');
+    if (declInput && global.Declination && global.Declination.bindInput) {
+      global.Declination.bindInput(declInput);
     }
 
     // Wire sensor updates
