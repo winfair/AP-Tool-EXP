@@ -96,6 +96,15 @@
       background:transparent;color:var(--ink);
       box-shadow:none;border:1px solid var(--border)
     }
+    .btn-mini{
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:transparent;
+      color:var(--ink);
+      font-size:10px;
+      padding:3px 6px;
+      cursor:pointer
+    }
     .hint{font-size:10px;color:var(--muted)}
     .grid{
       display:grid;grid-template-columns:1fr 1fr;
@@ -316,9 +325,41 @@
 
       <div class="target-actions">
         <button id="selectTargetBtn">🗺 Select Target</button>
+        <button id="openSaveTargetBtn" class="btn-secondary">💾 Save / new</button>
         <span class="target-status" id="targetStatusText">
           No target selected. Tap “Select Target” to choose a point on the map.
         </span>
+      </div>
+
+      <!-- Save / edit target panel -->
+      <div id="saveTargetPanel" class="accent-box" style="display:none">
+        <div class="label" style="margin-bottom:4px">Save / edit target</div>
+        <div class="row-data">
+          <div class="label">Name</div>
+          <input id="saveTargetName" class="decl-input" type="text" />
+        </div>
+        <div class="row-data">
+          <div class="label">Lat</div>
+          <input id="saveTargetLat" class="decl-input" type="number" step="0.000001" />
+        </div>
+        <div class="row-data">
+          <div class="label">Lon</div>
+          <input id="saveTargetLon" class="decl-input" type="number" step="0.000001" />
+        </div>
+        <div class="row-data">
+          <div class="label">Elev (m)</div>
+          <input id="saveTargetElev" class="decl-input" type="number" step="0.1" />
+        </div>
+        <div class="start-row" style="margin-top:4px">
+          <button id="saveTargetConfirmBtn">Save</button>
+          <button id="saveTargetCancelBtn" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Saved targets list -->
+      <div id="savedTargetsBox" class="accent-box" style="margin-top:6px;display:none">
+        <div class="label" style="margin-bottom:4px">Saved targets</div>
+        <div id="savedTargetsList" style="display:flex;flex-direction:column;gap:4px;"></div>
       </div>
 
       <div style="margin-top:6px">
