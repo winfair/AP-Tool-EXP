@@ -463,11 +463,6 @@
       w.CompassUI.update({});
     }
 
-    const declInput = $('declInput');
-    if (declInput && w.Declination && w.Declination.bindInput) {
-      w.Declination.bindInput(declInput);
-    }
-
     loadSavedTargets();
     updateSavedTargetsUI();
 
@@ -518,6 +513,20 @@
 
     const savedList = $('savedTargetsList');
     if (savedList) savedList.addEventListener('click', handleSavedTargetsClick);
+
+    // Bind declination input so changing it re-runs the math
+    const declInput = $('declInput');
+    if (declInput && w.Declination && w.Declination.bindInput) {
+      w.Declination.bindInput(declInput, () => {
+        // When declination / offset changes, recompute headings & aim
+        recomputeAim();
+        const S2 = w.Sensors;
+        if (S2 && S2.getState) {
+          const st = S2.getState();
+          if (st) updateSensorsUI(st);
+        }
+      });
+    }
 
     updateTargetUI();
     updateAimUI(null);
