@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AP-Tool Sensor Core</title>
+  <title>AP-Tool</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
   <!-- Leaflet CSS/JS (map engine) -->
@@ -180,6 +180,13 @@
       box-shadow: none;
     }
 
+    .btn-secondary {
+      background: transparent;
+      color: var(--ink);
+      box-shadow: none;
+      border: 1px solid var(--border);
+    }
+
     .hint {
       font-size: 11px;
       color: var(--muted);
@@ -354,13 +361,6 @@
       gap: 8px;
     }
 
-    .btn-secondary {
-      background: transparent;
-      color: var(--ink);
-      box-shadow: none;
-      border: 1px solid var(--border);
-    }
-
     .overlay-data-row {
       display: flex;
       justify-content: space-between;
@@ -383,12 +383,12 @@
     <header class="appbar">
       <div class="title-group">
         <div class="app-title">AP-Tool</div>
-        <div class="app-subtitle">Sensor core · GPS + orientation + target</div>
+        <div class="app-subtitle">GPS · orientation · target · aim</div>
       </div>
       <div class="badge">Core module</div>
     </header>
 
-    <!-- Global status + start button -->
+    <!-- Sensor session -->
     <section class="card">
       <div class="card-header">
         <div class="card-title">Sensor Session</div>
@@ -404,7 +404,7 @@
       </div>
     </section>
 
-    <!-- GPS + Orientation cards -->
+    <!-- GPS + Orientation -->
     <section class="grid">
       <!-- GPS -->
       <article class="card">
@@ -453,13 +453,13 @@
           <span id="oriError">—</span>
         </div>
 
-        <div class="pill-row" id="oriHintRow">
+        <div class="pill-row">
           <span class="mini-pill" id="oriSupportPill">Checking support…</span>
         </div>
       </article>
     </section>
 
-    <!-- Target selection card -->
+    <!-- Target card -->
     <section class="card">
       <div class="card-header">
         <div class="card-title">Target</div>
@@ -484,6 +484,43 @@
         <span class="target-status" id="targetStatusText">
           No target selected. Tap “Select Target” to choose a point on the map.
         </span>
+      </div>
+    </section>
+
+    <!-- Aim card -->
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">Aim Solution</div>
+        <div class="status-pill" id="aimStatusPill">No target</div>
+      </div>
+
+      <div class="data-row">
+        <div class="data-label">Req heading</div>
+        <div class="data-value large" id="aimReqHeading">—</div>
+      </div>
+      <div class="data-row">
+        <div class="data-label">Req pitch</div>
+        <div class="data-value large" id="aimReqPitch">—</div>
+      </div>
+      <div class="data-row">
+        <div class="data-label">Head error</div>
+        <div class="data-value large" id="aimHeadingErr">—</div>
+      </div>
+      <div class="data-row">
+        <div class="data-label">Pitch error</div>
+        <div class="data-value large" id="aimPitchErr">—</div>
+      </div>
+      <div class="data-row">
+        <div class="data-label">Horiz dist</div>
+        <div class="data-value large" id="aimHorizDist">—</div>
+      </div>
+      <div class="data-row">
+        <div class="data-label">Vert delta</div>
+        <div class="data-value large" id="aimVertDelta">—</div>
+      </div>
+
+      <div class="accent-box">
+        Positive errors = turn right / tilt up. Negative = turn left / tilt down.
       </div>
     </section>
   </div>
@@ -524,192 +561,11 @@
     </div>
   </div>
 
-  <!-- Sensor core -->
+  <!-- Core modules -->
   <script src="sensors.js"></script>
-  <!-- Map + target logic -->
   <script src="map.js"></script>
-
-  <!-- UI wiring -->
-  <script>
-    (function () {
-      var startBtn = document.getElementById('startBtn');
-      var comboStatusEl = document.getElementById('comboStatus');
-      var statusTextEl = document.getElementById('statusText');
-
-      var gpsStatusPill = document.getElementById('gpsStatusPill');
-      var gpsLatEl = document.getElementById('gpsLat');
-      var gpsLonEl = document.getElementById('gpsLon');
-      var gpsAltEl = document.getElementById('gpsAlt');
-      var gpsErrorBox = document.getElementById('gpsErrorBox');
-      var gpsErrorEl = document.getElementById('gpsError');
-
-      var oriStatusPill = document.getElementById('oriStatusPill');
-      var headingEl = document.getElementById('headingVal');
-      var pitchEl = document.getElementById('pitchVal');
-      var oriErrorBox = document.getElementById('oriErrorBox');
-      var oriErrorEl = document.getElementById('oriError');
-      var oriSupportPill = document.getElementById('oriSupportPill');
-
-      // Target UI elements
-      var targetStatusPill = document.getElementById('targetStatusPill');
-      var targetLatEl = document.getElementById('targetLat');
-      var targetLonEl = document.getElementById('targetLon');
-      var targetElevEl = document.getElementById('targetElev');
-      var targetStatusText = document.getElementById('targetStatusText');
-      var selectTargetBtn = document.getElementById('selectTargetBtn');
-
-      var targetState = {
-        lat: null,
-        lon: null,
-        elevation: null
-      };
-
-      function shortStatus(gps, ori) {
-        return 'gps: ' + gps + ' · ori: ' + ori;
-      }
-
-      function renderSensors(state) {
-        if (!state) return;
-
-        // GPS
-        gpsStatusPill.textContent = 'gps: ' + state.gpsStatus;
-        gpsLatEl.textContent =
-          typeof state.gpsLat === 'number' ? state.gpsLat.toFixed(6) : '—';
-        gpsLonEl.textContent =
-          typeof state.gpsLon === 'number' ? state.gpsLon.toFixed(6) : '—';
-        gpsAltEl.textContent =
-          typeof state.gpsAlt === 'number'
-            ? state.gpsAlt.toFixed(1) + ' m'
-            : '—';
-
-        if (state.gpsError) {
-          gpsErrorBox.style.display = 'block';
-          gpsErrorEl.textContent = state.gpsError;
-        } else {
-          gpsErrorBox.style.display = 'none';
-          gpsErrorEl.textContent = '—';
-        }
-
-        // Orientation
-        oriStatusPill.textContent = 'ori: ' + state.oriStatus;
-        headingEl.textContent =
-          typeof state.headingDeg === 'number'
-            ? state.headingDeg.toFixed(1) + '°'
-            : '—';
-        pitchEl.textContent =
-          typeof state.pitchDeg === 'number'
-            ? state.pitchDeg.toFixed(1) + '°'
-            : '—';
-
-        if (state.oriError) {
-          oriErrorBox.style.display = 'block';
-          oriErrorEl.textContent = state.oriError;
-        } else {
-          oriErrorBox.style.display = 'none';
-          oriErrorEl.textContent = '—';
-        }
-
-        // Orientation support mini pill
-        if (state.oriStatus === 'unsupported') {
-          oriSupportPill.textContent = 'Orientation not supported here';
-          oriSupportPill.className = 'mini-pill bad';
-        } else if (state.oriStatus === 'denied') {
-          oriSupportPill.textContent = 'Permission denied – check browser settings';
-          oriSupportPill.className = 'mini-pill bad';
-        } else if (state.oriStatus === 'listening') {
-          oriSupportPill.textContent = 'Orientation live';
-          oriSupportPill.className = 'mini-pill ok';
-        } else if (state.oriStatus === 'requesting') {
-          oriSupportPill.textContent = 'Requesting permission…';
-          oriSupportPill.className = 'mini-pill warn';
-        } else {
-          oriSupportPill.textContent = 'Waiting for start…';
-          oriSupportPill.className = 'mini-pill';
-        }
-
-        // Combined status
-        comboStatusEl.textContent = shortStatus(state.gpsStatus, state.oriStatus);
-
-        // Top info text
-        if (state.gpsStatus === 'ok' || state.oriStatus === 'listening') {
-          statusTextEl.textContent =
-            'Sensors are live. Move and rotate the phone to see updates.';
-        } else if (state.gpsStatus === 'denied' || state.oriStatus === 'denied') {
-          statusTextEl.textContent =
-            'One or more permissions were denied. Check your browser/site settings and try again.';
-        } else if (state.gpsStatus === 'unsupported' || state.oriStatus === 'unsupported') {
-          statusTextEl.textContent =
-            'This browser environment does not support at least one of the sensors.';
-        } else if (state.gpsStatus === 'requesting' || state.oriStatus === 'requesting') {
-          statusTextEl.textContent =
-            'Waiting for permission. If you don’t see a prompt, check browser settings.';
-        } else {
-          statusTextEl.textContent =
-            'Ready. Tap “Start sensors” once and accept the browser prompts on your phone.';
-        }
-      }
-
-      function updateTargetUI() {
-        if (typeof targetState.lat === 'number' && typeof targetState.lon === 'number') {
-          targetLatEl.textContent = targetState.lat.toFixed(6);
-          targetLonEl.textContent = targetState.lon.toFixed(6);
-
-          if (typeof targetState.elevation === 'number') {
-            targetElevEl.textContent = targetState.elevation.toFixed(1) + ' m';
-            targetStatusPill.textContent = 'Target set';
-            targetStatusText.textContent = 'Target selected and elevation loaded.';
-          } else {
-            targetElevEl.textContent = '—';
-            targetStatusPill.textContent = 'Target set (no elev)';
-            targetStatusText.textContent =
-              'Target selected. Elevation not available or still loading.';
-          }
-        } else {
-          targetLatEl.textContent = '—';
-          targetLonEl.textContent = '—';
-          targetElevEl.textContent = '—';
-          targetStatusPill.textContent = 'No target';
-          targetStatusText.textContent =
-            'No target selected. Tap “Select Target” to choose a point on the map.';
-        }
-      }
-
-      if (!window.Sensors) {
-        comboStatusEl.textContent = 'Error: sensors.js not loaded';
-        statusTextEl.textContent =
-          'The Sensors core script is missing. Make sure sensors.js is in the same folder.';
-        startBtn.disabled = true;
-        return;
-      }
-
-      // Wire sensors → UI
-      window.Sensors.onUpdate(renderSensors);
-
-      // Button click = user gesture → start sensors
-      startBtn.addEventListener('click', function () {
-        startBtn.disabled = true; // prevent spam; we only need to start once
-        window.Sensors.start();
-      });
-
-      // Target button → open map overlay
-      if (selectTargetBtn && window.TargetMap) {
-        selectTargetBtn.addEventListener('click', function () {
-          window.TargetMap.open({
-            onConfirm: function (target) {
-              if (!target) return;
-              targetState.lat = typeof target.lat === 'number' ? target.lat : null;
-              targetState.lon = typeof target.lon === 'number' ? target.lon : null;
-              targetState.elevation =
-                typeof target.elevation === 'number' ? target.elevation : null;
-              updateTargetUI();
-            }
-          });
-        });
-      }
-
-      // Initial target UI
-      updateTargetUI();
-    })();
-  </script>
+  <script src="aim-math.js"></script>
+  <!-- UI module (all wiring lives here) -->
+  <script src="ui.js"></script>
 </body>
 </html>
