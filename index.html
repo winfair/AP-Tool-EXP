@@ -49,10 +49,10 @@
       min-height: 100vh;
       max-width: 480px;
       margin: 0 auto;
-      padding: 16px 12px 24px;
+      padding: 10px 10px 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 8px;
       position: relative;
       z-index: 1;
     }
@@ -61,18 +61,18 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 4px;
+      gap: 8px;
+      margin-bottom: 2px;
     }
 
     .title-group {
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 1px;
     }
 
     .app-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 600;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -80,15 +80,15 @@
     }
 
     .app-subtitle {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--muted);
     }
 
     .badge {
-      font-size: 11px;
+      font-size: 10px;
       border-radius: 999px;
       border: 1px solid var(--border);
-      padding: 3px 10px;
+      padding: 2px 8px;
       color: var(--muted);
       background: rgba(15, 23, 42, 0.9);
       white-space: nowrap;
@@ -96,10 +96,10 @@
 
     .card {
       background: var(--card);
-      border-radius: 16px;
+      border-radius: 14px;
       border: 1px solid var(--border);
-      padding: 12px 14px;
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.85);
+      padding: 10px 12px;
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.85);
     }
 
     .card-header {
@@ -107,11 +107,11 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .card-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.1em;
@@ -119,12 +119,12 @@
     }
 
     .status-pill {
-      font-size: 11px;
+      font-size: 10px;
       padding: 2px 8px;
       border-radius: 999px;
       border: 1px solid var(--border);
       color: var(--muted);
-      max-width: 50%;
+      max-width: 55%;
       text-align: right;
       white-space: nowrap;
       overflow: hidden;
@@ -132,14 +132,14 @@
     }
 
     .status-text {
-      font-size: 13px;
+      font-size: 12px;
       margin: 0;
       color: var(--ink);
       min-height: 18px;
     }
 
     .status-label {
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--muted);
@@ -147,9 +147,9 @@
     }
 
     .start-row {
-      margin-top: 10px;
+      margin-top: 8px;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       flex-wrap: wrap;
     }
@@ -157,13 +157,13 @@
     button {
       border: none;
       border-radius: 999px;
-      padding: 10px 14px;
-      font-size: 13px;
+      padding: 8px 12px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       color: #0f172a;
       background: var(--accent);
-      box-shadow: 0 12px 30px rgba(56, 189, 248, 0.4);
+      box-shadow: 0 10px 24px rgba(56, 189, 248, 0.4);
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -188,33 +188,27 @@
     }
 
     .hint {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--muted);
     }
 
     .grid {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-      margin-top: 4px;
-    }
-
-    @media (min-width: 520px) {
-      .grid {
-        grid-template-columns: 1fr 1fr;
-      }
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 2px;
     }
 
     .data-row {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 4px;
+      gap: 6px;
+      margin-bottom: 3px;
     }
 
     .data-label {
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--muted);
@@ -223,24 +217,24 @@
     .data-value {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
         "Courier New", monospace;
-      font-size: 12px;
+      font-size: 11px;
       text-align: right;
     }
 
     .data-value.large {
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .pill-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 6px;
+      gap: 4px;
+      margin-top: 4px;
     }
 
     .mini-pill {
-      font-size: 11px;
-      padding: 3px 8px;
+      font-size: 10px;
+      padding: 3px 7px;
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.4);
       background: rgba(15, 23, 42, 0.9);
@@ -266,27 +260,28 @@
     }
 
     .accent-box {
-      margin-top: 6px;
-      padding: 6px 8px;
+      margin-top: 5px;
+      padding: 5px 7px;
       border-radius: 10px;
       border: 1px solid rgba(56, 189, 248, 0.3);
       background: radial-gradient(circle at top left, var(--accent-soft), transparent);
-      font-size: 11px;
+      font-size: 10px;
       color: var(--muted);
     }
 
-    /* Target card tweaks */
+    /* Target / Aim actions */
     .target-actions {
-      margin-top: 8px;
+      margin-top: 6px;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
       align-items: center;
     }
 
     .target-status {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--muted);
+      flex: 1 1 0;
     }
 
     /* Floating map overlay */
@@ -315,7 +310,7 @@
     }
 
     .overlay-header {
-      padding: 10px 12px;
+      padding: 8px 10px;
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
@@ -324,18 +319,18 @@
     }
 
     .overlay-title {
-      font-size: 13px;
+      font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.1em;
       color: var(--muted);
     }
 
     .overlay-body {
-      padding: 6px 10px 10px;
+      padding: 6px 10px 8px;
       display: flex;
       flex-direction: column;
       gap: 6px;
-      font-size: 11px;
+      font-size: 10px;
       color: var(--muted);
     }
 
@@ -347,18 +342,13 @@
     }
 
     .overlay-footer {
-      padding: 8px 10px 10px;
+      padding: 6px 10px 8px;
       border-top: 1px solid var(--border);
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-    }
-
-    .overlay-footer-right {
-      display: flex;
-      gap: 8px;
     }
 
     .overlay-data-row {
@@ -373,16 +363,16 @@
     }
 
     .overlay-status {
-      font-size: 11px;
-      margin-top: 4px;
+      font-size: 10px;
+      margin-top: 2px;
     }
 
     /* Compass row */
     .compass-row {
       display: flex;
-      gap: 12px;
-      margin-top: 10px;
-      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+      flex-wrap: nowrap;
       justify-content: space-between;
     }
 
@@ -390,13 +380,13 @@
       flex: 1 1 0;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
       align-items: center;
     }
 
     .compass-block canvas {
       width: 100%;
-      max-width: 160px;
+      max-width: 150px;
       height: auto;
       display: block;
     }
@@ -412,7 +402,7 @@
       <div class="badge">Core module</div>
     </header>
 
-    <!-- Sensor session -->
+    <!-- Sensor session (small, top) -->
     <section class="card">
       <div class="card-header">
         <div class="card-title">Sensor Session</div>
@@ -424,11 +414,11 @@
       </p>
       <div class="start-row">
         <button id="startBtn">▶ Start sensors</button>
-        <span class="hint">Must be tapped on-device (user gesture).</span>
+        <span class="hint">Tap on your phone to enable sensors.</span>
       </div>
     </section>
 
-    <!-- GPS + Orientation -->
+    <!-- GPS + Orientation (two small cards side-by-side) -->
     <section class="grid">
       <!-- GPS -->
       <article class="card">
@@ -483,14 +473,20 @@
       </article>
     </section>
 
-    <!-- Target card -->
+    <!-- Target + Aim + Compass in a single compact card -->
     <section class="card">
       <div class="card-header">
-        <div class="card-title">Target</div>
-        <div class="status-pill" id="targetStatusPill">No target</div>
+        <div class="card-title">Target & Aim</div>
+        <div class="status-pill" id="aimStatusPill">No target</div>
       </div>
 
-      <div class="data-row">
+      <!-- Target mini-pill status -->
+      <div class="pill-row">
+        <span class="mini-pill" id="targetStatusPill">No target</span>
+      </div>
+
+      <!-- Target coordinates -->
+      <div class="data-row" style="margin-top: 4px;">
         <div class="data-label">Target lat</div>
         <div class="data-value large" id="targetLat">—</div>
       </div>
@@ -509,53 +505,50 @@
           No target selected. Tap “Select Target” to choose a point on the map.
         </span>
       </div>
-    </section>
 
-    <!-- Aim card -->
-    <section class="card">
-      <div class="card-header">
-        <div class="card-title">Aim Solution</div>
-        <div class="status-pill" id="aimStatusPill">No target</div>
-      </div>
-
-      <div class="data-row">
-        <div class="data-label">Req heading</div>
-        <div class="data-value large" id="aimReqHeading">—</div>
-      </div>
-      <div class="data-row">
-        <div class="data-label">Req pitch</div>
-        <div class="data-value large" id="aimReqPitch">—</div>
-      </div>
-      <div class="data-row">
-        <div class="data-label">Head error</div>
-        <div class="data-value large" id="aimHeadingErr">—</div>
-      </div>
-      <div class="data-row">
-        <div class="data-label">Pitch error</div>
-        <div class="data-value large" id="aimPitchErr">—</div>
-      </div>
-      <div class="data-row">
-        <div class="data-label">Horiz dist</div>
-        <div class="data-value large" id="aimHorizDist">—</div>
-      </div>
-      <div class="data-row">
-        <div class="data-label">Vert delta</div>
-        <div class="data-value large" id="aimVertDelta">—</div>
+      <!-- Aim numbers -->
+      <div style="margin-top: 6px;">
+        <div class="data-row">
+          <div class="data-label">Req heading</div>
+          <div class="data-value large" id="aimReqHeading">—</div>
+        </div>
+        <div class="data-row">
+          <div class="data-label">Req pitch</div>
+          <div class="data-value large" id="aimReqPitch">—</div>
+        </div>
+        <div class="data-row">
+          <div class="data-label">Head error</div>
+          <div class="data-value large" id="aimHeadingErr">—</div>
+        </div>
+        <div class="data-row">
+          <div class="data-label">Pitch error</div>
+          <div class="data-value large" id="aimPitchErr">—</div>
+        </div>
+        <div class="data-row">
+          <div class="data-label">Horiz dist</div>
+          <div class="data-value large" id="aimHorizDist">—</div>
+        </div>
+        <div class="data-row">
+          <div class="data-label">Vert delta</div>
+          <div class="data-value large" id="aimVertDelta">—</div>
+        </div>
       </div>
 
+      <!-- Compass indicators (visual guide) -->
       <div class="compass-row">
         <div class="compass-block">
-          <div class="data-label">Heading guidance</div>
-          <canvas id="headingCompass" width="160" height="160"></canvas>
+          <div class="data-label">Heading guide</div>
+          <canvas id="headingCompass" width="150" height="150"></canvas>
         </div>
         <div class="compass-block">
-          <div class="data-label">Pitch guidance</div>
-          <canvas id="pitchCompass" width="160" height="160"></canvas>
+          <div class="data-label">Pitch guide</div>
+          <canvas id="pitchCompass" width="150" height="150"></canvas>
         </div>
       </div>
 
       <div class="accent-box">
-        Positive errors = turn right / tilt up. Negative = turn left / tilt down.
+        When the arrow overlays the target line (within ±3°), the gauge turns green — you're on
+        target.
       </div>
     </section>
   </div>
@@ -588,10 +581,7 @@
         <div class="overlay-status" id="overlayStatus">Tap on the map to place the pin.</div>
       </div>
       <div class="overlay-footer">
-        <div class="overlay-footer-left"></div>
-        <div class="overlay-footer-right">
-          <button id="confirmTargetBtn">✔ Use this point</button>
-        </div>
+        <button id="confirmTargetBtn">✔ Use this point</button>
       </div>
     </div>
   </div>
