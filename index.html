@@ -17,7 +17,6 @@
     integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg=="
     crossorigin=""
   ></script>
-  <!-- Snippet from Leaflet’s recommended CDN usage  -->
 
   <style>
     :root {
@@ -422,6 +421,10 @@
           <div class="data-label">Longitude</div>
           <div class="data-value large" id="gpsLon">—</div>
         </div>
+        <div class="data-row">
+          <div class="data-label">Elevation</div>
+          <div class="data-value large" id="gpsAlt">—</div>
+        </div>
 
         <div class="accent-box" id="gpsErrorBox" style="display: none">
           <strong>GPS error:</strong>
@@ -521,7 +524,7 @@
     </div>
   </div>
 
-  <!-- Sensor core (unchanged) -->
+  <!-- Sensor core -->
   <script src="sensors.js"></script>
   <!-- Map + target logic -->
   <script src="map.js"></script>
@@ -536,6 +539,7 @@
       var gpsStatusPill = document.getElementById('gpsStatusPill');
       var gpsLatEl = document.getElementById('gpsLat');
       var gpsLonEl = document.getElementById('gpsLon');
+      var gpsAltEl = document.getElementById('gpsAlt');
       var gpsErrorBox = document.getElementById('gpsErrorBox');
       var gpsErrorEl = document.getElementById('gpsError');
 
@@ -573,6 +577,10 @@
           typeof state.gpsLat === 'number' ? state.gpsLat.toFixed(6) : '—';
         gpsLonEl.textContent =
           typeof state.gpsLon === 'number' ? state.gpsLon.toFixed(6) : '—';
+        gpsAltEl.textContent =
+          typeof state.gpsAlt === 'number'
+            ? state.gpsAlt.toFixed(1) + ' m'
+            : '—';
 
         if (state.gpsError) {
           gpsErrorBox.style.display = 'block';
