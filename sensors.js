@@ -6,31 +6,37 @@
 //   Sensors.onUpdate(cb)       // subscribe to state changes
 //   Sensors.getState()         // get latest snapshot
 //
-// State fields (what ui.js expects):
+// State fields:
 //   gpsStatus: 'idle' | 'requesting' | 'ok' | 'denied' | 'error' | 'unsupported'
 //   gpsLat, gpsLon: number|null
-//   gpsAlt: number|null   (meters, if available)
+//   gpsAlt: number|null        // meters, if available
 //   gpsError: string|null
 //
 //   oriStatus: 'idle' | 'requesting' | 'listening' | 'denied' | 'error' | 'unsupported'
-//   headingDeg: number|null   // ~magnetic heading, 0..360 (NO auto-zero)
-//   pitchDeg: number|null     // tilt up/down in degrees
+//   headingDeg: number|null    // 0..360, from whatever best source we have
+//   pitchDeg: number|null      // -90..90 front/back tilt
 //   oriError: string|null
+//   oriFrame: 'earth' | 'device' | null
+//       // 'earth'  = heading is tied to Earth frame (magnetic/true north capable)
+//       // 'device' = heading is only relative to some arbitrary starting frame
 
 (function (global) {
   'use strict';
 
   var state = {
+    // GPS
     gpsStatus: 'idle',
     gpsLat: null,
     gpsLon: null,
     gpsAlt: null,
     gpsError: null,
 
+    // Orientation
     oriStatus: 'idle',
     headingDeg: null,
     pitchDeg: null,
-    oriError: null
+    oriError: null,
+    oriFrame: null
   };
 
   var listeners = [];
@@ -106,22 +112,36 @@
 
   // ---------- Orientation ----------
 
+  function normalizeHeading(deg) {
+    var d = deg % 360;
+    if (d < 0) d += 360;
+    return d;
+  }
+
   function handleOrientationEvent(ev) {
     var heading = null;
     var pitch = null;
+    var frame = state.oriFrame;
 
-    // Prefer iOS Safari magnetic heading if available
-    if (typeof ev.webkitCompassHeading === 'number') {
-      // 0..360, 0 = magnetic north
+    // PRIORITY 1: iOS Safari real compass (magnetic heading)
+    if (typeof ev.webkitCompassHeading === 'number' && !isNaN(ev.webkitCompassHeading)) {
+      // 0 = magnetic north, clockwise
       heading = ev.webkitCompassHeading;
-    } else if (typeof ev.alpha === 'number') {
-      // Fallback: interpret alpha as rotation around z-axis.
-      // Common pattern: compass heading ≈ 360 - alpha
-      heading = 360 - ev.alpha;
+      frame = 'earth';
+    } else {
+      // OTHER BROWSERS: fall back to alpha/beta/gamma
+      if (typeof ev.alpha === 'number' && !isNaN(ev.alpha)) {
+        // NOTE:
+        //  - On deviceorientationabsolute, alpha SHOULD be Earth-frame. 
+        //  - On many Chrome/Android combos, plain deviceorientation is relative. 
+        // We keep it as-is; the app can see state.oriFrame to know if it's earth/relative.
+        heading = ev.alpha;
+        frame = ev.absolute === true ? 'earth' : (frame || 'device');
+      }
     }
 
-    // Pitch: simple approximation using beta (front/back tilt)
-    if (typeof ev.beta === 'number') {
+    // Pitch: front-back tilt from beta
+    if (typeof ev.beta === 'number' && !isNaN(ev.beta)) {
       var b = ev.beta;
       if (b > 90) b = 90;
       if (b < -90) b = -90;
@@ -129,14 +149,14 @@
     }
 
     if (heading != null && isFinite(heading)) {
-      var h = heading % 360;
-      if (h < 0) h += 360;
-      state.headingDeg = h; // NOTE: no auto-zero here
+      state.headingDeg = normalizeHeading(heading);
     }
 
     if (pitch != null && isFinite(pitch)) {
       state.pitchDeg = pitch;
     }
+
+    state.oriFrame = frame;
 
     if (state.oriStatus !== 'listening') {
       state.oriStatus = 'listening';
@@ -144,6 +164,24 @@
     }
 
     notify();
+  }
+
+  function attachOrientationListeners() {
+    if (orientationActive) return;
+    orientationActive = true;
+
+    // BEST-EFFORT PRIORITY:
+    // 1) deviceorientationabsolute (Chrome & friends, Earth frame) 
+    // 2) deviceorientation (fallback)
+    if ('ondeviceorientationabsolute' in global) {
+      global.addEventListener('deviceorientationabsolute', handleOrientationEvent, true);
+    } else if ('ondeviceorientation' in global) {
+      global.addEventListener('deviceorientation', handleOrientationEvent, true);
+    } else {
+      state.oriStatus = 'unsupported';
+      state.oriError = 'Orientation events not supported in this browser.';
+      notify();
+    }
   }
 
   function startOrientation() {
@@ -160,20 +198,13 @@
     state.oriError = null;
     notify();
 
-    function attachListener() {
-      if (orientationActive) return;
-      orientationActive = true;
-      global.addEventListener('deviceorientation', handleOrientationEvent, true);
-      // oriStatus switches to "listening" on first event
-    }
-
     try {
       // iOS 13+ requires explicit permission
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
           .then(function (result) {
             if (result === 'granted') {
-              attachListener();
+              attachOrientationListeners();
             } else {
               state.oriStatus = 'denied';
               state.oriError = 'Orientation permission denied.';
@@ -187,8 +218,8 @@
             notify();
           });
       } else {
-        // Non-iOS
-        attachListener();
+        // Non-iOS (or older iOS)
+        attachOrientationListeners();
       }
     } catch (e) {
       state.oriStatus = 'error';
