@@ -18,400 +18,687 @@
 
   <style>
     :root{
-      --bg:#020617;--bg2:#000;--card:#0b1220;
-      --ink:#e5e7eb;--muted:#94a3b8;
-      --accent:#38bdf8;--accent-soft:rgba(56,189,248,.15);
-      --border:rgba(148,163,184,.4)
+      --bg:#020912;
+      --bg2:#000000;
+      --card:#020308;
+      --ink:#bbf7d0;
+      --muted:#4ade80;
+      --accent:#22c55e;
+      --accent-soft:rgba(34,197,94,.12);
+      --border:rgba(34,197,94,.55);
+      --danger:#f97373;
+      --shadow:0 18px 40px rgba(0,0,0,.9);
+      --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
     }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    *{
+      box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+    }
     html,body{
       margin:0;padding:0;height:100%;
-      background:radial-gradient(circle at top,var(--bg) 0,var(--bg) 40%,var(--bg2) 100%);
+      background:
+        radial-gradient(circle at top,var(--bg) 0,var(--bg) 40%,var(--bg2) 100%),
+        repeating-linear-gradient(
+          to bottom,
+          rgba(22,101,52,.25) 0,
+          rgba(22,101,52,.25) 1px,
+          transparent 1px,
+          transparent 3px
+        );
       color:var(--ink);
-      font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
     }
     #app{
-      min-height:100vh;max-width:480px;margin:0 auto;
-      padding:10px 10px 16px;
-      display:flex;flex-direction:column;gap:8px;
-      position:relative;z-index:1
+      min-height:100vh;
+      max-width:520px;
+      margin:0 auto;
+      padding:10px 10px 18px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      position:relative;
+      z-index:1;
     }
+
+    /* Generic layout helpers */
     .row{display:flex;align-items:center}
     .between{justify-content:space-between}
     .col{display:flex;flex-direction:column}
+
+    /* Cards / floating panels */
     .card{
-      background:var(--card);
+      background:radial-gradient(circle at top left,#020617 0,var(--card) 55%,#000 100%);
       border-radius:14px;
       border:1px solid var(--border);
       padding:10px 12px;
-      box-shadow:0 14px 28px rgba(15,23,42,.85)
+      box-shadow:var(--shadow);
+      position:relative;
+      overflow:hidden;
     }
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(120deg,rgba(34,197,94,.12),transparent 35%,transparent 65%,rgba(16,185,129,.18));
+      opacity:.3;
+      pointer-events:none;
+      mix-blend-mode:screen;
+    }
+    .card-inner{position:relative;z-index:1}
+
     .card-head{
-      display:flex;align-items:center;justify-content:space-between;
-      margin-bottom:6px
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:6px;
+      gap:8px;
     }
     .card-title{
-      font-size:12px;font-weight:600;text-transform:uppercase;
-      letter-spacing:.1em;color:var(--muted)
+      font-size:11px;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:.14em;
+      color:var(--muted);
+    }
+
+    /* Header */
+    header{
+      padding:4px 8px 6px;
+      border-radius:14px;
+      border:1px solid rgba(34,197,94,.6);
+      background:radial-gradient(circle at top,#022c22 0,#020617 70%,#000 100%);
+      box-shadow:0 14px 40px rgba(0,0,0,.9);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
     }
     .title-main{
-      font-size:17px;font-weight:600;
-      letter-spacing:.06em;text-transform:uppercase
+      font-family:var(--mono);
+      font-size:16px;
+      font-weight:600;
+      letter-spacing:.2em;
+      text-transform:uppercase;
+      color:#4ade80;
     }
-    .title-sub{font-size:11px;color:var(--muted)}
+    .title-sub{
+      font-size:10px;
+      color:#16a34a;
+      font-family:var(--mono);
+    }
     .badge{
-      font-size:10px;border-radius:999px;
-      border:1px solid var(--border);
-      padding:2px 8px;color:var(--muted);
-      background:rgba(15,23,42,.9);white-space:nowrap
+      font-size:10px;
+      border-radius:999px;
+      border:1px solid rgba(22,163,74,.9);
+      padding:2px 10px;
+      color:#bbf7d0;
+      background:rgba(6,95,70,.75);
+      white-space:nowrap;
+      font-family:var(--mono);
     }
+
+    /* Pills, labels */
     .pill{
-      font-size:10px;border-radius:999px;
-      border:1px solid var(--border);
-      padding:2px 8px;color:var(--muted);
-      max-width:55%;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
-    }
-    .label{
-      font-size:10px;text-transform:uppercase;
-      letter-spacing:.08em;color:var(--muted)
-    }
-    .status-text{font-size:12px;margin:0;color:var(--ink);min-height:18px}
-    .start-row{
-      margin-top:8px;display:flex;gap:6px;
-      align-items:center;flex-wrap:wrap
-    }
-    button{
-      border:none;border-radius:999px;
-      padding:8px 12px;font-size:12px;font-weight:600;
-      cursor:pointer;color:#0f172a;background:var(--accent);
-      box-shadow:0 10px 24px rgba(56,189,248,.4);
-      display:inline-flex;align-items:center;gap:6px
-    }
-    button:active{
-      transform:translateY(1px) scale(.99);
-      box-shadow:0 6px 16px rgba(15,23,42,.9)
-    }
-    button:disabled{opacity:.55;cursor:default;box-shadow:none}
-    .btn-secondary{
-      background:transparent;color:var(--ink);
-      box-shadow:none;border:1px solid var(--border)
-    }
-    .btn-mini{
+      font-size:10px;
       border-radius:999px;
       border:1px solid var(--border);
-      background:transparent;
-      color:var(--ink);
-      font-size:10px;
-      padding:3px 6px;
-      cursor:pointer
+      padding:2px 8px;
+      color:var(--muted);
+      max-width:55%;
+      text-align:right;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      font-family:var(--mono);
     }
-    .hint{font-size:10px;color:var(--muted)}
-    .grid{
-      display:grid;grid-template-columns:1fr 1fr;
-      gap:8px;margin-top:2px
+    .label{
+      font-size:10px;
+      text-transform:uppercase;
+      letter-spacing:.1em;
+      color:#16a34a;
+      font-family:var(--mono);
+    }
+    .status-text{
+      font-size:11px;
+      margin:0;
+      color:var(--ink);
+      min-height:18px;
+      font-family:var(--mono);
+    }
+
+    /* Terminal buttons */
+    .controls-card .card-inner{display:flex;flex-direction:column;gap:6px}
+    .controls-row{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .tbtn{
+      border-radius:999px;
+      border:1px solid rgba(34,197,94,.85);
+      padding:8px 10px;
+      font-size:11px;
+      font-family:var(--mono);
+      background:rgba(0,0,0,.9);
+      color:#bbf7d0;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      box-shadow:0 10px 26px rgba(0,0,0,.9);
+    }
+    .tbtn span.cmd{
+      color:#22c55e;
+    }
+    .tbtn span.lbl{
+      color:#bbf7d0;
+    }
+    .tbtn:active{
+      transform:translateY(1px) scale(.99);
+      box-shadow:0 6px 16px rgba(0,0,0,.9);
+    }
+    .tbtn.disabled,
+    .tbtn:disabled{
+      opacity:.55;
+      cursor:default;
+      box-shadow:none;
+    }
+
+    /* Mini buttons (saved list) */
+    .btn-mini{
+      border-radius:999px;
+      border:1px solid rgba(34,197,94,.5);
+      background:rgba(0,0,0,.9);
+      color:#bbf7d0;
+      font-size:9px;
+      font-family:var(--mono);
+      padding:3px 6px;
+      cursor:pointer;
+    }
+
+    /* Compass layout */
+    .compass-card .card-inner{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .compass-shell{
+      display:flex;
+      gap:10px;
+      justify-content:center;
+      align-items:center;
+    }
+    .compass-block{
+      flex:1 1 0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:2px;
+    }
+    .compass-block-heading{
+      max-width:260px;
+    }
+    .compass-block-pitch{
+      max-width:80px;
+    }
+    .compass-label{
+      font-size:10px;
+      color:#16a34a;
+      font-family:var(--mono);
+      text-transform:uppercase;
+      letter-spacing:.15em;
+    }
+    canvas{
+      display:block;
+    }
+    .hint-line{
+      font-size:10px;
+      color:var(--muted);
+      font-family:var(--mono);
+    }
+
+    .accent-box{
+      margin-top:4px;
+      padding:5px 7px;
+      border-radius:10px;
+      border:1px solid rgba(34,197,94,.6);
+      background:radial-gradient(circle at top left,var(--accent-soft),transparent);
+      font-size:10px;
+      color:var(--muted);
+      font-family:var(--mono);
+    }
+
+    /* Telemetry layout */
+    .telemetry-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
     }
     .row-data{
-      display:flex;justify-content:space-between;
-      align-items:baseline;gap:6px;margin-bottom:3px
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      gap:6px;
+      margin-bottom:3px;
     }
     .val{
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      font-size:11px;text-align:right
+      font-family:var(--mono);
+      font-size:11px;
+      text-align:right;
     }
-    .val-lg{font-size:13px}
+    .val-lg{font-size:12px}
+
     .mini-pill{
-      font-size:10px;padding:3px 7px;border-radius:999px;
-      border:1px solid rgba(148,163,184,.4);
-      background:rgba(15,23,42,.9);color:var(--muted)
+      font-size:9px;
+      padding:3px 7px;
+      border-radius:999px;
+      border:1px solid rgba(34,197,94,.45);
+      background:rgba(0,0,0,.85);
+      color:var(--muted);
+      font-family:var(--mono);
     }
     .mini-pill.ok{
-      border-color:rgba(34,197,94,.6);
-      background:rgba(34,197,94,.08);color:#4ade80
+      border-color:rgba(34,197,94,.8);
+      background:rgba(5,46,22,.9);
+      color:#bbf7d0;
     }
     .mini-pill.bad{
-      border-color:rgba(248,113,113,.7);
-      background:rgba(248,113,113,.1);color:#fecaca
+      border-color:rgba(248,113,113,.8);
+      background:rgba(127,29,29,.9);
+      color:#fecaca;
     }
     .mini-pill.warn{
       border-color:rgba(250,204,21,.8);
-      background:rgba(250,204,21,.08);color:#facc15
+      background:rgba(113,63,18,.9);
+      color:#facc15;
     }
-    .mini-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
-    .accent-box{
-      margin-top:5px;padding:5px 7px;
-      border-radius:10px;border:1px solid rgba(56,189,248,.3);
-      background:radial-gradient(circle at top left,var(--accent-soft),transparent);
-      font-size:10px;color:var(--muted)
+    .mini-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:4px;
+      margin-top:4px;
     }
-    .decl-wrap{display:inline-flex;align-items:center;gap:4px}
-    .decl-input{
-      width:60px;padding:2px 4px;border-radius:999px;
+    .error-box{
+      margin-top:4px;
+      padding:4px 6px;
+      border-radius:9px;
+      border:1px solid rgba(239,68,68,.7);
+      background:rgba(127,29,29,.85);
+      font-size:10px;
+      color:#fee2e2;
+      font-family:var(--mono);
+    }
+
+    .target-status-text{
+      font-size:10px;
+      color:var(--muted);
+      font-family:var(--mono);
+      margin-top:4px;
+      min-height:12px;
+    }
+
+    .saved-box{
+      margin-top:6px;
+      padding:5px 7px 6px;
+      border-radius:10px;
+      border:1px dashed rgba(34,197,94,.6);
+      background:rgba(0,0,0,.8);
+      font-size:10px;
+      font-family:var(--mono);
+      color:var(--muted);
+    }
+
+    .saved-target-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:6px;
+      padding:3px 0;
+      border-bottom:1px dashed rgba(34,197,94,.25);
+    }
+    .saved-target-row:last-child{border-bottom:none}
+    .saved-name{
+      font-size:10px;
+      color:#bbf7d0;
+    }
+    .saved-meta{
+      font-size:9px;
+      color:var(--muted);
+    }
+
+    .decl-input,
+    .input-small{
+      width:80px;
+      padding:2px 4px;
+      border-radius:6px;
       border:1px solid var(--border);
-      background:#020617;color:var(--ink);
-      font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      text-align:right
+      background:#020617;
+      color:var(--ink);
+      font-size:11px;
+      font-family:var(--mono);
+      text-align:right;
     }
-    .decl-unit{font-size:10px;color:var(--muted);white-space:nowrap}
-    .target-actions{
-      margin-top:6px;display:flex;
-      gap:6px;align-items:center;flex-wrap:wrap
+    .decl-unit{
+      font-size:9px;
+      color:var(--muted);
+      white-space:nowrap;
+      font-family:var(--mono);
     }
-    .target-status{font-size:10px;color:var(--muted);flex:1 1 0}
-    .compass-row{
-      display:flex;gap:8px;margin-top:6px;
-      justify-content:space-between;flex-wrap:nowrap
+
+    .save-panel{
+      margin-top:6px;
+      padding:5px 7px 6px;
+      border-radius:10px;
+      border:1px solid rgba(34,197,94,.7);
+      background:rgba(0,0,0,.9);
+      font-family:var(--mono);
     }
-    .compass-block{
-      flex:1 1 0;display:flex;
-      flex-direction:column;align-items:center;gap:2px
-    }
-    .compass-block canvas{
-      width:100%;max-width:150px;
-      height:auto;display:block
-    }
-    /* Overlay */
+
+    /* Overlay / map */
     .overlay-backdrop{
-      position:fixed;inset:0;background:rgba(15,23,42,.9);
-      display:none;align-items:center;justify-content:center;
-      z-index:50;backdrop-filter:blur(4px)
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.9);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:50;
+      backdrop-filter:blur(4px);
     }
     .overlay-panel{
-      width:100%;max-width:480px;max-height:90vh;
-      background:#020617;border-radius:16px;
-      border:1px solid var(--border);
-      box-shadow:0 24px 60px rgba(0,0,0,.9);
-      display:flex;flex-direction:column;overflow:hidden
+      width:100%;
+      max-width:520px;
+      max-height:90vh;
+      background:#020617;
+      border-radius:14px;
+      border:1px solid rgba(34,197,94,.7);
+      box-shadow:0 24px 60px rgba(0,0,0,.95);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      font-family:var(--mono);
+      color:#bbf7d0;
     }
-    .overlay-head,.overlay-foot{
-      padding:8px 10px;display:flex;align-items:center;
-      justify-content:space-between;gap:8px;
-      border-color:var(--border)
+    .overlay-head,
+    .overlay-foot{
+      padding:8px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      border-color:rgba(34,197,94,.5);
     }
-    .overlay-head{border-bottom:1px solid var(--border)}
-    .overlay-foot{border-top:1px solid var(--border)}
+    .overlay-head{border-bottom:1px solid rgba(34,197,94,.5)}
+    .overlay-foot{border-top:1px solid rgba(34,197,94,.5)}
     .overlay-title{
-      font-size:12px;text-transform:uppercase;
-      letter-spacing:.1em;color:var(--muted)
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.16em;
+      color:#4ade80;
     }
     .overlay-body{
       padding:6px 10px 8px;
-      display:flex;flex-direction:column;gap:6px;
-      font-size:10px;color:var(--muted)
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      font-size:10px;
+      color:#a7f3d0;
     }
     #mapDiv{
-      flex:1 1 auto;min-height:260px;
-      border-radius:10px;overflow:hidden
+      flex:1 1 auto;
+      min-height:260px;
+      border-radius:9px;
+      overflow:hidden;
     }
     .overlay-row{
-      display:flex;justify-content:space-between;
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      font-size:10px
+      display:flex;
+      justify-content:space-between;
+      font-size:10px;
     }
     .overlay-label{opacity:.7}
-    .overlay-status{font-size:10px;margin-top:2px}
+    .overlay-status{
+      font-size:10px;
+      margin-top:2px;
+      color:#4ade80;
+    }
   </style>
 </head>
 <body>
   <div id="app">
-    <!-- Header -->
+    <!-- HEADER -->
     <header class="row between">
       <div class="col">
-        <div class="title-main">AP-Tool</div>
-        <div class="title-sub">GPS · orientation · target · aim</div>
+        <div class="title-main">AP-TOOL</div>
+        <div class="title-sub">geo · orientation · target · aim</div>
       </div>
-      <div class="badge">Core module</div>
+      <div class="badge">MATRIX CONSOLE</div>
     </header>
 
-    <!-- Sensor session -->
-    <section class="card">
-      <div class="card-head">
-        <div class="card-title">Sensor Session</div>
-        <div class="pill" id="comboStatus">Idle</div>
-      </div>
-      <div class="label">Status</div>
-      <p class="status-text" id="statusText">
-        Ready. Tap “Start sensors” once and accept the browser prompts on your phone.
-      </p>
-      <div class="start-row">
-        <button id="startBtn">▶ Start sensors</button>
-        <span class="hint">Tap on your phone to enable sensors.</span>
-      </div>
-    </section>
-
-    <!-- GPS + Orientation -->
-    <section class="grid">
-      <!-- GPS -->
-      <article class="card">
+    <!-- MAIN COMPASS CONSOLE (PRIMARY FOCUS) -->
+    <section class="card compass-card">
+      <div class="card-inner">
         <div class="card-head">
-          <div class="card-title">Location (GPS)</div>
-          <div class="pill" id="gpsStatusPill">gps: idle</div>
+          <div class="card-title">Aiming Console</div>
+          <div class="pill" id="aimStatusPill">NO TARGET</div>
         </div>
-        <div class="row-data">
-          <div class="label">Latitude</div>
-          <div class="val val-lg" id="gpsLat">—</div>
-        </div>
-        <div class="row-data">
-          <div class="label">Longitude</div>
-          <div class="val val-lg" id="gpsLon">—</div>
-        </div>
-        <div class="row-data">
-          <div class="label">Elevation</div>
-          <div class="val val-lg" id="gpsAlt">—</div>
-        </div>
-        <div class="accent-box" id="gpsErrorBox" style="display:none">
-          <strong>GPS error:</strong> <span id="gpsError">—</span>
-        </div>
-      </article>
 
-      <!-- Orientation -->
-      <article class="card">
-        <div class="card-head">
-          <div class="card-title">Orientation</div>
-          <div class="pill" id="oriStatusPill">ori: idle</div>
-        </div>
-        <div class="row-data">
-          <div class="label">Heading (true)</div>
-          <div class="val val-lg" id="headingVal">—</div>
-        </div>
-        <div class="row-data">
-          <div class="label">Pitch</div>
-          <div class="val val-lg" id="pitchVal">—</div>
-        </div>
-        <div class="row-data" style="margin-top:4px">
-          <div class="label">Declination</div>
-          <div class="val">
-            <span class="decl-wrap">
-              <input id="declInput" class="decl-input" type="number" step="0.1" value="0" />
-              <span class="decl-unit">° (E=+, W=-)</span>
-            </span>
+        <div class="compass-shell">
+          <!-- Heading compass -->
+          <div class="compass-block compass-block-heading">
+            <div class="compass-label">&lt;HDG&gt; ASCII ROSE</div>
+            <canvas id="headingCompass" width="240" height="240"></canvas>
+          </div>
+
+          <!-- Pitch gauge (vertical bar) -->
+          <div class="compass-block compass-block-pitch">
+            <div class="compass-label">&lt;PCH&gt; VERTICAL BAR</div>
+            <canvas id="pitchCompass" width="80" height="240"></canvas>
           </div>
         </div>
-        <div class="start-row" style="margin-top:4px">
-          <button id="calibrateHeadingBtn" class="btn-secondary">Calibrate to target</button>
-          <span class="hint">Point phone at selected target, then tap.</span>
+
+        <div class="accent-box">
+          <span class="label">Hint</span><br />
+          <span class="hint-line">
+            Rotate until &lt;HDG&gt; arrow and &lt;PCH&gt; bar line up with the target marks.
+            When both glow bright, you are on target (±3°).
+          </span>
         </div>
-        <div class="accent-box" id="oriErrorBox" style="display:none">
-          <strong>Orientation error:</strong> <span id="oriError">—</span>
-        </div>
-        <div class="mini-row">
-          <span class="mini-pill" id="oriSupportPill">Checking support…</span>
-        </div>
-      </article>
+      </div>
     </section>
 
-    <!-- Target + Aim + Compass -->
+    <!-- TELEMETRY (SECONDARY FOCUS: TEXT DATA) -->
     <section class="card">
-      <div class="card-head">
-        <div class="card-title">Target & Aim</div>
-        <div class="pill" id="aimStatusPill">No target</div>
-      </div>
+      <div class="card-inner">
+        <div class="card-head">
+          <div class="card-title">Sensor Telemetry</div>
+          <div class="pill" id="comboStatus">gps: idle · ori: idle</div>
+        </div>
+        <p class="status-text" id="statusText">
+          Ready. Tap &lt;START SENSORS&gt; once and accept the browser prompts on your phone.
+        </p>
 
-      <div class="mini-row">
-        <span class="mini-pill" id="targetStatusPill">No target</span>
-      </div>
+        <div class="telemetry-grid">
+          <!-- GPS -->
+          <article>
+            <div class="row between" style="margin-bottom:4px;">
+              <span class="label">GPS</span>
+              <span class="pill" id="gpsStatusPill">gps: idle</span>
+            </div>
+            <div class="row-data">
+              <div class="label">Latitude</div>
+              <div class="val val-lg" id="gpsLat">—</div>
+            </div>
+            <div class="row-data">
+              <div class="label">Longitude</div>
+              <div class="val val-lg" id="gpsLon">—</div>
+            </div>
+            <div class="row-data">
+              <div class="label">Elevation</div>
+              <div class="val val-lg" id="gpsAlt">—</div>
+            </div>
+            <div id="gpsErrorBox" class="error-box" style="display:none">
+              <strong>GPS error:</strong> <span id="gpsError">—</span>
+            </div>
+          </article>
 
-      <div class="row-data" style="margin-top:4px">
-        <div class="label">Target lat</div>
-        <div class="val val-lg" id="targetLat">—</div>
-      </div>
-      <div class="row-data">
-        <div class="label">Target lon</div>
-        <div class="val val-lg" id="targetLon">—</div>
-      </div>
-      <div class="row-data">
-        <div class="label">Target elev</div>
-        <div class="val val-lg" id="targetElev">—</div>
-      </div>
+          <!-- Orientation + Declination -->
+          <article>
+            <div class="row between" style="margin-bottom:4px;">
+              <span class="label">Orientation</span>
+              <span class="pill" id="oriStatusPill">ori: idle</span>
+            </div>
+            <div class="row-data">
+              <div class="label">Heading (true)</div>
+              <div class="val val-lg" id="headingVal">—</div>
+            </div>
+            <div class="row-data">
+              <div class="label">Pitch</div>
+              <div class="val val-lg" id="pitchVal">—</div>
+            </div>
+            <div class="row-data" style="margin-top:4px">
+              <div class="label">Declination</div>
+              <div class="val">
+                <input id="declInput" class="decl-input" type="number" step="0.1" value="0" />
+                <span class="decl-unit">° (E=+, W=-)</span>
+              </div>
+            </div>
 
-      <div class="target-actions">
-        <button id="selectTargetBtn">🗺 Select Target</button>
-        <button id="openSaveTargetBtn" class="btn-secondary">💾 Save / new</button>
-        <span class="target-status" id="targetStatusText">
-          No target selected. Tap “Select Target” to choose a point on the map.
-        </span>
-      </div>
-
-      <!-- Save / edit target panel -->
-      <div id="saveTargetPanel" class="accent-box" style="display:none">
-        <div class="label" style="margin-bottom:4px">Save / edit target</div>
-        <div class="row-data">
-          <div class="label">Name</div>
-          <input id="saveTargetName" class="decl-input" type="text" />
-        </div>
-        <div class="row-data">
-          <div class="label">Lat</div>
-          <input id="saveTargetLat" class="decl-input" type="number" step="0.000001" />
-        </div>
-        <div class="row-data">
-          <div class="label">Lon</div>
-          <input id="saveTargetLon" class="decl-input" type="number" step="0.000001" />
-        </div>
-        <div class="row-data">
-          <div class="label">Elev (m)</div>
-          <input id="saveTargetElev" class="decl-input" type="number" step="0.1" />
-        </div>
-        <div class="start-row" style="margin-top:4px">
-          <button id="saveTargetConfirmBtn">Save</button>
-          <button id="saveTargetCancelBtn" class="btn-secondary">Cancel</button>
+            <div id="oriErrorBox" class="error-box" style="display:none">
+              <strong>Orientation error:</strong> <span id="oriError">—</span>
+            </div>
+            <div class="mini-row">
+              <span class="mini-pill" id="oriSupportPill">Checking support…</span>
+            </div>
+          </article>
         </div>
       </div>
+    </section>
 
-      <!-- Saved targets list -->
-      <div id="savedTargetsBox" class="accent-box" style="margin-top:6px;display:none">
-        <div class="label" style="margin-bottom:4px">Saved targets</div>
-        <div id="savedTargetsList" style="display:flex;flex-direction:column;gap:4px;"></div>
+    <!-- TARGET + NUMERIC AIM DATA -->
+    <section class="card">
+      <div class="card-inner">
+        <div class="card-head">
+          <div class="card-title">Target &amp; Numeric Aim Data</div>
+          <div class="pill" id="targetStatusPill">No target</div>
+        </div>
+
+        <div class="row-data" style="margin-top:2px">
+          <div class="label">Target lat</div>
+          <div class="val val-lg" id="targetLat">—</div>
+        </div>
+        <div class="row-data">
+          <div class="label">Target lon</div>
+          <div class="val val-lg" id="targetLon">—</div>
+        </div>
+        <div class="row-data">
+          <div class="label">Target elev</div>
+          <div class="val val-lg" id="targetElev">—</div>
+        </div>
+
+        <div class="target-status-text" id="targetStatusText">
+          No target selected. Use &lt;SELECT TARGET&gt; or load a saved point.
+        </div>
+
+        <div style="margin-top:6px">
+          <div class="row-data">
+            <div class="label">Req heading</div>
+            <div class="val val-lg" id="aimReqHeading">—</div>
+          </div>
+          <div class="row-data">
+            <div class="label">Req pitch</div>
+            <div class="val val-lg" id="aimReqPitch">—</div>
+          </div>
+          <div class="row-data">
+            <div class="label">Head error</div>
+            <div class="val val-lg" id="aimHeadingErr">—</div>
+          </div>
+          <div class="row-data">
+            <div class="label">Pitch error</div>
+            <div class="val val-lg" id="aimPitchErr">—</div>
+          </div>
+          <div class="row-data">
+            <div class="label">Horiz dist</div>
+            <div class="val val-lg" id="aimHorizDist">—</div>
+          </div>
+          <div class="row-data">
+            <div class="label">Vert delta</div>
+            <div class="val val-lg" id="aimVertDelta">—</div>
+          </div>
+        </div>
+
+        <!-- Save / edit current target -->
+        <div id="saveTargetPanel" class="save-panel" style="display:none">
+          <div class="label" style="margin-bottom:4px">Save / edit target</div>
+          <div class="row-data">
+            <div class="label">Name</div>
+            <input id="saveTargetName" class="input-small" type="text" />
+          </div>
+          <div class="row-data">
+            <div class="label">Lat</div>
+            <input id="saveTargetLat" class="input-small" type="number" step="0.000001" />
+          </div>
+          <div class="row-data">
+            <div class="label">Lon</div>
+            <input id="saveTargetLon" class="input-small" type="number" step="0.000001" />
+          </div>
+          <div class="row-data">
+            <div class="label">Elev (m)</div>
+            <input id="saveTargetElev" class="input-small" type="number" step="0.1" />
+          </div>
+          <div class="controls-row" style="margin-top:4px">
+            <button id="saveTargetConfirmBtn" class="tbtn">
+              <span class="cmd">&gt;&gt;</span><span class="lbl">SAVE</span>
+            </button>
+            <button id="saveTargetCancelBtn" class="tbtn">
+              <span class="cmd">X</span><span class="lbl">CANCEL</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Saved targets list -->
+        <div id="savedTargetsBox" class="saved-box" style="display:none">
+          <div class="label" style="margin-bottom:4px">Saved targets</div>
+          <div id="savedTargetsList"></div>
+        </div>
       </div>
+    </section>
 
-      <div style="margin-top:6px">
-        <div class="row-data">
-          <div class="label">Req heading</div>
-          <div class="val val-lg" id="aimReqHeading">—</div>
+    <!-- CONTROLS (ALL MAIN BUTTONS IN ONE PLACE) -->
+    <section class="card controls-card">
+      <div class="card-inner">
+        <div class="card-head">
+          <div class="card-title">Control Bus</div>
+          <div class="pill">tap a command below</div>
         </div>
-        <div class="row-data">
-          <div class="label">Req pitch</div>
-          <div class="val val-lg" id="aimReqPitch">—</div>
-        </div>
-        <div class="row-data">
-          <div class="label">Head error</div>
-          <div class="val val-lg" id="aimHeadingErr">—</div>
-        </div>
-        <div class="row-data">
-          <div class="label">Pitch error</div>
-          <div class="val val-lg" id="aimPitchErr">—</div>
-        </div>
-        <div class="row-data">
-          <div class="label">Horiz dist</div>
-          <div class="val val-lg" id="aimHorizDist">—</div>
-        </div>
-        <div class="row-data">
-          <div class="label">Vert delta</div>
-          <div class="val val-lg" id="aimVertDelta">—</div>
-        </div>
-      </div>
 
-      <div class="compass-row">
-        <div class="compass-block">
-          <div class="label">Heading guide</div>
-          <canvas id="headingCompass" width="150" height="150"></canvas>
+        <div class="controls-row">
+          <button id="startBtn" class="tbtn">
+            <span class="cmd">&gt;&gt;</span><span class="lbl">START SENSORS</span>
+          </button>
+          <button id="selectTargetBtn" class="tbtn">
+            <span class="cmd">@</span><span class="lbl">SELECT TARGET (MAP)</span>
+          </button>
         </div>
-        <div class="compass-block">
-          <div class="label">Pitch guide</div>
-          <canvas id="pitchCompass" width="150" height="150"></canvas>
-        </div>
-      </div>
 
-      <div class="accent-box">
-        When the arrow overlays the target line (within ±3°), the gauge turns green — you're on target.
+        <div class="controls-row">
+          <button id="openSaveTargetBtn" class="tbtn">
+            <span class="cmd">+</span><span class="lbl">SAVE / NEW TARGET</span>
+          </button>
+          <button id="calibrateHeadingBtn" class="tbtn">
+            <span class="cmd">*</span><span class="lbl">CALIBRATE TO TARGET</span>
+          </button>
+        </div>
       </div>
     </section>
   </div>
 
-  <!-- Floating map overlay -->
+  <!-- MAP OVERLAY -->
   <div id="mapOverlay" class="overlay-backdrop">
     <div class="overlay-panel">
       <div class="overlay-head">
-        <div class="overlay-title">Select target point</div>
-        <button id="cancelTargetBtn" class="btn-secondary">✕ Close</button>
+        <div class="overlay-title">SELECT TARGET POINT</div>
+        <button id="cancelTargetBtn" class="btn-mini">X CLOSE</button>
       </div>
       <div class="overlay-body">
         <div>Tap anywhere on the map to place a pin. Elevation is fetched automatically.</div>
@@ -429,7 +716,7 @@
       </div>
       <div class="overlay-foot">
         <span></span>
-        <button id="confirmTargetBtn">✔ Use this point</button>
+        <button id="confirmTargetBtn" class="btn-mini">&gt;&gt; USE THIS POINT</button>
       </div>
     </div>
   </div>
