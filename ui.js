@@ -1,5 +1,5 @@
 // ui.js
-// DOM wiring: sensors + target + aim + compass + calibration.
+// DOM wiring: sensors + target + aim + compass + calibration + saved targets.
 
 (function (w) {
   'use strict';
@@ -7,6 +7,10 @@
   const $ = id => document.getElementById(id);
 
   const target = { lat: null, lon: null, elevation: null };
+
+  const STORAGE_KEY = 'aptool_saved_targets_v1';
+  let savedTargets = [];
+  let editingId = null;
 
   const fmt = {
     ang: v => !isFinite(v) ? '—' : v.toFixed(1) + '°',
@@ -19,6 +23,193 @@
     if (!isFinite(mag) || !w.Declination || !w.Declination.magneticToTrue) return mag;
     const t = w.Declination.magneticToTrue(mag);
     return isFinite(t) ? t : mag;
+  }
+
+  // ---------- Saved targets persistence ----------
+
+  function loadSavedTargets() {
+    savedTargets = [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return;
+      savedTargets = arr
+        .filter(t => t && typeof t === 'object')
+        .map(t => {
+          const lat = parseFloat(t.lat);
+          const lon = parseFloat(t.lon);
+          const elevation = t.elevation === null || t.elevation === undefined
+            ? null
+            : parseFloat(t.elevation);
+          return {
+            id: String(t.id || (Date.now() + '_' + Math.random().toString(16).slice(2))),
+            name: (t.name && String(t.name)) || 'Target',
+            lat: isFinite(lat) ? lat : NaN,
+            lon: isFinite(lon) ? lon : NaN,
+            elevation: isFinite(elevation) ? elevation : null
+          };
+        })
+        .filter(t => isFinite(t.lat) && isFinite(t.lon));
+    } catch (_) {
+      savedTargets = [];
+    }
+  }
+
+  function persistSavedTargets() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedTargets));
+    } catch (_) {}
+  }
+
+  function updateSavedTargetsUI() {
+    const box = $('savedTargetsBox');
+    const list = $('savedTargetsList');
+    if (!box || !list) return;
+
+    if (!savedTargets.length) {
+      box.style.display = 'none';
+      list.innerHTML = '';
+      return;
+    }
+
+    box.style.display = 'block';
+    list.innerHTML = savedTargets.map(t => {
+      const lat = isFinite(t.lat) ? t.lat.toFixed(4) : '—';
+      const lon = isFinite(t.lon) ? t.lon.toFixed(4) : '—';
+      const elev = isFinite(t.elevation) ? (t.elevation.toFixed(0) + ' m') : '—';
+      const name = t.name || 'Target';
+      return (
+        `<div class="row-data" data-id="${t.id}">` +
+          `<div>` +
+            `<div class="label">${name}</div>` +
+            `<div class="hint">${lat}, ${lon} · ${elev}</div>` +
+          `</div>` +
+          `<div style="display:flex;gap:4px;">` +
+            `<button class="btn-mini" data-action="load" data-id="${t.id}">Load</button>` +
+            `<button class="btn-mini" data-action="edit" data-id="${t.id}">Edit</button>` +
+            `<button class="btn-mini" data-action="delete" data-id="${t.id}">✕</button>` +
+          `</div>` +
+        `</div>`
+      );
+    }).join('');
+  }
+
+  function openSavePanel(existing) {
+    const panel = $('saveTargetPanel');
+    if (!panel) return;
+
+    const nameInput = $('saveTargetName');
+    const latInput = $('saveTargetLat');
+    const lonInput = $('saveTargetLon');
+    const elevInput = $('saveTargetElev');
+
+    editingId = existing && existing.id ? existing.id : null;
+
+    const baseLat = existing && isFinite(existing.lat)
+      ? existing.lat
+      : (isFinite(target.lat) ? target.lat : null);
+    const baseLon = existing && isFinite(existing.lon)
+      ? existing.lon
+      : (isFinite(target.lon) ? target.lon : null);
+    const baseElev = (existing && isFinite(existing.elevation))
+      ? existing.elevation
+      : (isFinite(target.elevation) ? target.elevation : null);
+
+    nameInput.value =
+      (existing && existing.name)
+        ? existing.name
+        : (baseLat != null && baseLon != null ? 'Target ' + (savedTargets.length + 1) : '');
+
+    latInput.value = baseLat != null ? baseLat.toFixed(6) : '';
+    lonInput.value = baseLon != null ? baseLon.toFixed(6) : '';
+    elevInput.value = baseElev != null ? baseElev.toFixed(1) : '';
+
+    panel.style.display = 'block';
+  }
+
+  function closeSavePanel() {
+    const panel = $('saveTargetPanel');
+    if (!panel) return;
+    editingId = null;
+    panel.style.display = 'none';
+  }
+
+  function onSaveConfirm() {
+    const nameInput = $('saveTargetName');
+    const latInput = $('saveTargetLat');
+    const lonInput = $('saveTargetLon');
+    const elevInput = $('saveTargetElev');
+    if (!latInput || !lonInput || !nameInput) return;
+
+    const lat = parseFloat(latInput.value);
+    const lon = parseFloat(lonInput.value);
+    const elev = elevInput.value === '' ? null : parseFloat(elevInput.value);
+
+    if (!isFinite(lat) || !isFinite(lon)) {
+      // Invalid coordinates; skip save.
+      return;
+    }
+
+    const name = nameInput.value && nameInput.value.trim()
+      ? nameInput.value.trim()
+      : 'Target ' + (savedTargets.length + 1);
+
+    if (editingId) {
+      const idx = savedTargets.findIndex(t => t.id === editingId);
+      if (idx !== -1) {
+        savedTargets[idx].name = name;
+        savedTargets[idx].lat = lat;
+        savedTargets[idx].lon = lon;
+        savedTargets[idx].elevation = isFinite(elev) ? elev : null;
+      }
+    } else {
+      const id = String(Date.now()) + '_' + Math.random().toString(16).slice(2);
+      savedTargets.push({
+        id,
+        name,
+        lat,
+        lon,
+        elevation: isFinite(elev) ? elev : null
+      });
+    }
+
+    persistSavedTargets();
+    updateSavedTargetsUI();
+    closeSavePanel();
+
+    // Also update the current target to what was just saved.
+    target.lat = lat;
+    target.lon = lon;
+    target.elevation = isFinite(elev) ? elev : null;
+    updateTargetUI();
+    recomputeAim();
+  }
+
+  function handleSavedTargetsClick(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+    if (!id || !action) return;
+
+    const idx = savedTargets.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    const t = savedTargets[idx];
+
+    if (action === 'load') {
+      target.lat = t.lat;
+      target.lon = t.lon;
+      target.elevation = t.elevation != null ? t.elevation : null;
+      updateTargetUI();
+      recomputeAim();
+    } else if (action === 'edit') {
+      openSavePanel(t);
+    } else if (action === 'delete') {
+      savedTargets.splice(idx, 1);
+      persistSavedTargets();
+      updateSavedTargetsUI();
+    }
   }
 
   // ---------- Sensors UI ----------
@@ -224,6 +415,10 @@
       w.Declination.bindInput(declInput);
     }
 
+    // Saved targets
+    loadSavedTargets();
+    updateSavedTargetsUI();
+
     S.onUpdate(s => { updateSensorsUI(s); recomputeAim(); });
 
     const startBtn = $('startBtn');
@@ -246,6 +441,18 @@
 
     const calBtn = $('calibrateHeadingBtn');
     if (calBtn) calBtn.addEventListener('click', calibrateToTarget);
+
+    const openSaveBtn = $('openSaveTargetBtn');
+    if (openSaveBtn) openSaveBtn.addEventListener('click', () => openSavePanel(null));
+
+    const saveConfirmBtn = $('saveTargetConfirmBtn');
+    if (saveConfirmBtn) saveConfirmBtn.addEventListener('click', onSaveConfirm);
+
+    const saveCancelBtn = $('saveTargetCancelBtn');
+    if (saveCancelBtn) saveCancelBtn.addEventListener('click', closeSavePanel);
+
+    const savedList = $('savedTargetsList');
+    if (savedList) savedList.addEventListener('click', handleSavedTargetsClick);
 
     updateTargetUI();
     updateAimUI(null);
