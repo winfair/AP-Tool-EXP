@@ -229,15 +229,20 @@
       cursor:pointer;
     }
 
-    /* ERROR HIGHLIGHTING FOR ΔHDG / ΔPCH */
+/* ERROR HIGHLIGHTING FOR ΔHDG / ΔPCH */
     .val-err{
-      background:rgba(255,75,75,0.18);
-      color:var(--err);
-    }
+      background:#ff4b4b;      /* bright red block, like selection */
+      color:#000000;           /* black text on red */
+      padding:0 3px;           /* slight inset so the block is obvious */
+      border-radius:2px;
+}
     .val-ok{
-      background:transparent;
+      background:transparent;  /* no highlight when in tolerance */
       color:var(--ink);
-    }
+      padding:0;
+      border-radius:0;
+}
+
 
     /* OVERLAYS (MAP + SAVE/TARGET MENU) */
     .overlay-backdrop{
